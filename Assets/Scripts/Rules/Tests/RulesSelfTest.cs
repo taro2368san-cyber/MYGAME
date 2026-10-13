@@ -529,6 +529,7 @@ namespace Sugoroku.Rules
                     }
                     if (error != null) throw new Exception($"テスト失敗: CPUの命令 {c.GetType().Name} が受け付けられない：{error}");
                 }
+                foreach (var p in game.State.Players) { Add("年表の行", p.Journal.Count); Add("歩いたマス", p.StepsWalked); }
                 foreach (var p in game.State.Players)
                 {
                     var all = p.Party.Concat(p.Box).ToList();
@@ -545,6 +546,7 @@ namespace Sugoroku.Rules
             lines.Add($"所持金 {Per("所持金", players)}円　ファン {Per("ファン", players)}人　最終得点 {Per("最終得点", players)}p");
             lines.Add("バトル（1人あたり）：" + string.Join("　", stats.Where(kv => kv.Key.StartsWith("バトル:")).Select(kv => $"{kv.Key.Substring(4)} {kv.Value / players:0.#}回"))
                 + $"　／ 勝ち {Per("仕掛けた側の勝ち", players)}・負け {Per("仕掛けた側の負け", players)}・引き分け {Per("引き分け", players)}・にげた {Per("にげた", players)}");
+            lines.Add($"旅の記録（1人あたり）：年表 {Per("年表の行", players)}行　歩いたマス {Per("歩いたマス", players)}");
             lines.Add("技の追加効果（1人あたり）：" + string.Join("　", stats.Where(kv => kv.Key.StartsWith("状態異常:")).Select(kv => $"{kv.Key.Substring(5)} {kv.Value / players:0.#}回"))
                 + $"　能力ランクの変化 {Per("能力ランクの変化", players)}回　動けない {Per("動けない", players)}回　特性の発動 {Per("特性", players)}回");
             return lines;

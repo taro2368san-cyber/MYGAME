@@ -30,6 +30,8 @@ namespace Sugoroku.Rules
         public readonly HashSet<int> VisitedCenters = new HashSet<int>();   // 行ったことのあるポケモンセンター（アーマーガーチケット）
         public readonly HashSet<string> RocketUsed = new HashSet<string>();  // ロケット団拠点で「1人1回」の品を使った（行の id）
         public string Fossil = ""; public int FossilWeek;                    // 博物館に預けている化石と、預けた週（3.2.2）
+        public readonly List<JournalEntry> Journal = new List<JournalEntry>(); // 旅の年表（エンドロール、1.5）
+        public int StepsWalked, Battles;                                     // 旅の数字：歩いたマス、バトルの数
         public int BikeUses;                                                 // 自転車を使った回数（サイクリングの解放）
         public int LastMainWarp = -1;                                        // 最後に止まったメインマップのワープマス（あなぬけひもで戻る先）
 
@@ -44,6 +46,7 @@ namespace Sugoroku.Rules
 
     // プレイヤー単位の状態（1回休み、さいみん、のろい、へんそう など。10章）。自分のターンが来るたびに Weeks が1減る
     public sealed class PlayerAilment { public string Name; public int Weeks; }
+    public sealed class JournalEntry { public int Week; public string Place, Kind, Text; } // Kind: catch/badge/evolve/job/rocket/gym/rival/bond/catchup/draw
 
     // 移動中だけ使う状態
     public sealed class MoveState

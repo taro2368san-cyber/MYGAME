@@ -121,6 +121,7 @@ namespace Sugoroku.Rules
                 case DebugCommand d: DoDebug(d, events); break;
                 default: DoBattle(c, events); break;
             }
+            Record(events);
             return events;
         }
 
@@ -371,6 +372,7 @@ namespace Sugoroku.Rules
         bool StartWeek(List<GameEvent> events)
         {
             State.Week++;
+            foreach (var p in State.Players) foreach (var m in p.Party) m.PartyWeeks++; // 手持ちにいた週数
             if (State.Week > State.MaxWeeks)
             {
                 State.Phase = Phase.GameOver;

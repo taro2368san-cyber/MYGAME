@@ -145,10 +145,19 @@ public partial class GameRunner
         if (c != null) Ui.Line(col, $"キャラクター：{c.Name}", 26);
         var first = p.Party.Concat(p.Box).FirstOrDefault(m => m.MetHow == "最初のポケモン");
         if (first != null) Ui.Line(col, narrator.Line("endroll_first", "さいしょの パートナー") + $"：{first.Species}" + (first.MetSpecies != first.Species ? $"（出会ったときは {first.MetSpecies}）" : ""), 28);
+        // 旅の年表（週と場所つき）。多いときは はじめと終わりを見せる
+        if (p.Journal.Count > 0)
+        {
+            Ui.Line(col, narrator.Line("endroll_journey", "たびの きろく"), 30, new Color(1, 0.85f, 0.4f));
+            var lines = p.Journal.Count <= 10 ? p.Journal : p.Journal.Take(5).Concat(p.Journal.Skip(p.Journal.Count - 5)).ToList();
+            foreach (var j in lines) Ui.Line(col, $"　{j.Week}週目　{j.Place}　{j.Text}", 22);
+        }
         Ui.Line(col, "さいごの 手持ち", 30, new Color(1, 0.85f, 0.4f));
         foreach (var m in p.Party)
-            Ui.Line(col, $"　{m.Species} Lv{m.Level}　" + MetText(m), 26);
-        Ui.Line(col, $"図鑑 {p.Dex.Count}種類　捕まえた種類 {p.CaughtSpecies.Count}　バッジ {p.Badges}個　ファン {S.Owners.Count(o => o.Value == p.Id)}人", 26);
+            Ui.Line(col, $"　{m.Species} Lv{m.Level}" + (m.HeldItem != "" ? $"（{m.HeldItem}）" : "") + "　" + MetText(m), 24);
+        var longest = p.Party.Concat(p.Box).OrderByDescending(m => m.PartyWeeks).FirstOrDefault();
+        if (longest != null && longest.PartyWeeks > 0) Ui.Line(col, narrator.Line("endroll_longest", "いちばん長く いっしょだった ポケモン") + $"：{longest.Species}（{longest.PartyWeeks}週）", 24);
+        Ui.Line(col, $"歩いたマス {p.StepsWalked}　バトル {p.Battles}回　図鑑 {p.Dex.Count}種類　捕まえた種類 {p.CaughtSpecies.Count}　バッジ {p.Badges}個　ファン {S.Owners.Count(o => o.Value == p.Id)}人", 24);
         var row = Row(col);
         Ui.Button(row, index + 1 < players.Count ? "つぎの人へ" : "結果発表へ", () => ShowEndroll(index + 1), 300, 70);
         Ui.Button(row, "とばす", ShowResults, 200, 70);

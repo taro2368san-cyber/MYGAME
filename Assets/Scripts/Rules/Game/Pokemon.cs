@@ -14,6 +14,7 @@ namespace Sugoroku.Rules
         public Status Status;
         public int SleepRounds;                        // ねむりの残りラウンド（7.17）
         public string HeldItem = "";                   // もちもの（8.2）。ないときは ""
+        public int PartyWeeks;                         // 手持ちにいた週数（エンドロールの「一番長く手持ちにいた」、1.5）
         public int LeadTurns;                          // 先頭にしたターン数（進化条件「先頭にして○ターン」用）
         public double HpMult = 1;                      // 持ち主の職業によるHPの倍率（エリートトレーナー 1.2倍、9.1）
         public string MetHow, MetPlace, MetSpecies;    // 出会いの記録（1.5）
