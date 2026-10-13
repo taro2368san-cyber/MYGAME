@@ -16,7 +16,7 @@ namespace Sugoroku.Rules
             Command Pick(IEnumerable<Command> candidates) => candidates.FirstOrDefault(c => c != null && g.Validate(c) == null);
             switch (s.Phase)
             {
-                case Phase.Prepare: return Pick(Prepare(d, p).Append(new RollDice { Player = player }));
+                case Phase.Prepare: return Pick(Prepare(d, p).Concat(PrepareItems(g, d, board, p)).Append(new RollDice { Player = player }));
                 case Phase.Moving: return Pick(Move(g, d, board, p, r));
                 case Phase.Facility: return Pick(Facility(g, d, p).Append(new LeaveFacility { Player = player }).Append(new ChooseOption { Player = player, Index = 0 }));
                 case Phase.Battle: return Pick(Battle(g, d, p, r));
@@ -36,6 +36,33 @@ namespace Sugoroku.Rules
             // 先頭が倒れていたら、元気な子を先頭に
             int alive = p.Party.FindIndex(m => !m.Fainted);
             if (p.Party.Count > 1 && p.Party[0].Fainted && alive > 0) yield return new SwapParty { Player = p.Id, A = 0, B = alive };
+        }
+
+        // 準備フェーズの道具（回復のあと）。どれも1手番に1個まで。受け付けられないものは Pick が飛ばす
+        static IEnumerable<Command> PrepareItems(GameProcessor g, GameData d, BoardData board, PlayerState p)
+        {
+            var s = g.State;
+            bool Has(string item) => p.TrainerBag.Contains(item) || p.PokemonBag.Contains(item);
+            UseItem Use(string item, int target = 0) => new UseItem { Player = p.Id, Item = item, Target = target };
+            // のろわれていたら解く
+            if (p.Has("のろい") && Has("おふだ")) yield return Use("おふだ");
+            // 弱っていて、行ったことのあるセンターへ飛べるなら飛ぶ（いちばん近いところ）
+            if (p.Party.Any(m => Hurt(d, m)) && Has("アーマーガーチケット"))
+                foreach (int c in p.VisitedCenters.OrderBy(c => Movement.Distance(board, p.Square, c, p.Badges) is int n && n > 0 ? n : 999)) // 道で行けない所は後回し
+                    yield return Use("アーマーガーチケット", c);
+            // 妨害：同じエリアにいる人のうち、点数がいちばん高い人へ（8.3）
+            foreach (var o in s.Players.Where(o => o != p).OrderByDescending(g.Score))
+            {
+                if (Has("スリーパーのこいん")) yield return Use("スリーパーのこいん", o.Id);
+                if (Has("のろいのふだ")) yield return Use("のろいのふだ", o.Id);
+                if (Has("キャッチャ")) yield return Use("キャッチャ", o.Id);
+            }
+            // バトルサーチャー：ほかの人のファンを1人もらう（点数が高い人のファンから）
+            if (Has("バトルサーチャー"))
+                foreach (var fan in s.Owners.Where(o => o.Value != p.Id).OrderByDescending(o => g.Score(s.Players[o.Value])).Select(o => o.Key))
+                    yield return Use("バトルサーチャー", fan);
+            // 自転車：サイコロを増やす（なくならない）
+            foreach (var bike in new[] { "ロトム自転車", "マッハ自転車", "自転車" }) if (Has(bike)) yield return Use(bike);
         }
 
         static IEnumerable<Command> Move(GameProcessor g, GameData d, BoardData board, PlayerState p, Random r)
@@ -143,6 +170,11 @@ namespace Sugoroku.Rules
                         foreach (var t in g.RivalTargets(p.Party[i])) yield return new RivalEvolve { Player = p.Id, Slot = i, Target = t };
                     break;
                 case FacilityKind.RocketBase:
+                    for (int i = 0; i < f.Goods.Count; i++)
+                        if (d.RocketBases.FirstOrDefault(r => r.Id == f.Goods[i]) is RocketBaseRow r && r.Mode == "買う" && p.Money >= (r.Price ?? 0) + 3000)
+                            yield return new ChooseOption { Player = p.Id, Index = i };
+                    yield return new ChooseOption { Player = p.Id, Index = f.Options.Count - 1 }; // 立ち去る
+                    break;
                 case FacilityKind.Trade:
                 case FacilityKind.BagFull:
                 case FacilityKind.BoxFull:

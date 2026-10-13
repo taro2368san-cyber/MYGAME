@@ -524,6 +524,9 @@ namespace Sugoroku.Rules
                         if (e is StatusInflicted si) Add("状態異常:" + Pokemons.StatusName(si.Status), 1);
                         if (e is RankChanged) Add("能力ランクの変化", 1);
                         if (e is CantMove) Add("動けない", 1);
+                        if (e is ItemUsed) Add("道具", 1);
+                        if (e is AilmentAdded aa && aa.By != aa.Player) Add("妨害", 1);
+                        if (e is ItemLost il && il.To >= 0) Add("奪った", 1);
                         if (e is AbilityTriggered || e is AbilityHealed || e is StatusCured || (e is BattleWeatherChanged bw && bw.Ability != null)) Add("特性", 1);
                         if (e is RoundResolved rs && rs.Abilities.Count > 0) Add("特性", 1);
                     }
@@ -546,6 +549,7 @@ namespace Sugoroku.Rules
             lines.Add($"所持金 {Per("所持金", players)}円　ファン {Per("ファン", players)}人　最終得点 {Per("最終得点", players)}p");
             lines.Add("バトル（1人あたり）：" + string.Join("　", stats.Where(kv => kv.Key.StartsWith("バトル:")).Select(kv => $"{kv.Key.Substring(4)} {kv.Value / players:0.#}回"))
                 + $"　／ 勝ち {Per("仕掛けた側の勝ち", players)}・負け {Per("仕掛けた側の負け", players)}・引き分け {Per("引き分け", players)}・にげた {Per("にげた", players)}");
+            lines.Add($"道具（1人あたり）：使った {Per("道具", players)}回　妨害した {Per("妨害", players)}回　奪った {Per("奪った", players)}回");
             lines.Add($"旅の記録（1人あたり）：年表 {Per("年表の行", players)}行　歩いたマス {Per("歩いたマス", players)}");
             lines.Add("技の追加効果（1人あたり）：" + string.Join("　", stats.Where(kv => kv.Key.StartsWith("状態異常:")).Select(kv => $"{kv.Key.Substring(5)} {kv.Value / players:0.#}回"))
                 + $"　能力ランクの変化 {Per("能力ランクの変化", players)}回　動けない {Per("動けない", players)}回　特性の発動 {Per("特性", players)}回");
