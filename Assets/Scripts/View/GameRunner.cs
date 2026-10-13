@@ -64,6 +64,7 @@ public partial class GameRunner : MonoBehaviour
     void Start()
     {
         canvas = Ui.Canvas("GameUI");
+        sound = gameObject.AddComponent<Sound>();
         var problems = new List<string>();
         try
         {
@@ -82,7 +83,6 @@ public partial class GameRunner : MonoBehaviour
         }
         foreach (var sq in FindObjectsByType<SugorokuSquare>()) if (sq.id > 0) squares[sq.id] = sq;
         shortBattle = PlayerPrefs.GetInt("short_battle", 0) == 1;
-        AudioListener.volume = PlayerPrefs.GetFloat("volume", 1);
         ShowTitle();
     }
 
@@ -99,6 +99,7 @@ public partial class GameRunner : MonoBehaviour
     void ShowTitle()
     {
         var bg = FullScreen("Title");
+        sound.PlayBgm("title");
         Ui.Label(Ui.Rect(bg.transform, "Name", new Vector2(0, 0.6f), new Vector2(1, 0.85f)), gameTitle, 110, TextAnchor.MiddleCenter);
         var col = Ui.Stack(bg.transform, "Menu", new Vector2(0.38f, 0.12f), new Vector2(0.62f, 0.52f), true, 18, 0);
         Ui.Button(col, "はじめから", ShowSetup, 420, 76);
@@ -118,18 +119,22 @@ public partial class GameRunner : MonoBehaviour
             PlayerPrefs.SetInt("short_battle", shortBattle ? 1 : 0);
             ShowSettings();
         }, 600, 70);
-        var row = Row(col);
-        Ui.Line(row, $"音量 {Mathf.RoundToInt(AudioListener.volume * 10)}", 34);
-        Ui.Button(row, "−", () => SetVolume(-0.1f), 110);
-        Ui.Button(row, "＋", () => SetVolume(0.1f), 110);
+        VolumeRow(col, "マスター", () => Sound.Master, v => Sound.Master = v);
+        VolumeRow(col, "BGM", () => Sound.Bgm, v => Sound.Bgm = v);
+        VolumeRow(col, "効果音", () => Sound.Se, v => { Sound.Se = v; sound.PlaySe("item"); });
+        Ui.Button(col, "はじめての場面のヒント：" + (HintsOn ? "オン" : "オフ"), () => { HintsOn = !HintsOn; ShowSettings(); }, 600, 70);
+        Ui.Button(col, "ヒントを もう一度 出すようにする", () => { foreach (var k in new[] { "grass", "gym", "battle", "ball", "center", "shop", "fan", "jama" }) PlayerPrefs.DeleteKey("seen_hint_" + k); ShowSettings(); }, 600, 60);
         Ui.Button(col, "もどる", ShowTitle, 600, 70);
     }
 
-    void SetVolume(float delta)
+    // 音量の行（0〜10の11段階）
+    void VolumeRow(RectTransform col, string name, Func<float> get, Action<float> set)
     {
-        AudioListener.volume = Mathf.Clamp01(Mathf.Round((AudioListener.volume + delta) * 10) / 10);
-        PlayerPrefs.SetFloat("volume", AudioListener.volume);
-        ShowSettings();
+        var row = Row(col);
+        Ui.Line(row, $"{name} {Mathf.RoundToInt(get() * 10)}", 34);
+        void Change(float d) { set(Mathf.Clamp01(Mathf.Round((get() + d) * 10) / 10)); sound.ApplyVolume(); ShowSettings(); }
+        Ui.Button(row, "−", () => Change(-0.1f), 110);
+        Ui.Button(row, "＋", () => Change(0.1f), 110);
     }
 
     // ---- ゲーム設定（16.1 の5〜8をまとめた仮の画面）----
@@ -357,6 +362,7 @@ public partial class GameRunner : MonoBehaviour
             var e = queue.Dequeue();
             string text = narrator.Describe(e);
             if (text != null) AddLog(text);
+            EventSound(e);
             switch (e)
             {
                 case TurnStarted t: cameraTarget = pieces[t.Player]; break;
@@ -394,6 +400,7 @@ public partial class GameRunner : MonoBehaviour
             // バトル演出の短縮。絆による回避・進化・バッジは思い出の場面なので短くしない（17.6）
             bool keep = e is Evolved || e is BadgeEarned || (e is RoundResolved rr && rr.Bond);
             if (text != null) yield return Wait(shortBattle && battlePanel.gameObject.activeSelf && !keep ? messageSeconds / 2 : messageSeconds);
+            if (HintFor(e) is string hint) yield return ShowHint(hint);
         }
         playing = false;
         if (S.Phase == Phase.Prepare && S.Week != lastAutoSaveWeek) { lastAutoSaveWeek = S.Week; SaveTo(0); } // 週の終わりに自動セーブ（1.2）
@@ -411,6 +418,7 @@ public partial class GameRunner : MonoBehaviour
         for (int i = 1; i < path.Count; i++)
         {
             Vector3 from = pieces[player].position, to = PiecePosition(player, path[i]);
+            sound.PlaySe("step");
             float time = Input.GetKey(KeyCode.Space) ? stepSeconds / 4 : stepSeconds;
             for (float t = 0; t < time; t += Time.deltaTime)
             {

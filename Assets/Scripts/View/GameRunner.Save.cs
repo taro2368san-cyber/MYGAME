@@ -135,6 +135,7 @@ public partial class GameRunner
     // ponytail: ページを手で送る形。流れるエンドロール（1人1分、○で早送り）にするときは、ここを時間で進める
     void ShowEndroll(int index)
     {
+        sound.PlayBgm("endroll");
         var players = S.TurnOrder.Select(id => S.Players[id]).ToList();
         if (index >= players.Count) { ShowResults(); return; }
         var p = players[index];

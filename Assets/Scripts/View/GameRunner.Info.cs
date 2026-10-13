@@ -12,6 +12,7 @@ public partial class GameRunner
         Add("図鑑", () => ShowDex(p));
         Add("順位", ShowRanking);
         Add("イベントルール", ShowRule);
+        Add("あそびかた", () => ShowHelp(0));
         Add("もどる", () => { CloseOverlay(); subMenu = null; RefreshAll(); }, KeyCode.Escape);
         DrawMenu("その他");
     }
