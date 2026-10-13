@@ -118,7 +118,6 @@ namespace Sugoroku.Rules
     public sealed class ChooseOption : Command { public int Index; }                     // イベントの選択肢・捨てる物を選ぶ
     public sealed class ChangeJob : Command { public string Job; }                       // センターで職業を変える（9.2）
     public sealed class LabEvolve : Command { public int Slot; public string Target; }   // 研究室の進化サービス（3.2.1）
-    public sealed class RivalRematch : Command { }                                     // 自分のライバルマスで、もう一度ライバルと勝負する（持ち主は変わらない）
     public sealed class RivalTrade : Command { public string Species; }               // ライバルマスで他地方のポケモンと交換する（11.5）。渡す子はそのあと選ぶ
     public sealed class RivalEvolve : Command { public int Slot; public string Target; } // ライバルマスの交換進化（11.5）
     // デバッグ（17.1、F1）。開発用。GameProcessor.DebugEnabled のときだけ受け付ける

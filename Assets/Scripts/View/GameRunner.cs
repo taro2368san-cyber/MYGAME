@@ -660,8 +660,6 @@ public partial class GameRunner : MonoBehaviour
                         var c = new RivalEvolve { Player = me, Slot = i, Target = target };
                         Add($"交換進化：{p.Party[i].Species}→{target}", () => Send(c), KeyCode.None, Ok(c));
                     }
-                var rematch = new RivalRematch { Player = me };
-                if (Ok(rematch)) Add("もう一度 勝負する（経験値とお金だけ。持ち主は変わらない）", () => Send(rematch));
                 foreach (var (species, level, need) in game.RivalTrades(p, f.Square))
                 {
                     var c = new RivalTrade { Player = me, Species = species };

@@ -46,7 +46,6 @@ namespace Sugoroku.Rules
         public Defense? DefenseCmd;
         public int Winner = -1;                    // 報酬を選ぶ勝者（プレイヤー戦）
         public bool Surrendered;                   // 降参で終わった（ポケモン交換は選べない、7.3）
-        public bool Rematch;                       // 自分のライバルマスでの再戦（勝っても持ち主は変わらない）
         public bool CatchUp;                       // レベル追いつきが起きた（そのバトルの経験値はなし、7.8）
         public readonly List<(PokemonState thief, PokemonState victim, string item)> Stolen = new List<(PokemonState, PokemonState, string)>(); // わるいてぐせ
         public readonly List<int> DefeatedLevels = new List<int>(); // 仕掛けた側が倒した相手のレベル（経験値用）

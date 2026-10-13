@@ -333,21 +333,20 @@ namespace Sugoroku.Rules
         bool LandRival(BoardSquare sq, List<GameEvent> events)
         {
             if (State.Owners.TryGetValue(sq.Id, out int owner)) return OpenRival(Current, sq, owner, true, events);
-            return RivalBattle(sq, false, events);
+            return RivalBattle(sq, events);
         }
 
-        // ライバルとフルバトル。セリフは ライバル文言.csv の「ライバルid」（再戦は「_rematch」）、勝ち負けは「_win」「_lose」
-        bool RivalBattle(BoardSquare sq, bool rematch, List<GameEvent> events)
+        // ライバルとフルバトル。セリフは ライバル文言.csv の「ライバルid」、勝ち負けは「_win」「_lose」
+        bool RivalBattle(BoardSquare sq, List<GameEvent> events)
         {
             var p = Current;
             var rival = RivalOf(sq);
             // 手持ちは ライバル_手持ち.csv：条件（御三家を選んだ人がいる など）に合う行のうち、優先の小さいもの
             var party = rival == null ? null : data.RivalParties.Where(x => x.RivalId == rival.Id && x.Party.Count > 0 && Conditions.Met(x.CondKind, x.CondValue, p, State)).OrderBy(x => x.Priority).FirstOrDefault();
             if (party == null) return Nothing("ライバルはいなかった", events);
-            Say(rival.Id + (rematch ? "_rematch" : ""), events, p);
+            Say(rival.Id, events, p);
             StartBattle(BattleKind.Rival, true, Npc(rival.Name, party.Party), events);
             B.DialogKey = rival.Id;
-            B.Rematch = rematch;
             return true;
         }
 
@@ -360,8 +359,7 @@ namespace Sugoroku.Rules
             var rival = RivalOf(sq);
             if (greet && rival != null) Say(rival.Id + (owner == p.Id ? "_owner" : "_other"), events, p, ("所有者", owner >= 0 && owner < State.Players.Count ? State.Players[owner].Name : "だれか"));
             bool canEvolve = p.Party.Any(m => RivalTargets(m).Any());
-            // 持ち主は再戦できるので、いつでも開く。ほかの人は、することがなければ開かない
-            if (owner != p.Id && !canEvolve && RivalTrades(p, sq.Id).Count == 0) return false;
+            if (!canEvolve && RivalTrades(p, sq.Id).Count == 0) return false; // することがなければ開かない
             return OpenFacility(new FacilityState { Kind = FacilityKind.Rival, Player = p.Id, Square = sq.Id, Owner = owner }, events);
         }
 
@@ -457,9 +455,6 @@ namespace Sugoroku.Rules
                     var trade = RivalTrades(p, f.Square).FirstOrDefault(x => x.species == rt.Species);
                     return trade.species == null ? "その子とは 交換できません（もう交換した か、表にない）" : null; // ケーブルや渡す子がないときは、選んだあとにセリフで知らせる
                 }
-                case RivalRematch _:
-                    if (f.Kind != FacilityKind.Rival || f.Owner != p.Id) return "再戦できるのは そのライバルマスの持ち主だけです";
-                    return p.Party.Any(m => !m.Fainted) ? null : "戦える ポケモンが いません";
                 case RivalEvolve rv:
                     if (f.Kind != FacilityKind.Rival) return "交換進化はライバルマスだけです";
                     if (rv.Slot < 0 || rv.Slot >= p.Party.Count || !RivalTargets(p.Party[rv.Slot]).Contains(rv.Target)) return "その子は ここでは進化しません";
@@ -510,10 +505,6 @@ namespace Sugoroku.Rules
                     break;
                 case ChangeJob j:
                     SetJob(p, j.Job, events);
-                    return;
-                case RivalRematch _:
-                    State.Facility = null;
-                    if (!RivalBattle(board[f.Square], true, events)) EndTurn(events);
                     return;
                 case RivalTrade rt:
                 {

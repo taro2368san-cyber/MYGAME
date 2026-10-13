@@ -636,7 +636,8 @@ namespace Sugoroku.Rules
             if (b.Kind == BattleKind.Rival)
             {
                 Say(b.DialogKey + "_win", events, p);
-                if (!b.Rematch) { SetOwner(b.Square, p.Id, events); Say("rival_become_owner", events, p); } // 再戦では持ち主は変わらない
+                SetOwner(b.Square, p.Id, events);
+                Say("rival_become_owner", events, p);
             }
             if (b.Kind == BattleKind.Rocket) RocketCleared(p, events);
             if (b.Kind == BattleKind.Event) EventBattleWon(p, events);
