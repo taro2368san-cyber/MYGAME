@@ -10,9 +10,11 @@ public partial class GameRunner
         var p = S.CurrentPlayer;
         for (int i = 0; i < p.Party.Count; i++) { int k = i; Add($"くわしく：{p.Party[i].Species}", () => ShowPokemon(p, k)); }
         Add("図鑑", () => ShowDex(p));
+        Add("職業", () => ShowJobs(p));
         Add("順位", ShowRanking);
         Add("イベントルール", ShowRule);
         Add("あそびかた", () => ShowHelp(0));
+        Add("設定", ShowGameSettings);
         Add("もどる", () => { CloseOverlay(); subMenu = null; RefreshAll(); }, KeyCode.Escape);
         DrawMenu("その他");
     }
@@ -54,7 +56,31 @@ public partial class GameRunner
         Ui.Line(col, "順位（順位用ポイント：お金とファンも含めた いまの豊かさ、12章）", 40);
         int rank = 0;
         foreach (var p in S.Players.OrderByDescending(game.Score))
-            Ui.Line(col, $"{++rank}位　{p.Name}　{game.Score(p):0.#}p　バッジ{p.Badges}　{p.Money:#,0}円　ファン{S.Owners.Count(o => o.Value == p.Id)}人　{board[p.Square].Place}" + (p.LastPlaceWeeks > 0 && rank == S.Players.Count ? $"（最下位 {p.LastPlaceWeeks}週）" : ""), 28, PlayerColor(p));
+            Ui.Line(col, $"{++rank}位　{p.Name}　{game.Score(p):0.#}p　バッジ{p.Badges}　{p.Money:#,0}円　ファン{S.Owners.Count(o => o.Value == p.Id && board[o.Key].Type == "トレーナー")}人　所有マス{S.Owners.Count(o => o.Value == p.Id)}　{board[p.Square].Place}" + (board[p.Square].MapId != "" ? "（中）" : "") + (p.LastPlaceWeeks > 0 && rank == S.Players.Count ? $"（最下位 {p.LastPlaceWeeks}週）" : ""), 28, PlayerColor(p));
+        Ui.Button(Row(col), "閉じる", CloseOverlay, 200, 64);
+    }
+
+    // 職業（16.6 #45）：今の職業、解放済みの一覧と効果
+    void ShowJobs(PlayerState p)
+    {
+        var col = Overlay("Jobs");
+        Ui.Line(col, $"{p.Name}の 職業：" + (p.Job == "" ? "なし" : p.Job), 44, PlayerColor(p));
+        if (p.UnlockedJobs.Count == 0) Ui.Line(col, "まだ 解放した職業は ありません。職業はポケモンセンターで 就いたり 変えたりできます", 26);
+        foreach (var name in p.UnlockedJobs)
+            Ui.Line(col, $"{(name == p.Job ? "★" : "　")}{name}：{data.Jobs.FirstOrDefault(j => j.Name == name)?.Effect}", 26);
+        Ui.Button(Row(col), "閉じる", CloseOverlay, 200, 64);
+    }
+
+    // ゲーム中の設定（16.6 #40a）：タイトルの設定と同じ（音量、バトル演出、ヒント）
+    void ShowGameSettings()
+    {
+        var col = Overlay("GameSettings");
+        Ui.Line(col, "設定", 48);
+        Ui.Button(col, "バトル演出を短くする：" + (shortBattle ? "オン" : "オフ"), () => { shortBattle = !shortBattle; PlayerPrefs.SetInt("short_battle", shortBattle ? 1 : 0); ShowGameSettings(); }, 600, 64);
+        VolumeRow(col, "マスター", () => Sound.Master, v => Sound.Master = v, ShowGameSettings);
+        VolumeRow(col, "BGM", () => Sound.Bgm, v => Sound.Bgm = v, ShowGameSettings);
+        VolumeRow(col, "効果音", () => Sound.Se, v => { Sound.Se = v; sound.PlaySe("item"); }, ShowGameSettings);
+        Ui.Button(col, "はじめての場面のヒント：" + (HintsOn ? "オン" : "オフ"), () => { HintsOn = !HintsOn; ShowGameSettings(); }, 600, 64);
         Ui.Button(Row(col), "閉じる", CloseOverlay, 200, 64);
     }
 

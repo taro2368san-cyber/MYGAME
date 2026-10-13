@@ -42,6 +42,7 @@ public partial class GameRunner
     {
         var p = S.CurrentPlayer;
         var sq = board[id];
+        if (sq.MapId != board[p.Square].MapId) return "別のマップ（建物や洞窟の中など）は ここからは 見えない";
         string text = $"{sq.Place}の {sq.Type}";
         if (S.Owners.TryGetValue(id, out int owner)) text += $"　{S.Players[owner].Name}の" + (sq.Type == "ライバル" ? "ライバルマス" : "ファン");
         if (!Movement.CanEnter(board, id, p.Badges)) return text + $"　まだ入れない（バッジ{sq.RequiredBadges}個で解放）";

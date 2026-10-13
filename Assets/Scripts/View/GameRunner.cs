@@ -128,11 +128,11 @@ public partial class GameRunner : MonoBehaviour
     }
 
     // 音量の行（0〜10の11段階）
-    void VolumeRow(RectTransform col, string name, Func<float> get, Action<float> set)
+    void VolumeRow(RectTransform col, string name, Func<float> get, Action<float> set, Action redraw = null)
     {
         var row = Row(col);
         Ui.Line(row, $"{name} {Mathf.RoundToInt(get() * 10)}", 34);
-        void Change(float d) { set(Mathf.Clamp01(Mathf.Round((get() + d) * 10) / 10)); sound.ApplyVolume(); ShowSettings(); }
+        void Change(float d) { set(Mathf.Clamp01(Mathf.Round((get() + d) * 10) / 10)); sound.ApplyVolume(); (redraw ?? ShowSettings)(); }
         Ui.Button(row, "−", () => Change(-0.1f), 110);
         Ui.Button(row, "＋", () => Change(0.1f), 110);
     }
@@ -625,7 +625,7 @@ public partial class GameRunner : MonoBehaviour
             else Add(name, () => Send(new UseItem { Player = me, Item = name }), KeyCode.None, Ok(new UseItem { Player = me, Item = name }));
         }
         Add("もどる", () => { subMenu = null; RefreshAll(); }, KeyCode.Escape);
-        DrawMenu("どの道具を使う？");
+        DrawMenu("どの道具を使う？　ボール：" + (p.Balls.Count(b => b.Value > 0) == 0 ? "なし" : string.Join("　", p.Balls.Where(b => b.Value > 0).Select(b => $"{b.Key}×{b.Value}"))));
     }
 
     // 道具を使う相手の候補（ポケモン・プレイヤー・マス・数）と、ボタンの文字
