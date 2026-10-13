@@ -12,7 +12,8 @@ namespace Sugoroku.Rules
         public string Name, Type, Place, Area;
         public string ShopId = "";          // ショップマスのとき、ショップ.csv の id（空なら場所で探す）
         public string MapId = "";
-        public bool Sea;                    // 草むらマスの中の「海上」（出現表は「水上」、となりで つり。4.1.2）           // メインマップ以外の板（洞窟・建物・島）の id。メインマップは ""
+        public string GrassKind = "";       // 草むらマスの中の種類：草むら／海上／洞窟
+        public bool Sea => GrassKind == "海上"; // 海上（出現表は「水上」、となりで つり。4.1.2）           // メインマップ以外の板（洞窟・建物・島）の id。メインマップは ""
         public int WarpId;
         public float X, Z;               // 表示用の座標（ルールでは使わない）
         public int RequiredBadges;       // この場所に入るのに必要なバッジの数
@@ -40,7 +41,7 @@ namespace Sugoroku.Rules
                 var s = new BoardSquare
                 {
                     Id = int.Parse(sq.Get(r, "ID")), Name = sq.Get(r, "名前"), Type = sq.Get(r, "種類"), Place = sq.Get(r, "場所"),
-                    WarpId = int.TryParse(sq.Get(r, "ワープ番号"), out int w) ? w : 0, ShopId = sq.Get(r, "ショップ"), MapId = sq.Get(r, "マップID"), Sea = sq.Get(r, "種類") == "草むら" && sq.Get(r, "草むらの種類") == "海上",
+                    WarpId = int.TryParse(sq.Get(r, "ワープ番号"), out int w) ? w : 0, ShopId = sq.Get(r, "ショップ"), MapId = sq.Get(r, "マップID"), GrassKind = sq.Get(r, "種類") == "草むら" ? sq.Get(r, "草むらの種類") : "",
                     X = float.Parse(sq.Get(r, "X"), CultureInfo.InvariantCulture), Z = float.Parse(sq.Get(r, "Z"), CultureInfo.InvariantCulture),
                 };
                 if (place == null) problems.Add($"[エラー] 盤面: マス「{s.Name}」の場所「{s.Place}」が xlsx のエリアシートにありません");

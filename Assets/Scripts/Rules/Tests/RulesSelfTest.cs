@@ -340,8 +340,8 @@ namespace Sugoroku.Rules
                 // 海上マスとつり（4.1.2）：スタートのとなりを一時的に「海上の草むら」にして試す
                 int seaId = board[board.StartSquare].Neighbors[0];
                 var sea = board[seaId];
-                var keep = (sea.Type, sea.Sea);
-                sea.Type = "草むら"; sea.Sea = true;
+                var keep = (sea.Type, sea.GrassKind);
+                sea.Type = "草むら"; sea.GrassKind = "海上";
                 var g = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
                 g.State.Players[0].FixedDice = 1;
                 var reach = Apply(g, new RollDice()).OfType<DiceRolled>().First().Reachable;
@@ -351,7 +351,7 @@ namespace Sugoroku.Rules
                 var (_, sev) = LandEvents(sea, "ヒトカゲ");
                 var wild = sev.OfType<BattleStarted>().FirstOrDefault(b => b.Kind == BattleKind.Wild);
                 bool waterTable = wild == null || data.Encounters.Any(e => e.Place == sea.Place && e.Method == "水上" && wild.Opponent == "野生の" + e.Pokemon);
-                (sea.Type, sea.Sea) = keep;
+                (sea.Type, sea.GrassKind) = keep;
                 var g4 = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
                 bool noFishOnLand = g4.Validate(new Fish { Player = 0 }) != null;
                 Check(log, "海上マス：だれでも行き先に選べる、止まると水上の野生、となりでは つりができる", reach.Contains(seaId) && fished && waterTable && noFishOnLand);

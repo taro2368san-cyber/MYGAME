@@ -11,8 +11,9 @@ public enum SquareType
     ワープ,
 }
 
-// 草むらマスの中の種類（仕様書4.1.2）。海上は海や川の上の草むら：出現表は「水上」、となりで つりができる
-public enum GrassKind { 草むら, 海上 }
+// 草むらマスの中の種類。海上（4.1.2）は海や川の上：出現表は「水上」、となりで つりができる。洞窟（3.4）は草むらと同じ動き（出るポケモンは場所の出現表）
+// ※ 数字で保存されるので、新しい種類はいちばん最後に足す
+public enum GrassKind { 草むら, 海上, 洞窟 }
 
 // すごろくのマス。マスどうしは道（SugorokuRoad）でつながる。
 public class SugorokuSquare : MonoBehaviour
@@ -29,7 +30,7 @@ public class SugorokuSquare : MonoBehaviour
     [Tooltip("ショップマスのとき、設計メモ/ショップ.csv の id（例：shop_nibi）。空ならマスのある場所のショップを使う")]
     public string shopId = "";
 
-    [Tooltip("草むらマスのとき：草むら／海上（海や川の上。出現表の「水上」から出て、となりのマスで つりができる）")]
+    [Tooltip("草むらマスのとき：草むら／海上（海や川の上。出現表の「水上」から出て、となりのマスで つりができる）／洞窟（草むらと同じ。見た目の区別）")]
     public GrassKind grassKind;
 
     // このマスが属する場所（真下にある板の場所。板の上になければ null）
@@ -59,7 +60,7 @@ public class SugorokuSquare : MonoBehaviour
             SquareType.鍵付きモンスターボール => "鍵付き\nモンスター\nボール",
             SquareType.ポイント交換NPC => "ポイント\n交換NPC",
             SquareType.ワープ when warpId > 0 => $"ワープ\n{warpId}",
-            SquareType.草むら when grassKind == GrassKind.海上 => "海上",
+            SquareType.草むら when grassKind != GrassKind.草むら => grassKind.ToString(),
             _ => type.ToString(),
         };
         int longest = label.text.Split('\n').Max(line => line.Length);
