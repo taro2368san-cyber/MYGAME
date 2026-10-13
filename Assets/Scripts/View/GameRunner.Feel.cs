@@ -107,6 +107,7 @@ public partial class GameRunner
     {
         if (!notices.TryGetValue(player, out var list) || list.Count == 0) yield break;
         notices.Remove(player);
+        if (S.Players[player].IsCpu) yield break; // CPU には見せる人がいない
         var p = S.Players[player];
         yield return Banner($"{p.Name}さんへ：ほかの人の番に あったこと\n" + string.Join("\n", list.Take(4)) + (list.Count > 4 ? $"\nほか {list.Count - 4}件" : ""), PlayerColor(p), 3);
     }
