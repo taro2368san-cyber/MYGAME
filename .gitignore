@@ -1,0 +1,40 @@
+# Unity が作り直すもの
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+sysinfo.txt
+crashlytics-build.properties
+
+# エディタが作るもの
+*.csproj
+*.sln
+*.slnx
+*.unityproj
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.tmp
+.vs/
+.idea/
+.consulo/
+
+# 作業用（鍵が入っているので入れない）
+.mcp.json
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+~$*.xlsx

@@ -1,0 +1,12 @@
+﻿id,名前,場所,基本の品ぞろえ,状態,備考
+shop_common,どこでも,,,仮,すべてのショップに並ぶ基本の品ぞろえ
+shop_tokiwa,トキワのショップ,トキワシティ,shop_common,仮,
+shop_nibi,ニビのショップ,ニビシティ,shop_common,仮,
+shop_hanada,ハナダのショップ,ハナダシティ,shop_common,仮,
+shop_shion,シオンのショップ,シオンタウン,shop_common,仮,のろいを解くおふだを売っている
+shop_kuchiba,クチバのショップ,クチバシティ,shop_common,仮,港町。移動と妨害の道具が多い
+shop_dept,タマムシデパート,タマムシシティ,shop_common,仮,いちばん品数が多い。進化のいしと、もちものを売る
+shop_yamabuki,ヤマブキのショップ,ヤマブキシティ,shop_common,仮,妨害の道具がそろう
+shop_sekichiku,セキチクのショップ,セキチクシティ,shop_common,仮,
+shop_guren,グレンのショップ,グレンタウン,shop_common,仮,バトル向けのもちもの
+shop_sekiei,セキエイ高原のショップ,セキエイ高原,shop_common,仮,最後の準備。強いもちものを売る
