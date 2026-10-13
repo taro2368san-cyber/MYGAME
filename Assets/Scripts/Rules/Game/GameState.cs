@@ -102,6 +102,7 @@ namespace Sugoroku.Rules
     // 準備フェーズ
     public sealed class UseItem : Command { public string Item; public int Target; }   // Target: 手持ちの番号・プレイヤー・マス・数（ItemEffects.TargetOf）
     public sealed class SwapParty : Command { public int A, B; }
+    public sealed class Fish : Command { }                                            // つり（海上マスのとなりで、移動の代わりに、4.1.2）
     public sealed class RollDice : Command { }
     // 移動
     public sealed class ChooseDestination : Command { public int Square; }  // ハイライト方式：行き先を選ぶ（確定前なら選び直せる）
@@ -137,6 +138,7 @@ namespace Sugoroku.Rules
     public sealed class AilmentAdded : GameEvent { public int Player, Weeks, By; public string Name; }
     public sealed class AilmentCured : GameEvent { public int Player; public string Name; }
     public sealed class ItemBlocked : GameEvent { public int Player; public string Item, Attack; } // みがわりにんぎょう・かごのみで防いだ
+    public sealed class Fished : GameEvent { public int Player; }
     public sealed class SnorlaxPlaced : GameEvent { public int Player, Square, Weeks; }
     public sealed class SnorlaxRemoved : GameEvent { public int Square, Player; } // Player は ふえを吹いた人（週がたって去ったときは -1）
     public sealed class TrapSet : GameEvent { public int Player, Square; }

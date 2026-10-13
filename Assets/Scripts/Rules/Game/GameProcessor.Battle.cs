@@ -12,9 +12,10 @@ namespace Sugoroku.Rules
 
         // ---- 始める ----
 
-        bool StartWild(BoardSquare sq, List<GameEvent> events)
+        bool StartWild(BoardSquare sq, List<GameEvent> events, string method = "草むら")
         {
-            var row = Pick(data.Encounters.Where(e => e.Place == sq.Place && e.Method == "草むら").ToList(), e => e.Rate ?? 0);
+            if (sq == null) return false;
+            var row = Pick(data.Encounters.Where(e => e.Place == sq.Place && e.Method == method).ToList(), e => e.Rate ?? 0);
             if (row == null) return false;
             int level = Roll(row.MinLevel, row.MaxLevel);
             if (Current.Has("アマいおこう")) level = Math.Min(level + TuneInt("sweet_scent_level"), TuneInt("level_max")); // 少し高いレベルで出る

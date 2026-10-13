@@ -115,6 +115,7 @@ namespace Sugoroku.Rules
                     events.Add(new PartySwapped { Player = Current.Id });
                     break;
                 case RollDice _: DoRoll(events); break;
+                case Fish _: DoFish(events); break;
                 case ChooseDestination _: case StepTo _: case StepBack _: case ConfirmMove _: DoMove(c, events); break;
                 case Buy _: case Sell _: case CenterSwap _: case HoldItem _: case AcceptHeal _: case LeaveFacility _: case ChooseOption _: case ChangeJob _: case LabEvolve _: case RivalEvolve _: case RivalTrade _: DoFacility(c, events); break;
                 case DebugCommand d: DoDebug(d, events); break;
@@ -134,6 +135,7 @@ namespace Sugoroku.Rules
                 case SwapParty s:
                     return MyTurn(c, Phase.Prepare) ?? (s.A != s.B && s.A >= 0 && s.B >= 0 && s.A < Current.Party.Count && s.B < Current.Party.Count ? null : "入れ替える番号がおかしいです");
                 case RollDice _: return MyTurn(c, Phase.Prepare);
+                case Fish _: return MyTurn(c, Phase.Prepare) ?? CheckFish(Current);
                 case ChooseDestination _: case StepTo _: case StepBack _: case ConfirmMove _: return MyTurn(c, Phase.Moving) ?? CheckMove(c);
                 case Buy _: case Sell _: case CenterSwap _: case HoldItem _: case AcceptHeal _: case LeaveFacility _: case ChooseOption _: case ChangeJob _: case LabEvolve _: case RivalEvolve _: case RivalTrade _:
                     if (State.Phase != Phase.Facility) return $"今はできません（{PhaseName(State.Phase)}）";
@@ -247,7 +249,7 @@ namespace Sugoroku.Rules
             var move = State.Move = new MoveState { Dice = steps, Extra = JobExtraSteps(player) };
             move.Path.Add(player.Square);
             // サイクリングは 目〜目＋Extra 歩のどこで止まってもよい
-            HashSet<int> Reach(bool reverse) { var r = new HashSet<int>(); for (int k = 0; k <= move.Extra; k++) r.UnionWith(Movement.Reachable(board, player.Square, steps + k, player.Badges, reverse, State.Blocked.Keys)); return r; }
+            HashSet<int> Reach(bool reverse) { var r = new HashSet<int>(); for (int k = 0; k <= move.Extra; k++) r.UnionWith(Movement.Reachable(board, player.Square, steps + k, player.Badges, reverse, BlockedFor(player))); return r; }
             move.Reachable = Reach(false);
             if (move.Reachable.Count == 0)
             {
@@ -277,7 +279,8 @@ namespace Sugoroku.Rules
                     if (!board[cur].Neighbors.Contains(step.Square)) return "となりのマスではありません";
                     if (!Movement.CanEnter(board, step.Square, player.Badges)) return "まだ入れないエリアです";
                     if (State.Blocked.ContainsKey(step.Square)) return "カビゴンが ねていて 通れない";
-                    return Movement.CanFinish(board, cur, step.Square, left - 1, player.Badges, move.AllowReverse, move.Reachable, State.Blocked.Keys, move.Extra) ? null : "その道では、ちょうど止まれるマスがありません";
+                    if (board[step.Square].Type == "海上" && !CanSurf(player)) return "なみのりが ないと 海には 入れない";
+                    return Movement.CanFinish(board, cur, step.Square, left - 1, player.Badges, move.AllowReverse, move.Reachable, BlockedFor(player), move.Extra) ? null : "その道では、ちょうど止まれるマスがありません";
                 case StepBack _:
                     if (player.MoveMode != MoveMode.Step) return "ハイライト方式では1歩戻しはありません";
                     return move.Path.Count > 1 ? null : "出発したマスより前には戻れません";
@@ -295,7 +298,7 @@ namespace Sugoroku.Rules
             {
                 case ChooseDestination choose:
                     for (int k = 0; k <= move.Extra; k++) // 少ない歩数で行けるなら、その道
-                        if (Movement.FindPath(board, move.Path[0], move.Dice + k, player.Badges, move.AllowReverse, choose.Square, State.Blocked.Keys) is List<int> path) { move.Path = path; break; }
+                        if (Movement.FindPath(board, move.Path[0], move.Dice + k, player.Badges, move.AllowReverse, choose.Square, BlockedFor(player)) is List<int> path) { move.Path = path; break; }
                     break;
                 case StepTo step:
                     if (IsUndoStep(step.Square)) move.Path.RemoveAt(move.Path.Count - 1);

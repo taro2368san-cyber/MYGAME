@@ -58,6 +58,10 @@ namespace Sugoroku.Rules
         {
             var all = board.Squares.Values.ToList();
             var names = new HashSet<string>(all.Select(s => s.Name));
+            foreach (var g in all.Where(s => s.Type == "海上" && !data.Encounters.Any(e => e.Place == s.Place && e.Method == "水上")).GroupBy(s => s.Place))
+                problems.Add($"[警告] 盤面: {g.Key}の海上{g.Count()}マスは、出現シートに{g.Key}の水上がないので野生が出ません");
+            if (all.Any(s => s.Type == "海上") && data.FindItem(GameProcessor.SurfItem) == null)
+                problems.Add($"[警告] 盤面に海上マスがありますが、アイテム一覧に「{GameProcessor.SurfItem}」がないので、だれも海に入れません");
             foreach (var g in all.Where(s => s.Type == "草むら" && !data.Encounters.Any(e => e.Place == s.Place && e.Method == "草むら")).GroupBy(s => s.Place))
                 problems.Add($"[警告] 盤面: {g.Key}の草むら{g.Count()}マスは、出現シートに{g.Key}の草むらがないので野生が出ません");
             foreach (var s in all.Where(s => s.Type == "ショップ"))

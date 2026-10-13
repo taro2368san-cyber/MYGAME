@@ -555,6 +555,7 @@ public partial class GameRunner : MonoBehaviour
                 Add("移動", () => { subMenu = () => DiceMenu(me); RefreshAll(); }, KeyCode.Return);
                 Add("どうぐ", () => { subMenu = () => ItemMenu(me); RefreshAll(); }, KeyCode.None, !p.UsedItem && p.PokemonBag.Concat(p.TrainerBag).Any());
                 Add("入れ替え", () => { subMenu = () => SwapMenu(me, -1); RefreshAll(); }, KeyCode.None, p.Party.Count > 1);
+                if (Ok(new Fish { Player = me })) Add("つり（動かずに、つったポケモンとバトル）", () => Send(new Fish { Player = me }));
                 Add("探索", StartExplore);
                 Add("その他", () => { subMenu = OtherMenu; RefreshAll(); });
                 Add("セーブ", () => { subMenu = SaveMenu; RefreshAll(); });

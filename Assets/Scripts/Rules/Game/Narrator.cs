@@ -65,6 +65,7 @@ namespace Sugoroku.Rules
                     : x.Name == "へんそう" ? $"{Name(x.Player)}は へんそうした！ この週は ほかの人の ライバルマスを 自分のもののように 使える" : $"{Name(x.Player)}は {x.Name}状態に なった！（{x.Weeks}週）" + (x.Name == "さいみん" ? "　次の番は休み" : x.Name == "のろい" ? "　ポケモンセンターに入れない" : "");
                 case AilmentCured x: return $"{Name(x.Player)}の {x.Name}が とけた！";
                 case ItemBlocked x: return $"{Name(x.Player)}の {x.Item}が {x.Attack}を ふせいだ！";
+                case Fished x: return $"{Name(x.Player)}は つりざおを たらした…";
                 case SnorlaxPlaced x: return $"{Name(x.Player)}は アマイ三ツで カビゴンを よびよせた！ {board[x.Square].Place}の このマスは {x.Weeks}週 通れない";
                 case SnorlaxRemoved x: return (x.Player >= 0 ? $"{Name(x.Player)}は ポケモンのふえを ふいた！ " : "") + $"{board[x.Square].Place}の カビゴンが 目をさまして 去っていった";
                 case TrapSet x: return $"{Name(x.Player)}は {board[x.Square].Name}に ワナを しかけた";
