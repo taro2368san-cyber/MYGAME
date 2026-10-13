@@ -53,6 +53,7 @@ namespace Sugoroku.Rules
                 case "イベントマス":
                     var e = data.EventSquares.FirstOrDefault(x => x.Square == sq.Name);
                     if (e == null || e.Effect.Kind == EffectKind.None) return Nothing(e?.Content is string c && c != "" ? c : "何も起きなかった", events);
+                    if (e.Effect.Kind == EffectKind.Museum) return LandMuseum(events);
                     return StartEvent(e.Effect, events);
                 default: // ワープ（着いた先）、ゴールなど
                     return Nothing("何も起きなかった", events);
@@ -528,6 +529,7 @@ namespace Sugoroku.Rules
                         EndTurn(events);
                         return;
                     }
+                    if (f.EventId == MuseumId) { MuseumChosen(f, o.Index, events); EndTurn(events); return; }
                     if (f.EventId == PagerId)
                     {
                         bool wait = PagerChosen(f, o.Index, events, out bool back);

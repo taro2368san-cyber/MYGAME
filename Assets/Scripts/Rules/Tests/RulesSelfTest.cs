@@ -300,7 +300,7 @@ namespace Sugoroku.Rules
                 int money = g2.State.Players[0].Money;
                 bool opened = f?.Kind == FacilityKind.RocketBase && f.Options[0].Contains("かいのかせき") && f.Options[0].Contains("2,100");
                 if (opened) Apply(g2, new ChooseOption { Index = 0 });
-                bool bought = g2.State.Players[0].Money == money - 2100 && g2.State.Players[0].TrainerBag.Contains("かいのかせき") && g2.State.Facility?.Kind == FacilityKind.RocketBase;
+                bool bought = g2.State.Players[0].Money == money - 2100 && g2.State.Players[0].PokemonBag.Contains("かいのかせき") && g2.State.Facility?.Kind == FacilityKind.RocketBase;
                 if (bought) Apply(g2, new ChooseOption { Index = g2.State.Facility.Options.Count - 1 });
                 Check(log, "ロケット団の拠点：持ち主は割引で買える、買ったあとも拠点は開いたまま、立ち去ると閉じる", opened && bought && g2.State.Facility == null);
 
@@ -319,6 +319,22 @@ namespace Sugoroku.Rules
                 var (g5, _) = LandEvents(sq, "ヒトカゲ", s => { Strong(s); s.Owners[sq.Id] = 0; s.Players[0].RocketUsed.Add("rb_tower_2"); });
                 Check(log, "ロケット団の拠点：タワーでヒトモシを1人1回もらえる", all4.Count(m => m.Species == "ヒトモシ" && m.Level == 15) == 1 && !g5.State.Players[0].Party.Concat(g5.State.Players[0].Box).Any(m => m.Species == "ヒトモシ"));
                 sq.Type = keep.Type; sq.Place = keep.Place;
+            }
+            var museumRow = data.EventSquares.FirstOrDefault(x => x.Effect.Kind == EffectKind.Museum);
+            var museum = museumRow == null ? null : board.Squares.Values.FirstOrDefault(x => x.Name == museumRow.Square && x.Neighbors.Count > 0);
+            if (museum != null && data.FindItem("こうらのかせき") != null)
+            {
+                // 博物館（3.2.2）：化石を預ける → 週がたつまで眠ったまま → 孵る（Lvは手持ちの最高Lv−5、最低5）
+                var (mg, _) = LandEvents(museum, "ヒトカゲ", s => s.Players[0].PokemonBag.Add("こうらのかせき"));
+                var mp = mg.State.Players[0];
+                bool asked = mg.State.Facility?.Options[0].Contains("こうらのかせき") == true;
+                if (asked) Apply(mg, new ChooseOption { Index = 0 });
+                bool deposited = mp.Fossil == "こうらのかせき" && !mp.PokemonBag.Contains("こうらのかせき");
+                var (wg, _) = LandEvents(museum, "ヒトカゲ", s => { s.Players[0].Fossil = "こうらのかせき"; s.Players[0].FossilWeek = s.Week; });
+                bool waiting = wg.State.Players[0].Fossil != "" && !wg.State.Players[0].Party.Any(m => m.Species == "カブト");
+                var (hg, _) = LandEvents(museum, "ヒトカゲ", s => { var pl = s.Players[0]; pl.Fossil = "こうらのかせき"; pl.FossilWeek = s.Week - 3; Pokemons.SetLevel(data, pl.Party[0], 30); });
+                var hp = hg.State.Players[0];
+                Check(log, "博物館：化石を預けると、3週あとに孵る（Lvは最高Lv−5）", asked && deposited && waiting && hp.Fossil == "" && hp.Party.Any(m => m.Species == "カブト" && m.Level == 25 && m.MetHow == "ニビ科学博物館で目覚めた"));
             }
             var rivalSq = board.Squares.Values.FirstOrDefault(x => x.Type == "ライバル" && x.Neighbors.Count > 0);
             if (rivalSq != null && data.Rivals.Any(r => r.Place == rivalSq.Place && r.Trades.Count > 0))

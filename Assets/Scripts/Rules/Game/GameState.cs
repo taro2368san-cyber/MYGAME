@@ -29,6 +29,7 @@ namespace Sugoroku.Rules
         public int LastPlaceWeeks;                                           // 何週連続で最下位か（8.8.1 の救済）
         public readonly HashSet<int> VisitedCenters = new HashSet<int>();   // 行ったことのあるポケモンセンター（アーマーガーチケット）
         public readonly HashSet<string> RocketUsed = new HashSet<string>();  // ロケット団拠点で「1人1回」の品を使った（行の id）
+        public string Fossil = ""; public int FossilWeek;                    // 博物館に預けている化石と、預けた週（3.2.2）
         public int BikeUses;                                                 // 自転車を使った回数（サイクリングの解放）
         public int LastMainWarp = -1;                                        // 最後に止まったメインマップのワープマス（あなぬけひもで戻る先）
 

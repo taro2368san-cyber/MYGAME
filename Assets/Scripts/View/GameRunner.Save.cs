@@ -156,6 +156,7 @@ public partial class GameRunner
     string MetText(PokemonState m)
     {
         string how = m.MetHow ?? "";
+        if (how.EndsWith("で目覚めた")) return narrator.Line("endroll_revive", "{週}週目、{どこ}", ("週", m.MetWeek), ("どこ", how)); // 化石（3.2.2）
         if (how.EndsWith("から受け取った"))
             return narrator.Line("endroll_trade", "{週}週目、{相手}から うけとった", ("週", m.MetWeek), ("相手", how.Substring(0, how.Length - "から受け取った".Length)));
         string text = narrator.Line("endroll_meet", "{週}週目、{場所}で であった", ("週", m.MetWeek), ("場所", m.MetPlace));

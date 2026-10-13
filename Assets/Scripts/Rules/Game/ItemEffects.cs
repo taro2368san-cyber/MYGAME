@@ -66,7 +66,7 @@ namespace Sugoroku.Rules
         public static Bag BagOf(Item item)
         {
             if (item.Category == "捕獲" && item.Name.EndsWith("ボール")) return Bag.Ball;
-            if (item.IsHeldItem || item.Category == "回復" || item.Category == "進化アイテム") return Bag.Pokemon;
+            if (item.IsHeldItem || item.Category == "回復" || item.Category == "進化アイテム" || item.Category == "化石") return Bag.Pokemon; // 化石はポケモンの道具（3.2.2 の案）
             return Bag.Trainer;
         }
     }

@@ -102,7 +102,7 @@ namespace Sugoroku.Rules
     // ---- ここから下は 設計メモ のCSV（xlsx に同じ名前のシートを作ればそちらが使われる。書き方は 設計メモ/CSVの書き方.md）----
 
     // マスやイベントの効果の型（仕様書13.2）。「効果の型」列の言葉で見分ける
-    public enum EffectKind { None, Money, Item, ExtraMove, CureStatus, HealAll, Points, Battle, UnlockJob }
+    public enum EffectKind { None, Money, Item, ExtraMove, CureStatus, HealAll, Points, Battle, UnlockJob, Museum } // Museum: 化石を預ける博物館（3.2.2）
 
     // ランダムイベント・イベントマスの1件
     public sealed class Effect
@@ -467,6 +467,7 @@ namespace Sugoroku.Rules
             else if (kind.StartsWith("ポイント")) e.Kind = EffectKind.Points;
             else if (kind.StartsWith("バトル")) e.Kind = EffectKind.Battle;
             else if (kind.StartsWith("職業")) e.Kind = EffectKind.UnlockJob;
+            else if (kind.StartsWith("博物館")) e.Kind = EffectKind.Museum;
             else problems.Add($"[警告] {t.Name}: 「{e.Id}」の効果の型「{kind}」はまだ作っていません（何も起きません）");
             bool numeric = e.Kind == EffectKind.Money || e.Kind == EffectKind.ExtraMove || e.Kind == EffectKind.Points;
             if (numeric && !int.TryParse(e.Value, out _)) { problems.Add($"[エラー] {t.Name}: 「{e.Id}」の値「{e.Value}」は数字にしてください"); e.Kind = EffectKind.None; }
@@ -570,6 +571,12 @@ namespace Sugoroku.Rules
                 if (t.Pokemon != "" && d.FindSpecies(t.Pokemon) == null) Error($"トレーナー: {t.Id} のポケモン「{t.Pokemon}」がポケモンシートにありません");
                 if (t.Pokemon != "" && t.Level == null) Warn($"トレーナー: {t.Id}（{t.Name}）のLvが空欄です（場所の出現表の最高Lv＋1で戦います）");
                 if (!d.HasDialog(t.Id) && !t.IsGymTrainer && !d.TrainerClasses.Any(c => c.Class == t.Class)) Warn($"トレーナー: {t.Id} の職「{t.Class}」がトレーナーの職.csvになく、{t.Id} のセリフもありません（共通のセリフを使います）");
+            }
+            // 化石：効果の文の「○○に孵る」から孵るポケモンを読む（3.2.2）
+            foreach (var f in d.Items.Where(i => i.Category == "化石"))
+            {
+                var m = Regex.Match(f.Effect, @"([^\s、。に]+)に孵る");
+                if (!m.Success || d.FindSpecies(m.Groups[1].Value) == null) Warn($"アイテム一覧: 化石「{f.Name}」の効果に「（ポケモン名）に孵る」がないか、そのポケモンがポケモンシートにありません（博物館で預けられません）");
             }
             foreach (var r in d.RocketBases)
             {
