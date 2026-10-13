@@ -126,7 +126,7 @@ namespace Sugoroku.Rules
     public sealed class RivalTrade : Command { public string Species; }               // ライバルマスで他地方のポケモンと交換する（11.5）。渡す子はそのあと選ぶ
     public sealed class RivalEvolve : Command { public int Slot; public string Target; } // ライバルマスの交換進化（11.5）
     // デバッグ（17.1、F1）。開発用。GameProcessor.DebugEnabled のときだけ受け付ける
-    public enum DebugAction { Warp, SetDice, Money, Balls, Item, Badge, HealAll, LevelUp, AddPokemon, WinBattle, LoseBattle, Weather, WeekEvent }
+    public enum DebugAction { Warp, SetDice, Money, Balls, Item, Badge, HealAll, LevelUp, AddPokemon, WinBattle, LoseBattle, Weather, WeekEvent, NextWeek, Status, Battle }
     public sealed class DebugCommand : Command { public DebugAction Action; public int Value; public string Text; }
     // バトル
     public sealed class SelectPokemon : Command { public int Slot; }

@@ -35,6 +35,14 @@ namespace Sugoroku.Rules
                     return d.Text == "" || d.Text == "雨季" || d.Text == "乾季" || d.Text == "すなあらしの日" ? null : "天候は 雨季／乾季／すなあらしの日 のどれか";
                 case DebugAction.WeekEvent:
                     return d.Text == "" || d.Text == "セール" || d.Text == "ストライキ" ? null : "週イベントは セール／ストライキ のどちらか";
+                case DebugAction.NextWeek:
+                    return State.Phase == Phase.Prepare ? null : "週を進めるのはサイコロを振る前だけ";
+                case DebugAction.Status:
+                    return new[] { "やけど", "どく", "まひ", "ねむり", "" }.Contains(d.Text) ? null : "状態異常は やけど／どく／まひ／ねむり（空なら治す）";
+                case DebugAction.Battle:
+                    if (State.Phase != Phase.Prepare) return "バトルを始めるのはサイコロを振る前だけ";
+                    if (data.FindSpecies(d.Text) == null) return $"ポケモン「{d.Text}」がいません";
+                    return p.Party.Any(m => !m.Fainted) ? null : "戦えるポケモンがいません";
                 default:
                     return null;
             }
@@ -90,6 +98,26 @@ namespace Sugoroku.Rules
                     if (d.Text != "") events.Add(new WeekEventHappened { Name = d.Text, Weeks = State.WeatherWeeks });
                     else text = "天候を なしにした";
                     break;
+                case DebugAction.NextWeek:
+                {
+                    // 全員の手番を飛ばして、次の週の最初の人の番まで進める
+                    int week = State.Week;
+                    for (int i = 0; i < State.Players.Count * 2 && State.Week == week && State.Phase != Phase.GameOver; i++) EndTurn(events);
+                    text = $"{State.Week}週目に 進めた";
+                    break;
+                }
+                case DebugAction.Status:
+                {
+                    var lead = p.Party[0];
+                    lead.Status = d.Text == "やけど" ? Status.Burn : d.Text == "どく" ? Status.Poison : d.Text == "まひ" ? Status.Paralysis : d.Text == "ねむり" ? Status.Sleep : Status.None;
+                    lead.SleepRounds = lead.Status == Status.Sleep ? 2 : 0;
+                    text = $"{lead.Species}を {(d.Text == "" ? "元気に" : d.Text + "に")} した";
+                    break;
+                }
+                case DebugAction.Battle:
+                    events.Add(new DebugDone { Text = $"野生の {d.Text} Lv{System.Math.Max(1, d.Value)} と バトル" });
+                    StartBattle(BattleKind.Wild, false, Npc($"野生の{d.Text}", new[] { (d.Text, System.Math.Max(1, d.Value)) }), events);
+                    return;
                 case DebugAction.WeekEvent:
                     State.WeekEvent = d.Text; State.WeekEventWeeks = d.Text == "" ? 0 : TuneInt("event_weeks");
                     if (d.Text != "") events.Add(new WeekEventHappened { Name = d.Text, Weeks = State.WeekEventWeeks });

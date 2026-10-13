@@ -59,6 +59,12 @@ public partial class GameRunner
         Ui.Input(row, debugPokemon, 12, 170, v => debugPokemon = v);
         Ui.Input(row, debugLevel, 3, 70, v => debugLevel = v, char.IsDigit);
         Ui.Button(row, "ポケモン追加", () => Dbg(DebugAction.AddPokemon, int.TryParse(debugLevel, out int lv) ? lv : 5, debugPokemon.Trim()), 180, 40);
+        row = DebugRow(col);
+        Ui.Button(row, "↑のポケモンとバトル", () => Dbg(DebugAction.Battle, int.TryParse(debugLevel, out int lv2) ? lv2 : 5, debugPokemon.Trim()), 260, 40);
+        Ui.Button(row, "週を進める", () => Dbg(DebugAction.NextWeek), 160, 40);
+        row = DebugRow(col);
+        foreach (var st in new[] { "やけど", "どく", "まひ", "ねむり" }) Ui.Button(row, st, () => Dbg(DebugAction.Status, 0, st), 95, 40);
+        Ui.Button(row, "治す", () => Dbg(DebugAction.Status, 0, ""), 70, 40);
 
         row = DebugRow(col);
         Ui.Button(row, "即勝利", () => Dbg(DebugAction.WinBattle), 140, 40);

@@ -371,6 +371,17 @@ namespace Sugoroku.Rules
                 sq.Type = keep;
                 Check(log, "換金所：お金をポイントに換える（換えないお金は勝利ポイントに入らない）、最後の10週は閉まる", all >= 0 && exchanged && cg.State.Facility == null && cg.State.Players[0].Points == 0);
             }
+            {
+                // デバッグ（17.1）：週を進める、状態異常、指定したポケモンとバトル
+                var (dg, dme, _) = Two("キズくすり");
+                dg.DebugEnabled = true;
+                int w0 = dg.State.Week;
+                dg.Apply(new DebugCommand { Player = dg.State.CurrentPlayer.Id, Action = DebugAction.NextWeek }, out string e1);
+                var cur = dg.State.CurrentPlayer;
+                dg.Apply(new DebugCommand { Player = cur.Id, Action = DebugAction.Status, Text = "まひ" }, out string e2);
+                var bev = dg.Apply(new DebugCommand { Player = cur.Id, Action = DebugAction.Battle, Text = "コラッタ", Value = 7 }, out string e3);
+                Check(log, "デバッグ：週を進める・状態異常・指定したポケモンとバトル", e1 == null && dg.State.Week == w0 + 1 && e2 == null && cur.Party[0].Status == Status.Paralysis && e3 == null && bev.OfType<BattleStarted>().Any(b => b.Opponent == "野生のコラッタ"));
+            }
             var rivalSq = board.Squares.Values.FirstOrDefault(x => x.Type == "ライバル" && x.Neighbors.Count > 0);
             if (rivalSq != null && data.Rivals.Any(r => r.Place == rivalSq.Place && r.Trades.Count > 0))
             {
