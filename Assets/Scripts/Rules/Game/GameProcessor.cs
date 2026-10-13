@@ -422,17 +422,19 @@ namespace Sugoroku.Rules
         }
 
         // 順位用ポイント（12章）＝所持ポイント＋バッジ＋（所持金＋トレーナーマスの換算額）÷1000
+        // 順位用ポイント（12章）：所持ポイント＋（所持金＋トレーナーマス・ロケット団マスの換算額）÷1,000。最下位の救済や途中の順位に使う
         public double Score(PlayerState p) =>
             p.Points + p.Badges * Tune("badge_point")
-            + (p.Money + OwnedSquares(p.Id, "トレーナー").Sum(s => Tune($"trainer_value_area{AreaNumber(s)}"))) / Tune("yen_per_point");
+            + (p.Money + OwnedSquares(p.Id, "トレーナー").Sum(s => Tune($"trainer_value_area{AreaNumber(s)}"))
+                       + OwnedSquares(p.Id, "ロケット団").Sum(s => Tune($"rocket_value_area{AreaNumber(s)}"))) / Tune("yen_per_point");
 
         // 結果発表の内訳（16.1 #11）
-        public (double points, double badges, double money, double fans, double rule) ScoreBreakdown(PlayerState p) =>
-            (p.Points, p.Badges * Tune("badge_point"), p.Money / Tune("yen_per_point"),
-             OwnedSquares(p.Id, "トレーナー").Sum(s => Tune($"trainer_value_area{AreaNumber(s)}")) / Tune("yen_per_point"), EventRulePoints(p));
+        public (double points, double badges, double rule, double rocket) ScoreBreakdown(PlayerState p) =>
+            (p.Points, p.Badges * Tune("badge_point"), EventRulePoints(p), RocketAward(p));
 
-        // 最終得点＝順位用ポイント＋イベントルールのポイント（2.2、13.3）
-        public double FinalScore(PlayerState p) => Score(p) + EventRulePoints(p);
+        // 最終的な勝利ポイント（2章）＝所持ポイント（バッジ・換金所で換えたポイント）＋イベントルール＋ロケット団最多討伐賞
+        // 換えていないお金とファンは入らない（お金は換金所でポイントにする。最後の10週は閉まる）
+        public double FinalScore(PlayerState p) => p.Points + p.Badges * Tune("badge_point") + EventRulePoints(p) + RocketAward(p);
 
         public double EventRulePoints(PlayerState p)
         {

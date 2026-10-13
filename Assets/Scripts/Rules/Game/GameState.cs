@@ -31,7 +31,8 @@ namespace Sugoroku.Rules
         public readonly HashSet<string> RocketUsed = new HashSet<string>();  // ロケット団拠点で「1人1回」の品を使った（行の id）
         public string Fossil = ""; public int FossilWeek;                    // 博物館に預けている化石と、預けた週（3.2.2）
         public readonly List<JournalEntry> Journal = new List<JournalEntry>(); // 旅の年表（エンドロール、1.5）
-        public int StepsWalked, Battles;                                     // 旅の数字：歩いたマス、バトルの数
+        public int StepsWalked, Battles;
+        public int RocketDefeats;                                            // ロケット団を追いはらった回数（最多討伐賞、2.1）                                     // 旅の数字：歩いたマス、バトルの数
         public int BikeUses;                                                 // 自転車を使った回数（サイクリングの解放）
         public int LastMainWarp = -1;                                        // 最後に止まったメインマップのワープマス（あなぬけひもで戻る先）
 
@@ -59,7 +60,7 @@ namespace Sugoroku.Rules
     }
 
     // Event: イベントの選択肢 ／ BagFull: 袋がいっぱいで捨てる物を選ぶ ／ BoxFull: 控えがいっぱいで逃がす子を選ぶ ／ JobOffer: 解放した職業に今すぐ就くか
-    public enum FacilityKind { Center, Shop, FanHeal, Event, BagFull, BoxFull, JobOffer, Rival, RocketBase, Trade } // Rival: ライバルマスの進化・交換（11.5）、RocketBase: ロケット団の拠点（11.3）、Trade: 渡すポケモンを選ぶ（拠点・ライバル）
+    public enum FacilityKind { Center, Shop, FanHeal, Event, BagFull, BoxFull, JobOffer, Rival, RocketBase, Trade, Exchange } // Rival: ライバルマスの進化・交換（11.5）、RocketBase: ロケット団の拠点（11.3）、Trade: 渡すポケモンを選ぶ（拠点・ライバル）
     public sealed class FacilityState
     {
         public FacilityKind Kind;

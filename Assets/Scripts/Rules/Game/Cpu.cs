@@ -138,6 +138,7 @@ namespace Sugoroku.Rules
                 case "モンスターボール": return 30;
                 case "イベントマス": return 25;
                 case "ショップ": return p.Money >= 1000 ? 15 : 3;
+                case "ポイント交換NPC": return !g.ExchangeClosed && p.Money >= 3000 ? 22 : 1;
                 case "草むら": return 10;
                 case "ワープ": return 8;
                 default: return 5;
@@ -168,6 +169,12 @@ namespace Sugoroku.Rules
                 case FacilityKind.Rival:
                     for (int i = 0; i < p.Party.Count; i++)
                         foreach (var t in g.RivalTargets(p.Party[i])) yield return new RivalEvolve { Player = p.Id, Slot = i, Target = t };
+                    break;
+                case FacilityKind.Exchange:
+                    // 換金所：2,000円は手元に残して、残りをポイントに
+                    for (int i = f.Goods.Count - 2; i >= 0; i--)
+                        if (int.TryParse(f.Goods[i], out int n) && p.Money - n * d.Tuning["yen_per_point"] >= 2000) yield return new ChooseOption { Player = p.Id, Index = i };
+                    yield return new ChooseOption { Player = p.Id, Index = f.Options.Count - 1 };
                     break;
                 case FacilityKind.RocketBase:
                     for (int i = 0; i < f.Goods.Count; i++)

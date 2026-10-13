@@ -356,6 +356,21 @@ namespace Sugoroku.Rules
                 bool noFishOnLand = g4.Validate(new Fish { Player = 0 }) != null;
                 Check(log, "海上マス：だれでも行き先に選べる、止まると水上の野生、となりでは つりができる", reach.Contains(seaId) && fished && waterTable && noFishOnLand);
             }
+            {
+                // 換金所（2.1・2.3）：1,000円で1p。最後の10週は閉まる。勝利ポイントには換えたポイントだけが入り、お金は入らない
+                var sq = board.Squares.Values.First(x => x.Type == "空マス" && x.Neighbors.Count > 0);
+                string keep = sq.Type;
+                sq.Type = "ポイント交換NPC";
+                var (eg, _) = LandEvents(sq, "ヒトカゲ", s => s.Players[0].Money = 5500);
+                var ep = eg.State.Players[0];
+                double before = eg.FinalScore(ep);
+                int all = eg.State.Facility?.Options.FindIndex(o => o.StartsWith("全部")) ?? -1;
+                if (all >= 0) Apply(eg, new ChooseOption { Index = all });
+                bool exchanged = ep.Points == 5 && ep.Money == 500 && eg.FinalScore(ep) == before + 5;
+                var (cg, _) = LandEvents(sq, "ヒトカゲ", s => { s.Players[0].Money = 5500; s.Week = s.MaxWeeks - 3; });
+                sq.Type = keep;
+                Check(log, "換金所：お金をポイントに換える（換えないお金は勝利ポイントに入らない）、最後の10週は閉まる", all >= 0 && exchanged && cg.State.Facility == null && cg.State.Players[0].Points == 0);
+            }
             var rivalSq = board.Squares.Values.FirstOrDefault(x => x.Type == "ライバル" && x.Neighbors.Count > 0);
             if (rivalSq != null && data.Rivals.Any(r => r.Place == rivalSq.Place && r.Trades.Count > 0))
             {

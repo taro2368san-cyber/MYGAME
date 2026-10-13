@@ -122,9 +122,10 @@ public partial class GameRunner
         int rank = 0;
         foreach (var p in S.Players.OrderByDescending(game.FinalScore))
         {
-            var (points, badges, money, fans, ruleP) = game.ScoreBreakdown(p);
+            var (points, badges, ruleP, rocket) = game.ScoreBreakdown(p);
             Ui.Line(col, $"{++rank}位　{p.Name}{CharacterLabel(p)}　{game.FinalScore(p):0.#}p", 36, PlayerColor(p));
-            Ui.Line(col, $"　バッジ {badges:0.#}p　お金 {money:0.#}p（{p.Money:#,0}円）　ファン {fans:0.#}p" + (points != 0 ? $"　ポイント {points:0.#}p" : "") + (rule != null ? $"　{rule.Name} {ruleP:0.#}p" : ""), 24);
+            Ui.Line(col, $"　バッジ {badges:0.#}p　換えたポイント {points:0.#}p" + (rule != null ? $"　{rule.Name} {ruleP:0.#}p" : "") + (rocket > 0 ? $"　ロケット団最多討伐賞 {rocket:0.#}p" : "")
+                + $"　（換えていないお金 {p.Money:#,0}円・ファン {S.Owners.Count(o => o.Value == p.Id)}人は 入りません）", 24);
         }
         var row = Row(col);
         Ui.Button(row, "エンドロールへ", () => ShowEndroll(0), 300, 70);

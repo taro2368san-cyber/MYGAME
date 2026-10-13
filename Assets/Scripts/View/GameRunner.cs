@@ -663,6 +663,7 @@ public partial class GameRunner : MonoBehaviour
             case FacilityKind.Event:
             case FacilityKind.RocketBase:
             case FacilityKind.Trade:
+            case FacilityKind.Exchange:
             case FacilityKind.BagFull:
             case FacilityKind.BoxFull:
             case FacilityKind.JobOffer:

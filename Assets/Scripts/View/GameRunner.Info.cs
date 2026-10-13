@@ -51,7 +51,7 @@ public partial class GameRunner
     void ShowRanking()
     {
         var col = Overlay("Ranking");
-        Ui.Line(col, "順位（順位用ポイント、12章）", 44);
+        Ui.Line(col, "順位（順位用ポイント：お金とファンも含めた いまの豊かさ、12章）", 40);
         int rank = 0;
         foreach (var p in S.Players.OrderByDescending(game.Score))
             Ui.Line(col, $"{++rank}位　{p.Name}　{game.Score(p):0.#}p　バッジ{p.Badges}　{p.Money:#,0}円　ファン{S.Owners.Count(o => o.Value == p.Id)}人　{board[p.Square].Place}" + (p.LastPlaceWeeks > 0 && rank == S.Players.Count ? $"（最下位 {p.LastPlaceWeeks}週）" : ""), 28, PlayerColor(p));

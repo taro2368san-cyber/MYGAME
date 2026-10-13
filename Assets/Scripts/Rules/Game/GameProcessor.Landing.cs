@@ -49,6 +49,7 @@ namespace Sugoroku.Rules
                     events.Add(new ItemUsed { Player = player.Id, Item = "カギ" });
                     return LandBallSquare(sq, events, true);
                 case "ジム": return LandGym(sq, events);
+                case "ポイント交換NPC": return LandExchange(sq, events);
                 case "ライバル": return LandRival(sq, events);
                 case "ロケット団": return LandRocket(sq, events);
                 case "イベントマス":
@@ -546,6 +547,7 @@ namespace Sugoroku.Rules
                         return;
                     }
                     if (f.EventId == MuseumId) { MuseumChosen(f, o.Index, events); EndTurn(events); return; }
+                    if (f.Kind == FacilityKind.Exchange) { ExchangeChosen(f, o.Index, events); EndTurn(events); return; }
                     if (f.EventId == PagerId)
                     {
                         bool wait = PagerChosen(f, o.Index, events, out bool back);

@@ -46,6 +46,7 @@ namespace Sugoroku.Rules
             var b = B;
             Say(b.DialogKey + "_win", events, p);
             bool first = State.RocketCleared.Add(b.Square);
+            p.RocketDefeats++;
             SetOwner(b.Square, p.Id, events);
             var gained = new List<int>();
             if (first)

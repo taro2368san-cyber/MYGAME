@@ -77,6 +77,8 @@ namespace Sugoroku.Rules
                 problems.Add($"[警告] 盤面: {g}にジムトレーナーがいません（トレーナー.csv の種類「ジムトレーナー」）。ジムにはすぐ挑めます");
             foreach (var t in data.Trainers.Where(t => board.Squares.Values.FirstOrDefault(s => s.Name == t.Square) is BoardSquare s && (s.Type != "トレーナー" || s.Place != t.Place)))
                 problems.Add($"[警告] トレーナー.csv: {t.Id} のマス「{t.Square}」は盤面では {board.Squares.Values.First(s => s.Name == t.Square).Place}の{board.Squares.Values.First(s => s.Name == t.Square).Type}です");
+            if (!all.Any(s => s.Type == "ポイント交換NPC"))
+                problems.Add("[警告] 盤面: ポイント交換NPC（換金所）のマスがありません。お金を勝利ポイントに換えられないので、最終得点はバッジとイベントルールだけになります（2.1）");
             foreach (var s in all.Where(s => s.Type == "ゴール"))
                 problems.Add($"[警告] 盤面: 「{s.Name}」の種類が「ゴール」です。今のルールでは何も起きないので、種類を変えてください");
             foreach (var n in data.Trainers.Select(t => t.Square).Concat(data.EventSquares.Select(e => e.Square)).Where(n => n != "" && !names.Contains(n)))
