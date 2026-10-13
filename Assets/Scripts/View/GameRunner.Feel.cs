@@ -82,6 +82,35 @@ public partial class GameRunner
         banner.transform.parent.gameObject.SetActive(false);
     }
 
+    // ---- 自分に起きたことは、自分の番の最初にまとめて伝える（17.5）----
+    readonly System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<string>> notices = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<string>>();
+
+    // ほかの人の番に、このプレイヤーに起きたこと（妨害・奪われた道具・とられたファン）を覚えておく
+    void CollectNotice(GameEvent e)
+    {
+        int now = S.CurrentPlayer.Id;
+        void Note(int player, string text)
+        {
+            if (player < 0 || player == now) return; // 自分の番に起きたことは、その場で見ている
+            if (!notices.TryGetValue(player, out var list)) notices[player] = list = new System.Collections.Generic.List<string>();
+            list.Add(text);
+        }
+        switch (e)
+        {
+            case AilmentAdded a when a.By >= 0 && a.By != a.Player: Note(a.Player, $"{S.Players[a.By].Name}に {a.Name}に された（{a.Weeks}週）"); break;
+            case ItemLost l when l.To >= 0: Note(l.Player, $"{S.Players[l.To].Name}に {l.Item}を とられた"); break;
+            case OwnerChanged o when o.Previous >= 0 && o.Owner != o.Previous: Note(o.Previous, $"{(o.Owner >= 0 ? S.Players[o.Owner].Name : "だれか")}に {board[o.Square].Place}の ファンを とられた"); break;
+        }
+    }
+
+    IEnumerator ShowNotices(int player)
+    {
+        if (!notices.TryGetValue(player, out var list) || list.Count == 0) yield break;
+        notices.Remove(player);
+        var p = S.Players[player];
+        yield return Banner($"{p.Name}さんへ：ほかの人の番に あったこと\n" + string.Join("\n", list.Take(4)) + (list.Count > 4 ? $"\nほか {list.Count - 4}件" : ""), PlayerColor(p), 3);
+    }
+
     // ---- はじめての場面のヒント（17.8）。人が操作するプレイヤーに、1回だけ。設定でオフにできる ----
 
     static bool HintsOn { get => PlayerPrefs.GetInt("hints", 1) == 1; set => PlayerPrefs.SetInt("hints", value ? 1 : 0); }

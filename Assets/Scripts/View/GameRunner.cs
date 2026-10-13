@@ -196,6 +196,7 @@ public partial class GameRunner : MonoBehaviour
         Ui.Button(row, StarterOf(i), () => { NextStarter(i); ShowSetup(); }, 170);
         var field = Ui.Input(row, names[i] ?? "", (int)data.Required("name_max"), 170, v => names[i] = v, IsNameChar);
         field.placeholder.GetComponent<Text>().text = CharacterOf(i).Name;
+        Ui.Button(row, "かな", () => OpenKana(i), 90);
         Ui.Button(row, cpus[i] ? "CPU" : "人", () => { cpus[i] = !cpus[i]; ShowSetup(); }, 90);
         if (!cpus[i]) Ui.Button(row, modes[i] == MoveMode.Highlight ? "移動：まとめて" : "移動：1マスずつ", () => { modes[i] = modes[i] == MoveMode.Highlight ? MoveMode.Step : MoveMode.Highlight; ShowSetup(); }, 230);
     }
@@ -363,9 +364,15 @@ public partial class GameRunner : MonoBehaviour
             string text = narrator.Describe(e);
             if (text != null) AddLog(text);
             EventSound(e);
+            CollectNotice(e);
             switch (e)
             {
-                case TurnStarted t: cameraTarget = pieces[t.Player]; break;
+                case TurnStarted t:
+                    cameraTarget = pieces[t.Player];
+                    yield return ShowNotices(t.Player); // 17.5
+                    break;
+                case BallThrown bt: yield return Banner($"{bt.Ball}を なげた！\n…ゆら… …ゆら…", Color.white, shortBattle ? 1 : 2); break; // ボールが揺れる（17.6）
+                case WeekEventHappened we: yield return Banner(text, new Color(0.7f, 0.9f, 1f), 2); continue;            // 週イベントの告知（17.6）
                 case DiceRolled dr: yield return DiceAnim(dr); continue;          // 17.6
                 case InitiativeDrawn idr: yield return CardAnim(idr); continue;
                 case Moved m: yield return MovePiece(m.Player, m.Path); continue;
@@ -820,6 +827,7 @@ public partial class GameRunner : MonoBehaviour
 
     void Update()
     {
+        if (kanaFor >= 0) { KanaUpdate(); return; } // 名前の五十音表（ゲームが始まる前）
         if (game == null) return;
         zoom = Mathf.Clamp(zoom - Input.mouseScrollDelta.y * 0.1f, 0.3f, 3f);
         if (Input.GetKeyDown(KeyCode.F1) && game.DebugEnabled) ToggleDebug();
