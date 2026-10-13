@@ -24,11 +24,8 @@ namespace Sugoroku.Rules
                 case "草むら":
                     if (RandomEvent(events, out bool w2)) return w2;
                     if (player.Has("ゴールドスプレー")) return Nothing("ゴールドスプレーで 野生のポケモンが よってこない", events);
-                    return StartWild(sq, events) || Nothing("野生のポケモンは出てこなかった", events);
-                case "海上": // なみのりで来た海：草むらと同じ。出現表は「水上」（4.1.2）
-                    if (RandomEvent(events, out bool w3)) return w3;
-                    if (player.Has("ゴールドスプレー")) return Nothing("ゴールドスプレーで 野生のポケモンが よってこない", events);
-                    return StartWild(sq, events, "水上") || Nothing("野生のポケモンは出てこなかった", events);
+                    // 海上の草むらは出現表の「水上」（4.1.2）
+                    return StartWild(sq, events, sq.Sea ? "水上" : "草むら") || Nothing("野生のポケモンは出てこなかった", events);
                 case "トレーナー": return LandTrainer(sq, events);
                 case "ポケモンセンター":
                 case "スタート": // スタートは研究室（3.2.1）：センターの機能＋進化サービス＋けんきゅういんの解放

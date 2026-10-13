@@ -9,8 +9,10 @@ public enum SquareType
     モンスターボール, 鍵付きモンスターボール, ライバル, ロケット団, ポイント交換NPC, 職業,
     スタート, ゴール,
     ワープ,
-    海上,       // 海や川の上（なみのりがないと入れない、仕様書4.1.2）
 }
+
+// 草むらマスの中の種類（仕様書4.1.2）。海上は海や川の上の草むら：出現表は「水上」、となりで つりができる
+public enum GrassKind { 草むら, 海上 }
 
 // すごろくのマス。マスどうしは道（SugorokuRoad）でつながる。
 public class SugorokuSquare : MonoBehaviour
@@ -26,6 +28,9 @@ public class SugorokuSquare : MonoBehaviour
 
     [Tooltip("ショップマスのとき、設計メモ/ショップ.csv の id（例：shop_nibi）。空ならマスのある場所のショップを使う")]
     public string shopId = "";
+
+    [Tooltip("草むらマスのとき：草むら／海上（海や川の上。出現表の「水上」から出て、となりのマスで つりができる）")]
+    public GrassKind grassKind;
 
     // このマスが属する場所（真下にある板の場所。板の上になければ null）
     public string Place
@@ -54,6 +59,7 @@ public class SugorokuSquare : MonoBehaviour
             SquareType.鍵付きモンスターボール => "鍵付き\nモンスター\nボール",
             SquareType.ポイント交換NPC => "ポイント\n交換NPC",
             SquareType.ワープ when warpId > 0 => $"ワープ\n{warpId}",
+            SquareType.草むら when grassKind == GrassKind.海上 => "海上",
             _ => type.ToString(),
         };
         int longest = label.text.Split('\n').Max(line => line.Length);

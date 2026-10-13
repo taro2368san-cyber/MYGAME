@@ -337,25 +337,24 @@ namespace Sugoroku.Rules
                 Check(log, "博物館：化石を預けると、3週あとに孵る（Lvは最高Lv−5）", asked && deposited && waiting && hp.Fossil == "" && hp.Party.Any(m => m.Species == "カブト" && m.Level == 25 && m.MetHow == "ニビ科学博物館で目覚めた"));
             }
             {
-                // 海上マスとつり（4.1.2）：スタートのとなりを一時的に海にして試す
+                // 海上マスとつり（4.1.2）：スタートのとなりを一時的に「海上の草むら」にして試す
                 int seaId = board[board.StartSquare].Neighbors[0];
                 var sea = board[seaId];
-                string keep = sea.Type;
-                sea.Type = "海上";
+                var keep = (sea.Type, sea.Sea);
+                sea.Type = "草むら"; sea.Sea = true;
                 var g = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
-                var pl = g.State.Players[0];
-                pl.FixedDice = 1;
-                var noSurf = Apply(g, new RollDice()).OfType<DiceRolled>().First().Reachable;
-                var g2 = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
-                g2.State.Players[0].TrainerBag.Add(GameProcessor.SurfItem); g2.State.Players[0].FixedDice = 1;
-                var surf = Apply(g2, new RollDice()).OfType<DiceRolled>().First().Reachable;
+                g.State.Players[0].FixedDice = 1;
+                var reach = Apply(g, new RollDice()).OfType<DiceRolled>().First().Reachable;
                 var g3 = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
                 var fev = Apply(g3, new Fish());
                 bool fished = fev.OfType<Fished>().Any() && (fev.OfType<BattleStarted>().Any(b => b.Kind == BattleKind.Wild) || !data.Encounters.Any(e => e.Method == "つり" && (e.Place == board[board.StartSquare].Place || e.Place == sea.Place)));
-                sea.Type = keep;
+                var (_, sev) = LandEvents(sea, "ヒトカゲ");
+                var wild = sev.OfType<BattleStarted>().FirstOrDefault(b => b.Kind == BattleKind.Wild);
+                bool waterTable = wild == null || data.Encounters.Any(e => e.Place == sea.Place && e.Method == "水上" && wild.Opponent == "野生の" + e.Pokemon);
+                (sea.Type, sea.Sea) = keep;
                 var g4 = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
                 bool noFishOnLand = g4.Validate(new Fish { Player = 0 }) != null;
-                Check(log, "海上マス：なみのりがないと入れない、あれば入れる。となりでは つりができる", !noSurf.Contains(seaId) && surf.Contains(seaId) && fished && noFishOnLand);
+                Check(log, "海上マス：だれでも行き先に選べる、止まると水上の野生、となりでは つりができる", reach.Contains(seaId) && fished && waterTable && noFishOnLand);
             }
             var rivalSq = board.Squares.Values.FirstOrDefault(x => x.Type == "ライバル" && x.Neighbors.Count > 0);
             if (rivalSq != null && data.Rivals.Any(r => r.Place == rivalSq.Place && r.Trades.Count > 0))

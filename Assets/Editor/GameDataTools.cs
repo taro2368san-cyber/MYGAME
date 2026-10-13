@@ -93,9 +93,9 @@ public static class GameDataTools
 
         string F(float v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
         string Q(object v) => "\"" + v.ToString().Replace("\"", "\"\"") + "\"";
-        var sq = new StringBuilder("\"ID\",\"名前\",\"種類\",\"場所\",\"ワープ番号\",\"ショップ\",\"マップID\",\"X\",\"Z\"\n");
+        var sq = new StringBuilder("\"ID\",\"名前\",\"種類\",\"場所\",\"ワープ番号\",\"ショップ\",\"マップID\",\"草むらの種類\",\"X\",\"Z\"\n");
         foreach (var s in squares.OrderBy(s => s.id))
-            sq.Append(string.Join(",", Q(s.id), Q(s.name), Q(s.type), Q(s.Place ?? ""), Q(s.warpId), Q(s.shopId ?? ""), Q(s.MapId), Q(F(s.transform.position.x)), Q(F(s.transform.position.z)))).Append('\n');
+            sq.Append(string.Join(",", Q(s.id), Q(s.name), Q(s.type), Q(s.Place ?? ""), Q(s.warpId), Q(s.shopId ?? ""), Q(s.MapId), Q(s.type == SquareType.草むら ? s.grassKind.ToString() : ""), Q(F(s.transform.position.x)), Q(F(s.transform.position.z)))).Append('\n');
         var rd = new StringBuilder("\"A\",\"B\"\n");
         foreach (var r in Object.FindObjectsByType<SugorokuRoad>())
         {

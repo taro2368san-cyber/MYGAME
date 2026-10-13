@@ -11,7 +11,8 @@ namespace Sugoroku.Rules
         public int Id;
         public string Name, Type, Place, Area;
         public string ShopId = "";          // ショップマスのとき、ショップ.csv の id（空なら場所で探す）
-        public string MapId = "";           // メインマップ以外の板（洞窟・建物・島）の id。メインマップは ""
+        public string MapId = "";
+        public bool Sea;                    // 草むらマスの中の「海上」（出現表は「水上」、となりで つり。4.1.2）           // メインマップ以外の板（洞窟・建物・島）の id。メインマップは ""
         public int WarpId;
         public float X, Z;               // 表示用の座標（ルールでは使わない）
         public int RequiredBadges;       // この場所に入るのに必要なバッジの数
@@ -39,7 +40,7 @@ namespace Sugoroku.Rules
                 var s = new BoardSquare
                 {
                     Id = int.Parse(sq.Get(r, "ID")), Name = sq.Get(r, "名前"), Type = sq.Get(r, "種類"), Place = sq.Get(r, "場所"),
-                    WarpId = int.TryParse(sq.Get(r, "ワープ番号"), out int w) ? w : 0, ShopId = sq.Get(r, "ショップ"), MapId = sq.Get(r, "マップID"),
+                    WarpId = int.TryParse(sq.Get(r, "ワープ番号"), out int w) ? w : 0, ShopId = sq.Get(r, "ショップ"), MapId = sq.Get(r, "マップID"), Sea = sq.Get(r, "種類") == "草むら" && sq.Get(r, "草むらの種類") == "海上",
                     X = float.Parse(sq.Get(r, "X"), CultureInfo.InvariantCulture), Z = float.Parse(sq.Get(r, "Z"), CultureInfo.InvariantCulture),
                 };
                 if (place == null) problems.Add($"[エラー] 盤面: マス「{s.Name}」の場所「{s.Place}」が xlsx のエリアシートにありません");
@@ -58,11 +59,9 @@ namespace Sugoroku.Rules
         {
             var all = board.Squares.Values.ToList();
             var names = new HashSet<string>(all.Select(s => s.Name));
-            foreach (var g in all.Where(s => s.Type == "海上" && !data.Encounters.Any(e => e.Place == s.Place && e.Method == "水上")).GroupBy(s => s.Place))
+            foreach (var g in all.Where(s => s.Sea && !data.Encounters.Any(e => e.Place == s.Place && e.Method == "水上")).GroupBy(s => s.Place))
                 problems.Add($"[警告] 盤面: {g.Key}の海上{g.Count()}マスは、出現シートに{g.Key}の水上がないので野生が出ません");
-            if (all.Any(s => s.Type == "海上") && data.FindItem(GameProcessor.SurfItem) == null)
-                problems.Add($"[警告] 盤面に海上マスがありますが、アイテム一覧に「{GameProcessor.SurfItem}」がないので、だれも海に入れません");
-            foreach (var g in all.Where(s => s.Type == "草むら" && !data.Encounters.Any(e => e.Place == s.Place && e.Method == "草むら")).GroupBy(s => s.Place))
+            foreach (var g in all.Where(s => s.Type == "草むら" && !s.Sea && !data.Encounters.Any(e => e.Place == s.Place && e.Method == "草むら")).GroupBy(s => s.Place))
                 problems.Add($"[警告] 盤面: {g.Key}の草むら{g.Count()}マスは、出現シートに{g.Key}の草むらがないので野生が出ません");
             foreach (var s in all.Where(s => s.Type == "ショップ"))
             {

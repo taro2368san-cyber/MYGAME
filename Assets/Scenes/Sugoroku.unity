@@ -991,6 +991,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "13\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &37819309
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -1738,6 +1739,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "\u30E4\u30DE\u30D6\u30AD\u30B7\u30C6\u30A3"
+  mapId: 
 --- !u!23 &66029913
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -1969,6 +1971,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "9\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &72961677
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -2095,6 +2098,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "14\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &74145426
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -4499,6 +4503,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "10\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &235913381
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -4851,6 +4856,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "\u30C8\u30AD\u30EF\u30B7\u30C6\u30A3"
+  mapId: 
 --- !u!1001 &242569410
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -6726,6 +6732,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "\u30CB\u30D3\u30B7\u30C6\u30A3"
+  mapId: 
 --- !u!1001 &329844461
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -6848,6 +6855,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "17\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &333625820
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -7289,6 +7297,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "6\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &346514404
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -11339,6 +11348,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "\u30B0\u30EC\u30F3\u30BF\u30A6\u30F3"
+  mapId: 
 --- !u!23 &545880518
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -12350,6 +12360,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "\u30B7\u30AA\u30F3\u30BF\u30A6\u30F3"
+  mapId: 
 --- !u!23 &632374140
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -14014,6 +14025,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "\u30DE\u30B5\u30E9\u30BF\u30A6\u30F3"
+  mapId: 
 --- !u!1001 &732681144
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -15586,6 +15598,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "\u30C8\u30AD\u30EF\u306E\u68EE"
+  mapId: 
 --- !u!1001 &825472733
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -15739,6 +15752,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "\u30BF\u30DE\u30E0\u30B7\u30B7\u30C6\u30A3"
+  mapId: 
 --- !u!23 &826795618
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -18382,6 +18396,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "20\u756A\u6C34\u9053"
+  mapId: 
 --- !u!23 &975081106
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -18679,6 +18694,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "18\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &987716978
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -19753,6 +19769,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "21\u756A\u6C34\u9053"
+  mapId: 
 --- !u!23 &1075093246
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -20591,6 +20608,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "15\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &1142904649
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -21120,15 +21138,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6864173176619567108, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: type
-      value: 6
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7513321974274100930, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: m_Text
-      value: "\u30B7\u30E7\u30C3\u30D7"
+      value: "\u7A7A\u30DE\u30B9"
       objectReference: {fileID: 0}
     - target: {fileID: 7513321974274100930, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: m_CharacterSize
-      value: 0.04296875
+      value: 0.057291668
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -21816,6 +21834,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "8\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &1202194575
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -23459,6 +23478,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "\u30AF\u30C1\u30D0\u30B7\u30C6\u30A3"
+  mapId: 
 --- !u!23 &1310555163
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -24706,6 +24726,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "11\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &1347318533
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -25801,6 +25822,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "3\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &1414780568
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -27592,6 +27614,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "2\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!1001 &1496943328
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -28077,6 +28100,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "5\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &1514427108
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -28646,6 +28670,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "4\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &1563413840
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -28772,6 +28797,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "16\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &1564878815
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -29393,6 +29419,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "19\u756A\u6C34\u9053"
+  mapId: 
 --- !u!23 &1582883612
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -30627,6 +30654,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "23\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &1625702467
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -31617,6 +31645,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "7\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &1683858715
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -32812,6 +32841,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "1\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!1 &1747466122
 GameObject:
   m_ObjectHideFlags: 0
@@ -32860,6 +32890,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "21\u756A\u6C34\u9053"
+  mapId: 
 --- !u!23 &1747466125
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -33227,6 +33258,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "\u30CF\u30CA\u30C0\u30B7\u30C6\u30A3"
+  mapId: 
 --- !u!23 &1761181389
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -33973,6 +34005,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "\u30BB\u30AD\u30C1\u30AF\u30B7\u30C6\u30A3"
+  mapId: 
 --- !u!23 &1789195324
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -35401,6 +35434,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "12\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &1859501308
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -36195,6 +36229,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "25\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &1893247860
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -36836,15 +36871,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6864173176619567108, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: type
-      value: 6
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7513321974274100930, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: m_Text
-      value: "\u30B7\u30E7\u30C3\u30D7"
+      value: "\u7A7A\u30DE\u30B9"
       objectReference: {fileID: 0}
     - target: {fileID: 7513321974274100930, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: m_CharacterSize
-      value: 0.04296875
+      value: 0.057291668
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -37742,6 +37777,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "22\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &1973559328
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -38639,6 +38675,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "24\u756A\u9053\u8DEF"
+  mapId: 
 --- !u!23 &2025461209
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -39251,6 +39288,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SugorokuBoard
   place: "\u30BB\u30AD\u30A8\u30A4\u9AD8\u539F"
+  mapId: 
 --- !u!23 &2076446616
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -39585,15 +39623,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6864173176619567108, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: type
-      value: 0
+      value: 5
       objectReference: {fileID: 0}
     - target: {fileID: 7513321974274100930, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: m_Text
-      value: "\u7A7A\u30DE\u30B9"
+      value: "\u30DD\u30B1\u30E2\u30F3\n\u30BB\u30F3\u30BF\u30FC"
       objectReference: {fileID: 0}
     - target: {fileID: 7513321974274100930, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: m_CharacterSize
-      value: 0.057291668
+      value: 0.04296875
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
