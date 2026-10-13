@@ -97,7 +97,8 @@ public static class GameDataTools
         foreach (var s in squares.OrderBy(s => s.id))
             sq.Append(string.Join(",", Q(s.id), Q(s.name), Q(s.type), Q(s.Place ?? ""), Q(s.warpId), Q(s.shopId ?? ""), Q(s.MapId), Q(s.type == SquareType.草むら ? s.grassKind.ToString() : ""), Q(F(s.transform.position.x)), Q(F(s.transform.position.z)))).Append('\n');
         var rd = new StringBuilder("\"A\",\"B\"\n");
-        foreach (var r in Object.FindObjectsByType<SugorokuRoad>())
+        // 並び順をそろえる（Unity が返す順は毎回ちがうので、変わっていない盤面でも差分が出てしまう）
+        foreach (var r in Object.FindObjectsByType<SugorokuRoad>().OrderBy(r => r.squareA == null ? 0 : Mathf.Min(r.squareA.id, r.squareB == null ? 0 : r.squareB.id)).ThenBy(r => r.squareA == null ? 0 : Mathf.Max(r.squareA.id, r.squareB == null ? 0 : r.squareB.id)))
         {
             if (r.squareA == null || r.squareB == null) { problems.Add($"[エラー] 盤面: 道「{r.name}」の片方のマスがありません（道を消してください）"); continue; }
             rd.Append(Q(r.squareA.id)).Append(',').Append(Q(r.squareB.id)).Append('\n');
