@@ -44,6 +44,44 @@ public partial class GameRunner
         }
     }
 
+    // ---- 演出（17.6）：サイコロ 1.5秒、先攻・後攻のカード 2秒（短縮で1秒）。スペースで早送り ----
+    // ponytail: 文字だけの演出。サイコロやカードの絵・3Dは素材ができたら差し替える
+
+    IEnumerator ShowBig(string text, Color color)
+    {
+        banner.text = text; banner.color = color;
+        banner.transform.parent.gameObject.SetActive(true);
+        banner.transform.parent.SetAsLastSibling();
+        yield return null;
+    }
+
+    IEnumerator DiceAnim(DiceRolled d)
+    {
+        var rnd = new System.Random();
+        for (float t = 0; t < 1.1f && !Input.GetKey(KeyCode.Space); t += 0.08f)
+        {
+            yield return ShowBig("サイコロ　" + string.Join("　", d.Dice.Select(_ => rnd.Next(1, 11))), new Color(0.8f, 0.8f, 0.8f));
+            yield return Wait(0.08f);
+        }
+        yield return ShowBig(d.Dice.Count > 1 ? $"サイコロ　{string.Join(" ＋ ", d.Dice)} ＝ {d.Value}" : $"サイコロ　{d.Value}", Color.white);
+        yield return Wait(0.4f);
+        banner.transform.parent.gameObject.SetActive(false);
+    }
+
+    IEnumerator CardAnim(InitiativeDrawn x)
+    {
+        float total = shortBattle ? 1f : 2f;
+        string Row(System.Func<int, string> card) => string.Join(" ", Enumerable.Range(0, x.Cards.Count).Select(card));
+        yield return ShowBig($"カード {x.Cards.Count}枚\n{Row(_ => "［？］")}", Color.white);
+        yield return Wait(total * 0.35f);
+        yield return ShowBig($"1枚 ひく…\n{Row(i => i == x.Picked ? "【？】" : "［？］")}", new Color(1f, 0.95f, 0.6f));
+        yield return Wait(total * 0.3f);
+        // めくると、引いたカードの先攻が決まる。ほかのカードも表にする（同じ側の先攻なら「先」）
+        yield return ShowBig($"{x.FirstPokemon}の 先攻！\n{Row(i => i == x.Picked ? "【先】" : x.Cards[i] == x.First ? "［先］" : "［後］")}", new Color(1f, 0.85f, 0.4f));
+        yield return Wait(total * 0.35f);
+        banner.transform.parent.gameObject.SetActive(false);
+    }
+
     // ---- はじめての場面のヒント（17.8）。人が操作するプレイヤーに、1回だけ。設定でオフにできる ----
 
     static bool HintsOn { get => PlayerPrefs.GetInt("hints", 1) == 1; set => PlayerPrefs.SetInt("hints", value ? 1 : 0); }

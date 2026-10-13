@@ -366,6 +366,8 @@ public partial class GameRunner : MonoBehaviour
             switch (e)
             {
                 case TurnStarted t: cameraTarget = pieces[t.Player]; break;
+                case DiceRolled dr: yield return DiceAnim(dr); continue;          // 17.6
+                case InitiativeDrawn idr: yield return CardAnim(idr); continue;
                 case Moved m: yield return MovePiece(m.Player, m.Path); continue;
                 case Warped w: pieces[w.Player].position = PiecePosition(w.Player, w.To); break;
                 case SentToCenter c: pieces[c.Player].position = PiecePosition(c.Player, c.Square); break;
