@@ -388,7 +388,7 @@ namespace Sugoroku.Rules
             foreach (var r in Rows(classes))
                 data.TrainerClasses.Add(new TrainerClass { Class = classes.Get(r, "職"), TextId = classes.Get(r, "文言id") });
 
-            foreach (string name in new[] { "イベント文言", "トレーナー文言" })
+            foreach (string name in new[] { "イベント文言", "トレーナー文言", "ライバル文言" })
             {
                 var t = Optional(dir, name, problems);
                 foreach (var r in Rows(t))

@@ -116,7 +116,7 @@ namespace Sugoroku.Rules
                     break;
                 case RollDice _: DoRoll(events); break;
                 case ChooseDestination _: case StepTo _: case StepBack _: case ConfirmMove _: DoMove(c, events); break;
-                case Buy _: case Sell _: case CenterSwap _: case HoldItem _: case AcceptHeal _: case LeaveFacility _: case ChooseOption _: case ChangeJob _: case LabEvolve _: case RivalEvolve _: case RivalTrade _: DoFacility(c, events); break;
+                case Buy _: case Sell _: case CenterSwap _: case HoldItem _: case AcceptHeal _: case LeaveFacility _: case ChooseOption _: case ChangeJob _: case LabEvolve _: case RivalEvolve _: case RivalTrade _: case RivalRematch _: DoFacility(c, events); break;
                 case DebugCommand d: DoDebug(d, events); break;
                 default: DoBattle(c, events); break;
             }
@@ -135,7 +135,7 @@ namespace Sugoroku.Rules
                     return MyTurn(c, Phase.Prepare) ?? (s.A != s.B && s.A >= 0 && s.B >= 0 && s.A < Current.Party.Count && s.B < Current.Party.Count ? null : "入れ替える番号がおかしいです");
                 case RollDice _: return MyTurn(c, Phase.Prepare);
                 case ChooseDestination _: case StepTo _: case StepBack _: case ConfirmMove _: return MyTurn(c, Phase.Moving) ?? CheckMove(c);
-                case Buy _: case Sell _: case CenterSwap _: case HoldItem _: case AcceptHeal _: case LeaveFacility _: case ChooseOption _: case ChangeJob _: case LabEvolve _: case RivalEvolve _: case RivalTrade _:
+                case Buy _: case Sell _: case CenterSwap _: case HoldItem _: case AcceptHeal _: case LeaveFacility _: case ChooseOption _: case ChangeJob _: case LabEvolve _: case RivalEvolve _: case RivalTrade _: case RivalRematch _:
                     if (State.Phase != Phase.Facility) return $"今はできません（{PhaseName(State.Phase)}）";
                     return c.Player == State.Facility.Player ? CheckFacility(c) : "今えらぶのはあなたではありません";
                 case DebugCommand d: return CheckDebug(d);

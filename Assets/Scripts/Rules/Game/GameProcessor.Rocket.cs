@@ -137,7 +137,7 @@ namespace Sugoroku.Rules
             var sq = board[f.Square];
             bool rival = f.EventId.StartsWith("rival:");
             string pick = index < f.Goods.Count ? f.Goods[index] : "";
-            bool Back() => rival ? OpenRival(p, sq, f.Owner, events) : OpenRocketBase(p, sq, f.Owner, false, events);
+            bool Back() => rival ? OpenRival(p, sq, f.Owner, false, events) : OpenRocketBase(p, sq, f.Owner, false, events);
             if (pick == "") return Back(); // やめる
             var list = pick.StartsWith("box:") ? p.Box : p.Party;
             var give = list[int.Parse(pick.Substring(pick.IndexOf(':') + 1))];
@@ -149,6 +149,7 @@ namespace Sugoroku.Rules
             if (rival)
             {
                 p.RocketUsed.Add("rival:" + f.PendingItem); // ライバルの交換も1人1回ずつ
+                Say(RivalOf(sq).Id + "_trade_ok", events, p);
                 if (!ActsAsOwner(f, p)) { RemoveItem(p, "通信ケーブル"); events.Add(new ItemUsed { Player = p.Id, Item = "通信ケーブル", Pokemon = f.PendingItem }); }
             }
             else

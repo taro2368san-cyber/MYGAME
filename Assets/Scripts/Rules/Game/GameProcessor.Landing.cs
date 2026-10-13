@@ -265,7 +265,7 @@ namespace Sugoroku.Rules
                 return gift != null && GiveItem(p, gift.Item, events);
             }
             var facility = new FacilityState { Kind = FacilityKind.FanHeal, Player = p.Id, Square = sq.Id, Owner = owner, Price = TuneInt("fan_heal_price") };
-            Say(entry != null && entry.IsGymTrainer ? "gymtrainer_cleared" : "trainer_other", events, p, ("名前", name), ("所有者", State.Players[owner].Name), ("金額", facility.Price.ToString()), ("リーダー", leader));
+            Say(entry != null && entry.IsGymTrainer ? "gymtrainer_cleared" : "trainer_other", events, p, ("名前", name), ("所有者", owner >= 0 && owner < State.Players.Count ? State.Players[owner].Name : "だれか"), ("金額", facility.Price.ToString()), ("リーダー", leader));
             if (TuneInt("fan_heal_forced") == 1)
             {
                 PayHeal(facility, events);
@@ -332,21 +332,36 @@ namespace Sugoroku.Rules
         // ライバルマス（11.5）。持ち主のいないマスだけ戦える（所有権は固定）
         bool LandRival(BoardSquare sq, List<GameEvent> events)
         {
-            if (State.Owners.TryGetValue(sq.Id, out int owner)) return OpenRival(Current, sq, owner, events);
+            if (State.Owners.TryGetValue(sq.Id, out int owner)) return OpenRival(Current, sq, owner, true, events);
+            return RivalBattle(sq, false, events);
+        }
+
+        // ライバルとフルバトル。セリフは ライバル文言.csv の「ライバルid」（再戦は「_rematch」）、勝ち負けは「_win」「_lose」
+        bool RivalBattle(BoardSquare sq, bool rematch, List<GameEvent> events)
+        {
+            var p = Current;
             var rival = RivalOf(sq);
             // 手持ちは ライバル_手持ち.csv：条件（御三家を選んだ人がいる など）に合う行のうち、優先の小さいもの
-            var party = rival == null ? null : data.RivalParties.Where(x => x.RivalId == rival.Id && x.Party.Count > 0 && Conditions.Met(x.CondKind, x.CondValue, Current, State)).OrderBy(x => x.Priority).FirstOrDefault();
+            var party = rival == null ? null : data.RivalParties.Where(x => x.RivalId == rival.Id && x.Party.Count > 0 && Conditions.Met(x.CondKind, x.CondValue, p, State)).OrderBy(x => x.Priority).FirstOrDefault();
             if (party == null) return Nothing("ライバルはいなかった", events);
-            return StartBattle(BattleKind.Rival, true, Npc(rival.Name, party.Party), events);
+            Say(rival.Id + (rematch ? "_rematch" : ""), events, p);
+            StartBattle(BattleKind.Rival, true, Npc(rival.Name, party.Party), events);
+            B.DialogKey = rival.Id;
+            B.Rematch = rematch;
+            return true;
         }
 
         RivalEntry RivalOf(BoardSquare sq) => data.Rivals.FirstOrDefault(r => r.Place == sq.Place);
 
         // 持ち主がいるライバルマスは施設（11.5）：交換進化と、他地方のポケモンとの交換。持ち主は無料・コスト低め、ほかの人は通信ケーブルが要る
-        bool OpenRival(PlayerState p, BoardSquare sq, int owner, List<GameEvent> events)
+        // greet：止まったとき（持ち主には「_owner」、ほかの人には「_other」のセリフ）。交換のあとの開き直しでは false
+        bool OpenRival(PlayerState p, BoardSquare sq, int owner, bool greet, List<GameEvent> events)
         {
+            var rival = RivalOf(sq);
+            if (greet && rival != null) Say(rival.Id + (owner == p.Id ? "_owner" : "_other"), events, p, ("所有者", owner >= 0 && owner < State.Players.Count ? State.Players[owner].Name : "だれか"));
             bool canEvolve = p.Party.Any(m => RivalTargets(m).Any());
-            if (!canEvolve && RivalTrades(p, sq.Id).Count == 0) return Nothing((owner == p.Id ? "自分の" : $"{State.Players[owner].Name}の") + "ライバルマス。交換で進化する子も、交換できる相手も いなかった", events);
+            // 持ち主は再戦できるので、いつでも開く。ほかの人は、することがなければ開かない
+            if (owner != p.Id && !canEvolve && RivalTrades(p, sq.Id).Count == 0) return false;
             return OpenFacility(new FacilityState { Kind = FacilityKind.Rival, Player = p.Id, Square = sq.Id, Owner = owner }, events);
         }
 
@@ -440,10 +455,11 @@ namespace Sugoroku.Rules
                 {
                     if (f.Kind != FacilityKind.Rival) return "他地方のポケモンとの交換はライバルマスだけです";
                     var trade = RivalTrades(p, f.Square).FirstOrDefault(x => x.species == rt.Species);
-                    if (trade.species == null) return "その子とは 交換できません（もう交換した か、表にない）";
-                    if (!ActsAsOwner(f, p) && !p.PokemonBag.Contains("通信ケーブル")) return "通信ケーブルが要ります（ライバルマスの持ち主は不要）";
-                    return TradeCandidates(p, trade.need).Count > 0 ? null : $"差し出せる ポケモンが いない（コスト{trade.need:0.#}以上の子が 必要）";
+                    return trade.species == null ? "その子とは 交換できません（もう交換した か、表にない）" : null; // ケーブルや渡す子がないときは、選んだあとにセリフで知らせる
                 }
+                case RivalRematch _:
+                    if (f.Kind != FacilityKind.Rival || f.Owner != p.Id) return "再戦できるのは そのライバルマスの持ち主だけです";
+                    return p.Party.Any(m => !m.Fainted) ? null : "戦える ポケモンが いません";
                 case RivalEvolve rv:
                     if (f.Kind != FacilityKind.Rival) return "交換進化はライバルマスだけです";
                     if (rv.Slot < 0 || rv.Slot >= p.Party.Count || !RivalTargets(p.Party[rv.Slot]).Contains(rv.Target)) return "その子は ここでは進化しません";
@@ -495,9 +511,17 @@ namespace Sugoroku.Rules
                 case ChangeJob j:
                     SetJob(p, j.Job, events);
                     return;
+                case RivalRematch _:
+                    State.Facility = null;
+                    if (!RivalBattle(board[f.Square], true, events)) EndTurn(events);
+                    return;
                 case RivalTrade rt:
                 {
                     var trade = RivalTrades(p, f.Square).First(x => x.species == rt.Species);
+                    var rv = RivalOf(board[f.Square]);
+                    if (!ActsAsOwner(f, p) && !p.PokemonBag.Contains("通信ケーブル")) { Say("rival_no_cable", events, p); return; }
+                    if (TradeCandidates(p, trade.need).Count == 0) { Say("rival_trade_short", events, p, ("コスト", trade.need.ToString("0.#"))); return; }
+                    Say(rv.Id + "_trade", events, p);
                     var t = new FacilityState { Kind = FacilityKind.Trade, Player = p.Id, Square = f.Square, Owner = f.Owner, EventId = "rival:" + RivalOf(board[f.Square]).Id, PendingItem = rt.Species, Price = trade.level, Prompt = $"{rt.Species}と 交換する子を えらぶ（コスト{trade.need:0.#}以上）" };
                     FillTradeOptions(t, p, trade.need);
                     OpenFacility(t, events);

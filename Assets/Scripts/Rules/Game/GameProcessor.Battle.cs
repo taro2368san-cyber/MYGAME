@@ -633,7 +633,11 @@ namespace Sugoroku.Rules
                 // 持ち主がいなければファンになる（ジムトレーナーがもう他人のファンなら、倒した記録だけ残る）
                 if (!State.Owners.ContainsKey(b.Square)) { SetOwner(b.Square, p.Id, events); Say("trainer_become_fan", events, p, ("名前", lose.Name)); }
             }
-            if (b.Kind == BattleKind.Rival) SetOwner(b.Square, p.Id, events);
+            if (b.Kind == BattleKind.Rival)
+            {
+                Say(b.DialogKey + "_win", events, p);
+                if (!b.Rematch) { SetOwner(b.Square, p.Id, events); Say("rival_become_owner", events, p); } // 再戦では持ち主は変わらない
+            }
             if (b.Kind == BattleKind.Rocket) RocketCleared(p, events);
             if (b.Kind == BattleKind.Event) EventBattleWon(p, events);
             // 共通報酬のアイテム（7.7）：NPC戦に勝つと確率で、ボールマスと同じ表（バッジの段階）から1つ。もらったポケモンの入れ先を選んでいる最中なら出さない
@@ -666,6 +670,7 @@ namespace Sugoroku.Rules
             foreach (var m in b.Full ? lose.Team : new List<PokemonState> { lose.Current }) m.Hp = 0;
             AddMoney(p, -loss, "負けて落とした", events);
             if (Chance(Tune("defeat_rest_rate"))) Rest(p, events);
+            if (b.Kind == BattleKind.Rival) Say(b.DialogKey + "_lose", events, p);
             if (b.Kind == BattleKind.Trainer || b.Kind == BattleKind.Rocket) Say(b.DialogKey + "_lose", events, p, ("名前", win.Name), ("ポケモン", win.Current.Species));
         }
 

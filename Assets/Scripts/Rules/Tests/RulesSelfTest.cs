@@ -352,8 +352,28 @@ namespace Sugoroku.Rules
                 bool got = tp.Party.Concat(tp.Box).Any(m => m.Species == rv.Trades[0] && m.Level == rv.TradeLevel) && !tp.Party.Any(m => m.Species == "カメックス");
                 bool again = tp.RocketUsed.Contains("rival:" + rv.Trades[0]); // もう一度は交換できない（することがなければ施設は閉じる）
                 var (ng, _) = LandEvents(rivalSq, "ヒトカゲ", s => { s.Owners[rivalSq.Id] = 99; s.Players[0].Party.Add(Pokemons.Create(data, "カメックス", 60, "", "", 1)); });
-                bool needCable = ng.State.Facility == null || ng.Validate(new RivalTrade { Player = 0, Species = rv.Trades[0] }) != null;
+                var noCable = ng.State.Facility?.Kind == FacilityKind.Rival ? Apply(ng, new RivalTrade { Species = rv.Trades[0] }) : new List<GameEvent>();
+                bool needCable = noCable.OfType<Dialog>().Any(d => d.Key == "rival_no_cable") && ng.State.Facility?.Kind == FacilityKind.Rival;
                 Check(log, "ライバルマスの交換：持ち主は他地方のポケモンをもらえる（1人1回）、ほかの人は通信ケーブルが要る", opened && choosing && give >= 0 && got && again && needCable);
+            }
+            if (rivalSq != null && data.Rivals.Any(r => r.Place == rivalSq.Place) && data.HasDialog(data.Rivals.First(r => r.Place == rivalSq.Place).Id))
+            {
+                // ライバル文言：はじめは「ライバルid」のセリフでバトル。持ち主が止まると「_owner」、再戦すると「_rematch」で、勝っても持ち主は変わらない
+                string id = data.Rivals.First(r => r.Place == rivalSq.Place).Id;
+                var (_, first) = LandEvents(rivalSq, "ヒトカゲ");
+                var (og, oev) = LandEvents(rivalSq, "ヒトカゲ", s => { s.Owners[rivalSq.Id] = 0; s.Players[0].Party[0] = Pokemons.Create(data, "カメックス", 60, "", "", 1); });
+                bool ownerLine = oev.OfType<Dialog>().Any(d => d.Key == id + "_owner") && og.State.Facility?.Kind == FacilityKind.Rival;
+                var rev = ownerLine ? Apply(og, new RivalRematch()) : new List<GameEvent>();
+                bool rematch = rev.OfType<Dialog>().Any(d => d.Key == id + "_rematch") && og.State.Battle?.Rematch == true;
+                for (int i = 0; i < 60 && og.State.Battle != null; i++)
+                {
+                    var b = og.State.Battle;
+                    if (b.Step == BattleStep.Select) { rev.AddRange(Apply(og, new SelectPokemon { Slot = b.Sides[0].Team.FindIndex(m => !m.Fainted) })); continue; }
+                    if (b.Step != BattleStep.Commands) break;
+                    rev.AddRange(b.Sides[b.Attacker].Player == 0 ? Apply(og, new ChooseAttack { Attack = Attack.Physical }) : Apply(og, new ChooseDefense { Defense = Defense.Counter }));
+                }
+                Check(log, "ライバル文言：はじめのセリフ、持ち主のセリフ、再戦（勝っても持ち主は変わらない）", first.OfType<Dialog>().Any(d => d.Key == id) && ownerLine && rematch
+                    && rev.OfType<Dialog>().Any(d => d.Key == id + "_win") && !rev.OfType<OwnerChanged>().Any() && og.State.Owners[rivalSq.Id] == 0);
             }
             if (rivalSq != null && data.Rivals.Count > 0)
             {
