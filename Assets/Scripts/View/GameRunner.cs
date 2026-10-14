@@ -226,6 +226,9 @@ public partial class GameRunner : MonoBehaviour
         row = Row(col);
         Ui.Button(row, "つぎへ", ShowConfirm, 300, 70);
         Ui.Button(row, "タイトルへ", ShowTitle, 220, 70);
+#if ENABLE_INPUT_SYSTEM
+        Ui.Button(row, "コントローラー登録", StartPadRegister, 300, 70);
+#endif
     }
 
     // 確認画面：設定の一覧と「これで始める」（1.1、16.1 #9）
@@ -418,7 +421,7 @@ public partial class GameRunner : MonoBehaviour
 
     IEnumerator Wait(float seconds)
     {
-        for (float t = 0; t < seconds && !Input.GetKey(KeyCode.Space); t += Time.deltaTime) yield return null;
+        for (float t = 0; t < seconds && !SkipHeld(); t += Time.deltaTime) yield return null;
     }
 
     IEnumerator MovePiece(int player, List<int> path)
@@ -428,7 +431,7 @@ public partial class GameRunner : MonoBehaviour
         {
             Vector3 from = pieces[player].position, to = PiecePosition(player, path[i]);
             sound.PlaySe("step");
-            float time = Input.GetKey(KeyCode.Space) ? stepSeconds / 4 : stepSeconds;
+            float time = SkipHeld() ? stepSeconds / 4 : stepSeconds;
             for (float t = 0; t < time; t += Time.deltaTime)
             {
                 pieces[player].position = Vector3.Lerp(from, to, t / time) + Vector3.up * Mathf.Sin(t / time * Mathf.PI) * 0.3f;
@@ -542,6 +545,8 @@ public partial class GameRunner : MonoBehaviour
             else if (next.Contains(kv.Key)) kv.Value.SetGlow(new Color(0.6f, 1, 0.6f), 0.6f);
             else kv.Value.SetGlow(new Color(0.35f, 0.35f, 0.35f), 0.75f);
         }
+        if (move == null) padSquare = -1;
+        else if (padSquare >= 0 && squares.TryGetValue(padSquare, out var cursor)) cursor.SetGlow(Color.white, 1); // コントローラーで選んでいるマス
     }
 
     // ---- メニュー（場面ごとのボタン）----
@@ -833,18 +838,22 @@ public partial class GameRunner : MonoBehaviour
     {
         prompt.text = title;
         Ui.Clear(buttons);
+        var made = new List<Button>();
         for (int i = 0; i < menu.Count; i++)
         {
             var (label, action, _, enabled) = menu[i];
             var b = Ui.Button(buttons, i < 9 ? $"{i + 1}. {label}" : label, action);
             b.interactable = enabled;
+            made.Add(b);
         }
+        PadHighlight(title, made); // コントローラーのカーソル
     }
 
     // ---- 入力 ----
 
     void Update()
     {
+        if (PadUpdate()) return; // コントローラー（登録・抜けたとき・五十音表・メニュー・バトル・移動）
         if (kanaFor >= 0) { KanaUpdate(); return; } // 名前の五十音表（ゲームが始まる前）
         if (game == null) return;
         zoom = Mathf.Clamp(zoom - Input.mouseScrollDelta.y * 0.1f, 0.3f, 3f);

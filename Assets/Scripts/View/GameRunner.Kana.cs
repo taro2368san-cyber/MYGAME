@@ -73,22 +73,25 @@ public partial class GameRunner
                 kanaButtons[x, y].image.color = x == kanaX && y == kanaY ? new Color(1f, 0.85f, 0.4f) : Color.white;
     }
 
+    // カーソルを動かす（空きマスは飛ばす）
+    void KanaMove(int dx, int dy)
+    {
+        int cols = KanaColumns.Length;
+        for (int n = 0; n < cols * 5; n++)
+        {
+            kanaX = (kanaX + dx + cols) % cols;
+            kanaY = (kanaY + dy + 5) % 5;
+            if (KanaColumns[kanaX][kanaY] != '　') break;
+        }
+        KanaRefresh();
+    }
+
     // 矢印キーでカーソル（空きマスは飛ばす）、Enter で入力、Backspace で消す、Esc で終わり
     void KanaUpdate()
     {
         int dx = Input.GetKeyDown(KeyCode.RightArrow) ? 1 : Input.GetKeyDown(KeyCode.LeftArrow) ? -1 : 0;
         int dy = Input.GetKeyDown(KeyCode.DownArrow) ? 1 : Input.GetKeyDown(KeyCode.UpArrow) ? -1 : 0;
-        if (dx != 0 || dy != 0)
-        {
-            int cols = KanaColumns.Length;
-            for (int n = 0; n < cols * 5; n++)
-            {
-                kanaX = (kanaX + dx + cols) % cols;
-                kanaY = (kanaY + dy + 5) % 5;
-                if (KanaColumns[kanaX][kanaY] != '　') break;
-            }
-            KanaRefresh();
-        }
+        if (dx != 0 || dy != 0) KanaMove(dx, dy);
         if (Input.GetKeyDown(KeyCode.Return)) KanaType();
         if (Input.GetKeyDown(KeyCode.Backspace)) KanaBack();
         if (Input.GetKeyDown(KeyCode.Escape)) CloseKana();

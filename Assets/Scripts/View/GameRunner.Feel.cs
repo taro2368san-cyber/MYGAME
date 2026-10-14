@@ -58,7 +58,7 @@ public partial class GameRunner
     IEnumerator DiceAnim(DiceRolled d)
     {
         var rnd = new System.Random();
-        for (float t = 0; t < 1.1f && !Input.GetKey(KeyCode.Space); t += 0.08f)
+        for (float t = 0; t < 1.1f && !SkipHeld(); t += 0.08f)
         {
             yield return ShowBig("サイコロ　" + string.Join("　", d.Dice.Select(_ => rnd.Next(1, 11))), new Color(0.8f, 0.8f, 0.8f));
             yield return Wait(0.08f);
