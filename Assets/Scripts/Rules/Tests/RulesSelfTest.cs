@@ -383,6 +383,26 @@ namespace Sugoroku.Rules
                 var bev = dg.Apply(new DebugCommand { Player = cur.Id, Action = DebugAction.Battle, Text = "コラッタ", Value = 7 }, out string e3);
                 Check(log, "デバッグ：週を進める・状態異常・指定したポケモンとバトル", e1 == null && dg.State.Week == w0 + 1 && e2 == null && cur.Party[0].Status == Status.Paralysis && e3 == null && bev.OfType<BattleStarted>().Any(b => b.Opponent == "野生のコラッタ"));
             }
+            if (data.JobSquares.Count > 0)
+            {
+                // 職業マス（9.2）：ゲーム開始時にトレーナーマスへ置かれる。条件を満たして止まると職業トレーナーとバトル、勝つと解放して就くか聞かれる
+                var jg0 = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
+                int trainerSquares = board.Squares.Values.Count(x => x.Type == "トレーナー");
+                bool placed = jg0.State.JobSquares.Count == Math.Min(data.JobSquares.Count, trainerSquares) && jg0.State.JobSquares.Keys.All(k => board[k].Type == "トレーナー");
+                var fire = data.JobSquares.FirstOrDefault(x => x.Job == "ひふきやろう");
+                int fireSq = jg0.State.JobSquares.FirstOrDefault(kv => kv.Value == "ひふきやろう").Key;
+                if (fire != null && fireSq > 0 && board[fireSq].Neighbors.Count > 0)
+                {
+                    var (ng, nev) = LandEvents(board[fireSq], "ヒトカゲ"); // 条件を満たしていない：ふつうのトレーナーマス
+                    var (jg, jev) = LandEvents(board[fireSq], "ヒトカゲ", s => { var pl = s.Players[0]; for (int i = 0; i < 4; i++) pl.Gyms.Add("ジム" + i); pl.Party[0] = Pokemons.Create(data, "リザードン", 100, "", "", 1); });
+                    bool challenged = jev.OfType<JobChallenge>().Any(x => x.Job == "ひふきやろう") && jg.State.Battle?.Kind == BattleKind.Job;
+                    jg.DebugEnabled = true;
+                    var wev = challenged ? jg.Apply(new DebugCommand { Player = 0, Action = DebugAction.WinBattle }, out _) : new List<GameEvent>();
+                    Check(log, "職業マス：開始時にトレーナーマスへ置かれる、条件を満たすと職業トレーナーと戦い、勝つと解放して就くか聞かれる",
+                        placed && !nev.OfType<JobChallenge>().Any() && challenged && wev.OfType<JobUnlocked>().Any(x => x.Job == "ひふきやろう") && jg.State.Facility?.Kind == FacilityKind.JobOffer);
+                }
+                else Check(log, "職業マス：開始時にトレーナーマスへ置かれる", placed);
+            }
             var rivalSq = board.Squares.Values.FirstOrDefault(x => x.Type == "ライバル" && x.Neighbors.Count > 0);
             if (rivalSq != null && data.Rivals.Any(r => r.Place == rivalSq.Place && r.Trades.Count > 0))
             {

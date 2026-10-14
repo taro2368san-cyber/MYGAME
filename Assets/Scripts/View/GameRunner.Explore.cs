@@ -44,6 +44,7 @@ public partial class GameRunner
         var sq = board[id];
         if (sq.MapId != board[p.Square].MapId) return "別のマップ（建物や洞窟の中など）は ここからは 見えない";
         string text = $"{sq.Place}の {sq.Type}";
+        if (S.JobSquares.TryGetValue(id, out string job)) text += $"　{job}の 職業マス" + (game.JobChallengeOpen(p, id) != null ? "（いま 挑める）" : "");
         if (S.Owners.TryGetValue(id, out int owner)) text += $"　{S.Players[owner].Name}の" + (sq.Type == "ライバル" ? "ライバルマス" : "ファン");
         if (!Movement.CanEnter(board, id, p.Badges)) return text + $"　まだ入れない（バッジ{sq.RequiredBadges}個で解放）";
         int d = Movement.Distance(board, p.Square, id, p.Badges);

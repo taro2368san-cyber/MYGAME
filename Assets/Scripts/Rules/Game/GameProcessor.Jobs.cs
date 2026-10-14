@@ -25,6 +25,56 @@ namespace Sugoroku.Rules
         // プレイヤー戦の勝利報酬で、コストに関係なく相手のポケモンをもらえる（ロケット団、9.4）
         bool JobFreeTrade(PlayerState p) => JobRule(p)?.FreeTrade == true;
 
+        // ---- 職業マス（9.2）。職業マス.csv の職業ごとに、ゲーム開始時にトレーナーマスを1つ選ぶ ----
+
+        // 配置候補の場所のうち、盤面にトレーナーマスがある場所からランダムに1か所、その中のトレーナーマスからランダムに1つ
+        // 候補の場所がまだ盤面になければ、どこかのトレーナーマス。1つのマスに職業は1つだけ
+        void PlaceJobSquares()
+        {
+            var trainers = board.Squares.Values.Where(s => s.Type == "トレーナー").OrderBy(s => s.Id).ToList();
+            foreach (var rule in data.JobSquares)
+            {
+                var free = trainers.Where(s => !State.JobSquares.ContainsKey(s.Id)).ToList();
+                var places = rule.Places.Where(pl => free.Any(s => s.Place == pl)).ToList();
+                var pool = places.Count > 0 ? free.Where(s => s.Place == places[Roll(0, places.Count - 1)]).ToList() : free;
+                if (pool.Count == 0) continue;
+                State.JobSquares[pool[Roll(0, pool.Count - 1)].Id] = rule.Job;
+            }
+        }
+
+        // 挑む条件：バッジの数、手持ちと控えの対象タイプのLv合計、図鑑の登録数（0 は見ない）
+        public bool JobConditionsMet(PlayerState p, JobSquareRule r) =>
+            p.Badges >= r.Badges && p.Dex.Count >= r.Dex
+            && (r.TypeLevels <= 0 || p.Party.Concat(p.Box).Where(m => Pokemons.Of(data, m).Type == r.Type).Sum(m => m.Level) >= r.TypeLevels);
+
+        // このマスで いま職業に挑めるなら、その職業（まだ解放していなくて、条件を満たしている）
+        public JobSquareRule JobChallengeOpen(PlayerState p, int square)
+        {
+            if (!State.JobSquares.TryGetValue(square, out string job) || p.UnlockedJobs.Contains(job)) return null;
+            var r = data.JobSquares.FirstOrDefault(x => x.Job == job);
+            return r != null && JobConditionsMet(p, r) ? r : null;
+        }
+
+        // 職業トレーナーとバトル：相手のタイプのポケモン1体（野生で出るものから。なければそのタイプ全部から）
+        // Lv は その場所のトレーナーのLv（表になければ出現表の最高Lv＋1）＋ job_level_bonus
+        bool StartJobBattle(BoardSquare sq, JobSquareRule r, List<GameEvent> events)
+        {
+            var p = Current;
+            var entry = data.Trainers.FirstOrDefault(t => t.Square == sq.Name);
+            if (!TrainerMon(sq, entry, out var local)) local = ("", data.Trainers.Where(t => t.Place == sq.Place && t.Level != null).Select(t => t.Level.Value).DefaultIfEmpty(5).Max());
+            int level = System.Math.Min(local.level + TuneInt("job_level_bonus"), TuneInt("level_max"));
+            var wild = new HashSet<string>(data.Encounters.Select(e => e.Pokemon));
+            var ofType = data.Species.Where(s => r.FoeType == "" || s.Type == r.FoeType).ToList();
+            var pool = ofType.Where(s => wild.Contains(s.Name)).ToList();
+            if (pool.Count == 0) pool = ofType;
+            if (pool.Count == 0) return false;
+            string species = pool[Roll(0, pool.Count - 1)].Name;
+            events.Add(new JobChallenge { Player = p.Id, Job = r.Job });
+            StartBattle(BattleKind.Job, false, Npc($"{r.Job}の トレーナー", new[] { (species, level) }), events);
+            B.Job = r.Job;
+            return true;
+        }
+
         // サイクリングの解放：17番道路（サイクリングロード）のトレーナーを3人以上ファンにして、自転車を30回以上使った
         const string CyclingRoad = "17番道路";
         void CheckCyclingUnlock(PlayerState p, List<GameEvent> events)

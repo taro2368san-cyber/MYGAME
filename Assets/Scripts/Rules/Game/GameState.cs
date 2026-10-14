@@ -93,6 +93,7 @@ namespace Sugoroku.Rules
         public string FluteWeather = ""; public int FluteWeeks;   // 三竜のふえの天候（週イベントより優先、7.13）
         public readonly Dictionary<int, int> Traps = new Dictionary<int, int>(); // ワナ：マス → 仕掛けた人
         public readonly Dictionary<int, int> Blocked = new Dictionary<int, int>();
+        public readonly Dictionary<int, string> JobSquares = new Dictionary<int, string>(); // 職業マス：トレーナーマス → 職業（ゲーム開始時に決まる、9.2）
         public readonly HashSet<int> RocketCleared = new HashSet<int>();      // 一度でも倒されたロケット団マス（トレーナーマスの報酬は初回だけ、11.3）
         public List<string> RocketShelf = new List<string>();                 // どろぼうの家に今並んでいる品（行の id） // カビゴン（アマイ三ツ）：マス → 残り週数。だれも通れない
         public readonly List<Command> History = new List<Command>(); // 受け付けた命令の記録（仕様書15.9）
@@ -164,6 +165,7 @@ namespace Sugoroku.Rules
     public sealed class JobUnlocked : GameEvent { public int Player; public string Job; }
     public sealed class PokemonReceived : GameEvent { public int Player; public string Pokemon, From; public bool ToBox, Refused; }
     public sealed class BallTierUsed : GameEvent { public int Player; public string Tier; public bool Rescue, Keyed, Prize; } // Prize: 鍵付きの当たり枠
+    public sealed class JobChallenge : GameEvent { public int Player; public string Job; }
     public sealed class RocketDefeated : GameEvent { public int Player, Square; public bool First; public List<int> Trainers; } // Trainers: 報酬でもらったトレーナーマス
     public sealed class PokemonGiven : GameEvent { public int Player; public string Pokemon, To; }
     public sealed class ItemGiven : GameEvent { public int Player; public string Item, To; } // 条件「道具を渡す」で渡した

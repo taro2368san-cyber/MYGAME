@@ -237,6 +237,7 @@ namespace Sugoroku.Rules
         bool LandTrainer(BoardSquare sq, List<GameEvent> events)
         {
             var p = Current;
+            if (JobChallengeOpen(p, sq.Id) is JobSquareRule job) return StartJobBattle(sq, job, events); // 職業マス（9.2）
             var entry = data.Trainers.FirstOrDefault(t => t.Square == sq.Name);
             bool owned = State.Owners.TryGetValue(sq.Id, out int owner);
             string name = entry != null && entry.Name != "" ? entry.Name : "トレーナー";

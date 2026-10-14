@@ -609,7 +609,7 @@ namespace Sugoroku.Rules
             var p = State.Players[win.Player];
             // お金（7.7）：相手の一番高いレベル×種類ごとの値。プレイヤー戦は負けた人が落としたお金
             int topLevel = lose.Team.Max(m => m.Level);
-            string key = b.Kind == BattleKind.Wild ? "wild_win_money" : b.Kind == BattleKind.Trainer ? "trainer_win_money" : b.Kind == BattleKind.Gym ? "gym_win_money" : b.Kind == BattleKind.Rival ? "rival_win_money" : b.Kind == BattleKind.Event ? "event_win_money" : b.Kind == BattleKind.Rocket ? "rocket_win_money" : null;
+            string key = b.Kind == BattleKind.Wild ? "wild_win_money" : b.Kind == BattleKind.Trainer ? "trainer_win_money" : b.Kind == BattleKind.Gym ? "gym_win_money" : b.Kind == BattleKind.Rival ? "rival_win_money" : b.Kind == BattleKind.Event ? "event_win_money" : b.Kind == BattleKind.Rocket ? "rocket_win_money" : b.Kind == BattleKind.Job ? "trainer_win_money" : null;
             if (key != null) AddMoney(p, TuneInt(key) * topLevel * (p.Party.Any(m => m.HeldItem == "おまもりこばん") ? TuneInt("amulet_coin_mult") : 1), "賞金", events);
 
             // 経験値（6.6）：倒した相手ごとに 係数×Lv²。出たポケモンは1.0倍、出ていないポケモンは0.6倍
@@ -641,6 +641,7 @@ namespace Sugoroku.Rules
                 Say("rival_become_owner", events, p);
             }
             if (b.Kind == BattleKind.Rocket) RocketCleared(p, events);
+            if (b.Kind == BattleKind.Job) { UnlockJob(p, b.Job, events); OfferJob(p, b.Job, events); } // 勝つと解放、その場で就ける（9.2）
             if (b.Kind == BattleKind.Event) EventBattleWon(p, events);
             // 共通報酬のアイテム（7.7）：NPC戦に勝つと確率で、ボールマスと同じ表（バッジの段階）から1つ。もらったポケモンの入れ先を選んでいる最中なら出さない
             if (b.IsNpc && State.Phase != Phase.Facility && Chance(Tune("win_item_rate")))

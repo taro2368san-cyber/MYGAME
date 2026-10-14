@@ -89,6 +89,7 @@ namespace Sugoroku.Rules
                 case JobUnlocked x: return Lines("ev_reward_job", x.Player, new Dictionary<string, string> { ["職業"] = x.Job }) ?? $"職業「{x.Job}」に なれるように なった！";
                 case PokemonReceived x: return x.Refused ? $"{x.Pokemon}を もらえるはずだったが、手持ちも 控えも いっぱいだった…" : (Lines("ev_reward_pokemon", x.Player, new Dictionary<string, string> { ["報酬"] = x.Pokemon }) ?? $"{Name(x.Player)}は {x.Pokemon}を うけとった！") + (x.ToBox ? "（控えに おくった）" : "");
                 case BallTierUsed x: return x.Prize ? "カギで 開けた！ 当たりだ！" : x.Keyed ? $"カギで 開けた！ 1つ上の表（{x.Tier}）から 出る" : x.Rescue ? $"最下位が つづいているので、1つ上の表（{x.Tier}）から 出る" : null;
+                case JobChallenge x: return $"{x.Job}の トレーナーが しょうぶを しかけてきた！（勝つと {x.Job}に なれる）";
                 case RocketDefeated x: return $"{Name(x.Player)}は ロケット団を 追いはらった！ {board[x.Square].Place}の 拠点が 自分のものに" + (x.Trainers.Count > 0 ? $"　さらに {string.Join("・", x.Trainers.Select(t => board[t].Name))}の トレーナーも ファンに なった！" : "");
                 case PokemonGiven x: return $"{Name(x.Player)}は {x.Pokemon}を {x.To}に わたした";
                 case ItemGiven x: return $"{Name(x.Player)}は {x.To}に {x.Item}を わたした";

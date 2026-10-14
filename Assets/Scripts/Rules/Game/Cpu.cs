@@ -128,6 +128,7 @@ namespace Sugoroku.Rules
                 case "ポケモンセンター": case "スタート": return hurt ? 35 : 2;
                 case "トレーナー":
                 {
+                    if (g.JobChallengeOpen(p, id) != null) return 38; // 職業マスで挑める（勝つと職業が解放される）
                     if (owned) return owner == p.Id ? (hurt ? 35 : 12) : 1;
                     // レベルが10以上高いトレーナー（トキワのジムトレーナーなど）は避ける
                     var t = d.Trainers.FirstOrDefault(x => x.Square == sq.Name);

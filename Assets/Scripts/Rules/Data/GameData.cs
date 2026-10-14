@@ -139,6 +139,8 @@ namespace Sugoroku.Rules
     // イベントルール（2.2、13.3）。方式：「数に応じて」＝数×係数、「1位だけ」＝いちばん多い人に係数（同数は全員）
     public sealed class EventRule { public string Id, Name, Description, Target, Mode; public double Coef; }
     // 職業の補正（9.1、9.5）。Type が空なら手持ち全員、あればそのタイプのポケモンだけ。値は倍率（空欄は1）
+    // 職業マス.csv の1行（9.2）：どこに出るか、挑める条件、相手のタイプ
+    public sealed class JobSquareRule { public string Job, Type, FoeType; public List<string> Places = new List<string>(); public int Badges, TypeLevels, Dex; }
     public sealed class JobBonus
     {
         public string Job, Type;
@@ -176,6 +178,7 @@ namespace Sugoroku.Rules
         public readonly List<EventParty> EventParties = new List<EventParty>();
         public readonly List<DialogLine> Dialogs = new List<DialogLine>();
         public readonly List<RivalEntry> Rivals = new List<RivalEntry>();
+        public readonly List<JobSquareRule> JobSquares = new List<JobSquareRule>();
         public readonly List<RivalParty> RivalParties = new List<RivalParty>();
         public readonly List<Character> Characters = new List<Character>();
         public readonly List<EventRule> EventRules = new List<EventRule>();
@@ -422,6 +425,15 @@ namespace Sugoroku.Rules
                     NoCenterHeal = jobs.Get(r, "センターで回復") == "×", FreeTrade = jobs.Get(r, "交換のコスト") == "無視",
                 });
 
+            var jobSquares = Optional(dir, "職業マス", problems);
+            foreach (var r in Rows(jobSquares))
+                data.JobSquares.Add(new JobSquareRule
+                {
+                    Job = jobSquares.Get(r, "職"), Places = jobSquares.Get(r, "配置候補").Split("|").Select(x => x.Trim()).Where(x => x != "").ToList(),
+                    Badges = Int(jobSquares, r, "バッジの数", problems) ?? 0, Type = jobSquares.Get(r, "対象タイプ"), TypeLevels = Int(jobSquares, r, "タイプのLv合計", problems) ?? 0,
+                    Dex = Int(jobSquares, r, "図鑑の登録数", problems) ?? 0, FoeType = jobSquares.Get(r, "相手のタイプ"),
+                });
+
             var rivals = Optional(dir, "ライバル", problems);
             foreach (var r in Rows(rivals))
             {
@@ -578,6 +590,8 @@ namespace Sugoroku.Rules
                 var m = Regex.Match(f.Effect, @"([^\s、。に]+)に孵る");
                 if (!m.Success || d.FindSpecies(m.Groups[1].Value) == null) Warn($"アイテム一覧: 化石「{f.Name}」の効果に「（ポケモン名）に孵る」がないか、そのポケモンがポケモンシートにありません（博物館で預けられません）");
             }
+            foreach (var j in d.JobSquares)
+                if (!d.Jobs.Any(x => x.Name == j.Job)) Error($"職業マス: 職業「{j.Job}」が職シートにありません");
             foreach (var r in d.RocketBases)
             {
                 if (r.Mode != "買う" && r.Mode != "もらう" && r.Mode != "交換") Error($"ロケット団拠点: {r.Id} の型「{r.Mode}」は 買う／もらう／交換 のどれかにしてください");
