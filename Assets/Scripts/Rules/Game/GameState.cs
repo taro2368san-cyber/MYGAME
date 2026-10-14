@@ -47,6 +47,7 @@ namespace Sugoroku.Rules
 
     // プレイヤー単位の状態（1回休み、さいみん、のろい、へんそう など。10章）。自分のターンが来るたびに Weeks が1減る
     public sealed class PlayerAilment { public string Name; public int Weeks; }
+    public sealed class TournamentState { public readonly List<int> Entrants = new List<int>(), Advanced = new List<int>(); public int Next; } // この回戦の出場者、勝ち上がった人、次の試合
     public sealed class JournalEntry { public int Week; public string Place, Kind, Text; } // Kind: catch/badge/evolve/job/rocket/gym/rival/bond/catchup/draw
 
     // 移動中だけ使う状態
@@ -90,7 +91,9 @@ namespace Sugoroku.Rules
         public string EventRule = "";                          // 今回のイベントルールの id（2.2。空ならなし）
         public string Weather = "", WeekEvent = "";              // 週イベントの天候（雨季など）と、それ以外の週イベント（セールなど）
         public int WeatherWeeks, WeekEventWeeks, NextEventWeek;
-        public string FluteWeather = ""; public int FluteWeeks;   // 三竜のふえの天候（週イベントより優先、7.13）
+        public string FluteWeather = ""; public int FluteWeeks;
+        public string NewsKind = "", NewsPlace = ""; public int NewsWeeks;     // ポケニュース・特番：種類、指定の道路、残り週数（5.3）
+        public TournamentState Tournament;                                     // 突発バトルイベントのミニトーナメント（進行中なら）   // 三竜のふえの天候（週イベントより優先、7.13）
         public readonly Dictionary<int, int> Traps = new Dictionary<int, int>(); // ワナ：マス → 仕掛けた人
         public readonly Dictionary<int, int> Blocked = new Dictionary<int, int>();
         public readonly Dictionary<int, string> JobSquares = new Dictionary<int, string>(); // 職業マス：トレーナーマス → 職業（ゲーム開始時に決まる、9.2）
@@ -165,6 +168,9 @@ namespace Sugoroku.Rules
     public sealed class JobUnlocked : GameEvent { public int Player; public string Job; }
     public sealed class PokemonReceived : GameEvent { public int Player; public string Pokemon, From; public bool ToBox, Refused; }
     public sealed class BallTierUsed : GameEvent { public int Player; public string Tier; public bool Rescue, Keyed, Prize; } // Prize: 鍵付きの当たり枠
+    public sealed class NewsLegendAppeared : GameEvent { public string Pokemon; }
+    public sealed class TournamentStarted : GameEvent { public List<int> Players; }
+    public sealed class TournamentWon : GameEvent { public int Player; public string Item; }
     public sealed class JobChallenge : GameEvent { public int Player; public string Job; }
     public sealed class RocketDefeated : GameEvent { public int Player, Square; public bool First; public List<int> Trainers; } // Trainers: 報酬でもらったトレーナーマス
     public sealed class PokemonGiven : GameEvent { public int Player; public string Pokemon, To; }

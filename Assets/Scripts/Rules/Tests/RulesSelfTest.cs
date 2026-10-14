@@ -403,6 +403,36 @@ namespace Sugoroku.Rules
                 }
                 else Check(log, "職業マス：開始時にトレーナーマスへ置かれる", placed);
             }
+            {
+                // ポケニュース特番（5.3）：指定の道路の草むらで 準伝説が出ることがある
+                var ng0 = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
+                ng0.ApplyWeekEvent("ポケニュース特番", new List<GameEvent>());
+                string place = ng0.State.NewsPlace;
+                var grass = board.Squares.Values.FirstOrDefault(x => x.Type == "草むら" && !x.Sea && x.Place == place && x.Neighbors.Count > 0);
+                bool legend = false;
+                for (ulong seed = 1; seed <= 40 && grass != null && !legend; seed++)
+                {
+                    var (_, lev) = LandEvents(grass, "ヒトカゲ", s => { s.NewsKind = "ポケニュース特番"; s.NewsPlace = place; s.NewsWeeks = 3; s.Rng = seed * 104729; });
+                    legend = lev.OfType<NewsLegendAppeared>().Any() && lev.OfType<BattleStarted>().Any(b => b.Kind == BattleKind.Wild);
+                }
+                Check(log, "ポケニュース特番：指定の道路の草むらで 準伝説が出る", place != "" && ng0.State.NewsWeeks == 3 && (grass == null || legend));
+            }
+            {
+                // 突発バトルイベント（5.3）：週のはじめに 全員でトーナメント。優勝するとポケベル、そのあと手番が始まる
+                var tg = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ"), ("B", MoveMode.Highlight, "ゼニガメ"), ("C", MoveMode.Highlight, "フシギダネ") }, 50, 9, out _, null, "", new[] { true, true, true });
+                var tev = new List<GameEvent>();
+                bool started = tg.StartTournament(tev);
+                var r = new Random(1);
+                for (int i = 0; i < 3000 && tg.State.Tournament != null; i++)
+                {
+                    int who = tg.WaitingFor().First();
+                    tev.AddRange(tg.Apply(Cpu.Decide(tg, data, board, who, r), out string err));
+                    if (err != null) throw new Exception("トーナメント中の命令が受け付けられない：" + err);
+                }
+                var won = tev.OfType<TournamentWon>().FirstOrDefault();
+                Check(log, "突発バトルイベント：トーナメント（3人なら1人は不戦勝）、優勝でポケベル、そのあと手番", started && won != null && tg.State.Players[won.Player].TrainerBag.Contains("ポケベル")
+                    && tev.OfType<BattleStarted>().Count(b => b.Kind == BattleKind.Tournament) == 2 && tg.State.Phase == Phase.Prepare && tg.State.Tournament == null);
+            }
             var rivalSq = board.Squares.Values.FirstOrDefault(x => x.Type == "ライバル" && x.Neighbors.Count > 0);
             if (rivalSq != null && data.Rivals.Any(r => r.Place == rivalSq.Place && r.Trades.Count > 0))
             {

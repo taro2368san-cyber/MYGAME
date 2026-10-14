@@ -15,7 +15,13 @@ namespace Sugoroku.Rules
         bool StartWild(BoardSquare sq, List<GameEvent> events, string method = "草むら")
         {
             if (sq == null) return false;
-            var row = Pick(data.Encounters.Where(e => e.Place == sq.Place && e.Method == method).ToList(), e => e.Rate ?? 0);
+            if (NewsLegend(sq, method) is var legend && legend != null) // ポケニュース特番の準伝説（5.3）
+            {
+                events.Add(new NewsLegendAppeared { Pokemon = legend.Value.species });
+                return StartBattle(BattleKind.Wild, false, Npc($"野生の{legend.Value.species}", new[] { legend.Value }), events);
+            }
+            var rows = data.Encounters.Where(e => e.Place == sq.Place && e.Method == method).ToList();
+            var row = Pick(rows, e => NewsWeight(e, rows)); // ポケニュースなら レア枠が出やすい
             if (row == null) return false;
             int level = Roll(row.MinLevel, row.MaxLevel);
             if (Current.Has("アマいおこう")) level = Math.Min(level + TuneInt("sweet_scent_level"), TuneInt("level_max")); // 少し高いレベルで出る
@@ -26,9 +32,10 @@ namespace Sugoroku.Rules
         bool StartPlayerBattle(PlayerState other, List<GameEvent> events) =>
             StartBattle(BattleKind.Player, false, new BattleSide { Player = other.Id, Name = other.Name, Team = other.Party }, events);
 
-        bool StartBattle(BattleKind kind, bool full, BattleSide opponent, List<GameEvent> events, string gym = null)
+        // first：仕掛けた側のプレイヤー（省略なら手番の人。トーナメントでは試合の1人目）
+        bool StartBattle(BattleKind kind, bool full, BattleSide opponent, List<GameEvent> events, string gym = null, int first = -1)
         {
-            var p = Current;
+            var p = first >= 0 ? State.Players[first] : Current;
             var b = State.Battle = new BattleState { Kind = kind, Full = full, Square = p.Square, Gym = gym };
             b.Sides[0] = new BattleSide { Player = p.Id, Name = p.Name, Team = p.Party };
             b.Sides[1] = opponent;
@@ -37,7 +44,7 @@ namespace Sugoroku.Rules
             b.Weather = State.FluteWeeks > 0 ? State.FluteWeather : WeatherOfWeek(State.Weather);
             if (b.Weather != "") events.Add(new BattleWeatherChanged { Weather = b.Weather });
             // 選出があるのはフルバトルとプレイヤー戦（7.1.1）。先頭固定のバトルでも、先頭が戦闘不能なら選ぶ
-            bool choose = full || kind == BattleKind.Player;
+            bool choose = full || kind == BattleKind.Player || kind == BattleKind.Tournament;
             for (int i = 0; i < 2; i++) PrepareSide(i, choose, events);
             AfterSelect(events);
             return true;
@@ -526,7 +533,7 @@ namespace Sugoroku.Rules
         void RunAway(int side, List<GameEvent> events)
         {
             var b = B;
-            bool surrender = b.Kind == BattleKind.Player;
+            bool surrender = b.Kind == BattleKind.Player || b.Kind == BattleKind.Tournament;
             events.Add(new Fled { Side = side, Surrender = surrender });
             if (surrender)
             {
@@ -578,6 +585,14 @@ namespace Sugoroku.Rules
         {
             var b = B;
             CureAfterBattle(events);
+            if (b.Kind == BattleKind.Tournament)
+            {
+                // トーナメントの試合：報酬も罰もなし。引き分けなら どちらかが勝ち上がる
+                if (winner < 0) winner = Roll(0, 1);
+                events.Add(new BattleEnded { Winner = winner, Judged = judged, WinnerName = b.Sides[winner].Name });
+                TournamentMatchEnded(b, winner, events);
+                return;
+            }
             events.Add(new BattleEnded { Winner = winner, Draw = winner < 0, Judged = judged, WinnerName = winner >= 0 ? b.Sides[winner].Name : null });
             if (winner < 0)
             {

@@ -28,6 +28,7 @@ namespace Sugoroku.Rules
                     case Evolved v: Log(v.Player, "evolve", $"{v.From}が {v.To}に しんかした"); break;
                     case JobChanged j when j.Job != "": Log(j.Player, "job", $"{j.Job}に なった"); break;
                     case RocketDefeated r: Log(r.Player, "rocket", "ロケット団を 追いはらった"); break;
+                    case TournamentWon t: Log(t.Player, "tournament", "突発トーナメントで 優勝した"); break;
                     case LevelCaughtUp l: Log(l.Player, "catchup", $"{l.Pokemon}が 格上を たおして Lv{l.Level}に"); break;
                     case RoundResolved r when r.Bond && journalBattle != null:
                     {

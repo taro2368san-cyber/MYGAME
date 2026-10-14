@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace Sugoroku.Rules
 {
-    public enum BattleKind { Wild, Trainer, Gym, Rival, Player, Event, Rocket, Job } // Job: 職業マスの職業トレーナー（9.2） // Event: ランダムイベント（チャンピオンなど）
+    public enum BattleKind { Wild, Trainer, Gym, Rival, Player, Event, Rocket, Job, Tournament } // Tournament: 突発バトルイベントのミニトーナメント（プレイヤーどうし、5.3） // Job: 職業マスの職業トレーナー（9.2） // Event: ランダムイベント（チャンピオンなど）
     public enum Attack { Physical, Special, Super, Item }           // ○物理 △特殊 □必殺 L1/R1どうぐ（仕様書7.3）
     public enum Defense { Guard, SpecialGuard, Counter, Flee }      // ○まもる △特殊守り □カウンター L1/R1にげる
     public enum BattleStep { Select, Commands, Ball, Reward }
@@ -50,7 +50,7 @@ namespace Sugoroku.Rules
         public readonly List<(PokemonState thief, PokemonState victim, string item)> Stolen = new List<(PokemonState, PokemonState, string)>(); // わるいてぐせ
         public readonly List<int> DefeatedLevels = new List<int>(); // 仕掛けた側が倒した相手のレベル（経験値用）
 
-        public bool IsNpc => Kind != BattleKind.Player;
+        public bool IsNpc => Kind != BattleKind.Player && Kind != BattleKind.Tournament;
         public BattleSide Side(int i) => Sides[i];
     }
 

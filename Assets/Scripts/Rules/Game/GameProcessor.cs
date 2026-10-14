@@ -394,6 +394,7 @@ namespace Sugoroku.Rules
             foreach (int sq in State.Blocked.Keys.ToList()) // カビゴンは週がたつと去る
                 if (--State.Blocked[sq] <= 0) { State.Blocked.Remove(sq); events.Add(new SnorlaxRemoved { Square = sq, Player = -1 }); }
             if (State.FluteWeeks > 0 && --State.FluteWeeks == 0) { events.Add(new WeekEventEnded { Name = "ふえの天候（" + State.FluteWeather + "）" }); State.FluteWeather = ""; }
+            if (State.NewsWeeks > 0 && --State.NewsWeeks == 0) { events.Add(new WeekEventEnded { Name = $"{State.NewsKind}（{State.NewsPlace}）" }); State.NewsKind = State.NewsPlace = ""; }
             if (State.WeekEventWeeks > 0 && --State.WeekEventWeeks == 0) { events.Add(new WeekEventEnded { Name = State.WeekEvent }); State.WeekEvent = ""; }
 
             // 配当（年貢）：7週ごとに、持っているトレーナーマスの分
@@ -412,17 +413,11 @@ namespace Sugoroku.Rules
                 State.NextEventWeek = State.Week + Roll(TuneInt("weekly_event_min"), TuneInt("weekly_event_max"));
                 double r = Rng.Next(ref State.Rng), sum = 0;
                 var picked = data.WeekEvents.FirstOrDefault(e => r < (sum += e.Probability));
-                int weeks = TuneInt("event_weeks");
-                // ponytail: 天候・セール・ストライキだけ。突発バトル・ポケニュースは引いても何も起きない（作るときにここへ足す）
-                if (picked != null && (picked.Name == "雨季" || picked.Name == "乾季" || picked.Name == "すなあらしの日"))
-                { State.Weather = picked.Name; State.WeatherWeeks = weeks; events.Add(new WeekEventHappened { Name = picked.Name, Weeks = weeks }); }
-                else if (picked != null && (picked.Name == "セール" || picked.Name == "ストライキ"))
-                { State.WeekEvent = picked.Name; State.WeekEventWeeks = weeks; events.Add(new WeekEventHappened { Name = picked.Name, Weeks = weeks }); }
+                if (picked != null) return ApplyWeekEvent(picked.Name, events); // トーナメントが始まったら、手番はそのあと
             }
             return true;
         }
 
-        // 順位用ポイント（12章）＝所持ポイント＋バッジ＋（所持金＋トレーナーマスの換算額）÷1000
         // 順位用ポイント（12章）：所持ポイント＋（所持金＋トレーナーマス・ロケット団マスの換算額）÷1,000。最下位の救済や途中の順位に使う
         public double Score(PlayerState p) =>
             p.Points + p.Badges * Tune("badge_point")

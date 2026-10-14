@@ -379,7 +379,7 @@ public partial class GameRunner : MonoBehaviour
                 case Warped w: pieces[w.Player].position = PiecePosition(w.Player, w.To); break;
                 case SentToCenter c: pieces[c.Player].position = PiecePosition(c.Player, c.Square); break;
                 case BattleStarted b:
-                    if (b.Kind == BattleKind.Player) yield return Banner($"{S.Players[b.Players[0]].Name}さんは コントローラー1、{S.Players[b.Players[1]].Name}さんは 2を 持ってください", Color.white, 2);
+                    if ((b.Kind == BattleKind.Player || b.Kind == BattleKind.Tournament) && !S.Players[b.Players[0]].IsCpu && !S.Players[b.Players[1]].IsCpu) yield return Banner($"{S.Players[b.Players[0]].Name}さんは コントローラー1、{S.Players[b.Players[1]].Name}さんは 2を 持ってください", Color.white, 2);
                     battlePanel.gameObject.SetActive(true);
                     cards[0].Clear(); cards[1].Clear();
                     cards[0].SetOwner(b.Players[0] >= 0 ? S.Players[b.Players[0]].Name : "");
@@ -471,7 +471,7 @@ public partial class GameRunner : MonoBehaviour
     {
         if (game == null) return;
         string weather = S.FluteWeeks > 0 ? $"　天候：{S.FluteWeather}（ふえ、あと{S.FluteWeeks}週）" : S.Weather != "" ? $"　天候：{S.Weather}（あと{S.WeatherWeeks}週）" : "";
-        string ev = S.WeekEvent != "" ? $"　{S.WeekEvent}中（あと{S.WeekEventWeeks}週）" : "";
+        string ev = (S.WeekEvent != "" ? $"　{S.WeekEvent}中（あと{S.WeekEventWeeks}週）" : "") + (S.NewsKind != "" ? $"　{S.NewsKind}：{S.NewsPlace}（あと{S.NewsWeeks}週）" : "");
         var rule = data.EventRules.FirstOrDefault(r => r.Id == S.EventRule);
         header.text = $"  {Math.Min(S.Week, S.MaxWeeks)}／{S.MaxWeeks}週" + weather + ev + (S.Phase != Phase.GameOver ? $"　　{S.CurrentPlayer.Name}の ばん" : "") + (rule != null ? $"　　イベントルール：{rule.Name}" : "");
 
