@@ -653,6 +653,8 @@ public partial class GameRunner : MonoBehaviour
         DrawMenu(game.TargetOf(item) == TargetKind.Square ? $"{item}：どこに？" : game.TargetOf(item) == TargetKind.Number ? $"{item}：何マス進む？" : $"{item}を だれに使う？");
     }
 
+    int exchangePoints = 1; // 換金所で選んでいるポイント
+
     string FacilityMenu(PlayerState _)
     {
         var f = S.Facility;
@@ -663,12 +665,27 @@ public partial class GameRunner : MonoBehaviour
             case FacilityKind.Event:
             case FacilityKind.RocketBase:
             case FacilityKind.Trade:
-            case FacilityKind.Exchange:
             case FacilityKind.BagFull:
             case FacilityKind.BoxFull:
             case FacilityKind.JobOffer:
                 for (int i = 0; i < f.Options.Count; i++) { var c = new ChooseOption { Player = me, Index = i }; Add(f.Options[i], () => Send(c), i == f.Options.Count - 1 ? KeyCode.Escape : KeyCode.None); }
                 return $"{p.Name}さん：{f.Prompt}";
+            case FacilityKind.Exchange:
+            {
+                // 1,000円単位で、何ポイント換えるかを選ぶ（2.1）
+                int max = game.ExchangeMax(p), rate = (int)data.Required("yen_per_point");
+                exchangePoints = Mathf.Clamp(exchangePoints, 1, Mathf.Max(1, max));
+                void Set(int n) { exchangePoints = Mathf.Clamp(n, 1, Mathf.Max(1, max)); RefreshAll(); }
+                Add("－10", () => Set(exchangePoints - 10), KeyCode.None, exchangePoints > 1);
+                Add("－1", () => Set(exchangePoints - 1), KeyCode.LeftArrow, exchangePoints > 1);
+                Add("＋1", () => Set(exchangePoints + 1), KeyCode.RightArrow, exchangePoints < max);
+                Add("＋10", () => Set(exchangePoints + 10), KeyCode.None, exchangePoints < max);
+                Add("全部", () => Set(max), KeyCode.None, exchangePoints < max);
+                var c = new ExchangePoints { Player = me, Points = exchangePoints };
+                Add($"{exchangePoints}ポイントに 換える（{exchangePoints * rate:#,0}円）", () => Send(c), KeyCode.Return, Ok(c));
+                Add("換えない", () => Send(new LeaveFacility { Player = me }), KeyCode.Escape);
+                return $"{f.Prompt}　→ {exchangePoints}ポイント（{exchangePoints * rate:#,0}円）、のこり {p.Money - exchangePoints * rate:#,0}円";
+            }
             case FacilityKind.Rival:
             {
                 bool owner = game.ActsAsOwner(f, p);

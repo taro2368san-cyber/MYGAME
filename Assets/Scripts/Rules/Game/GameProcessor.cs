@@ -117,7 +117,7 @@ namespace Sugoroku.Rules
                 case RollDice _: DoRoll(events); break;
                 case Fish _: DoFish(events); break;
                 case ChooseDestination _: case StepTo _: case StepBack _: case ConfirmMove _: DoMove(c, events); break;
-                case Buy _: case Sell _: case CenterSwap _: case HoldItem _: case AcceptHeal _: case LeaveFacility _: case ChooseOption _: case ChangeJob _: case LabEvolve _: case RivalEvolve _: case RivalTrade _: DoFacility(c, events); break;
+                case Buy _: case Sell _: case CenterSwap _: case HoldItem _: case AcceptHeal _: case LeaveFacility _: case ChooseOption _: case ChangeJob _: case LabEvolve _: case RivalEvolve _: case RivalTrade _: case ExchangePoints _: DoFacility(c, events); break;
                 case DebugCommand d: DoDebug(d, events); break;
                 default: DoBattle(c, events); break;
             }
@@ -138,7 +138,7 @@ namespace Sugoroku.Rules
                 case RollDice _: return MyTurn(c, Phase.Prepare);
                 case Fish _: return MyTurn(c, Phase.Prepare) ?? CheckFish(Current);
                 case ChooseDestination _: case StepTo _: case StepBack _: case ConfirmMove _: return MyTurn(c, Phase.Moving) ?? CheckMove(c);
-                case Buy _: case Sell _: case CenterSwap _: case HoldItem _: case AcceptHeal _: case LeaveFacility _: case ChooseOption _: case ChangeJob _: case LabEvolve _: case RivalEvolve _: case RivalTrade _:
+                case Buy _: case Sell _: case CenterSwap _: case HoldItem _: case AcceptHeal _: case LeaveFacility _: case ChooseOption _: case ChangeJob _: case LabEvolve _: case RivalEvolve _: case RivalTrade _: case ExchangePoints _:
                     if (State.Phase != Phase.Facility) return $"今はできません（{PhaseName(State.Phase)}）";
                     return c.Player == State.Facility.Player ? CheckFacility(c) : "今えらぶのはあなたではありません";
                 case DebugCommand d: return CheckDebug(d);

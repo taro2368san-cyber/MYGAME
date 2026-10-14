@@ -120,6 +120,7 @@ namespace Sugoroku.Rules
     public sealed class CenterSwap : Command { public int PartySlot = -1, BoxIndex = -1; } // 片方だけなら預ける／引き出す
     public sealed class AcceptHeal : Command { }                                         // 他人のファンマスで回復代を払う
     public sealed class LeaveFacility : Command { }
+    public sealed class ExchangePoints : Command { public int Points; }              // 換金所で、1,000円単位で何ポイント換えるか（2.1）
     public sealed class ChooseOption : Command { public int Index; }                     // イベントの選択肢・捨てる物を選ぶ
     public sealed class ChangeJob : Command { public string Job; }                       // センターで職業を変える（9.2）
     public sealed class LabEvolve : Command { public int Slot; public string Target; }   // 研究室の進化サービス（3.2.1）

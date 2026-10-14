@@ -440,6 +440,8 @@ namespace Sugoroku.Rules
                     if (!p.PokemonBag.Contains(h.Item)) return "その道具を持っていません";
                     return data.FindItem(h.Item)?.IsHeldItem == true ? null : "それは もちものでは ありません";
                 }
+                case ExchangePoints x:
+                    return CheckExchange(p, f, x.Points);
                 case AcceptHeal _:
                     return f.Kind == FacilityKind.FanHeal ? null : "ここでは回復代を払えません";
                 case ChangeJob j:
@@ -502,6 +504,9 @@ namespace Sugoroku.Rules
                     events.Add(new HeldItemChanged { Player = p.Id, Pokemon = mon.Species, Item = mon.HeldItem, Old = old });
                     return;
                 }
+                case ExchangePoints x:
+                    DoExchange(p, x.Points, events);
+                    break; // 換えたら換金所を出て、手番が終わる
                 case AcceptHeal _:
                     PayHeal(f, events);
                     break;
@@ -547,7 +552,6 @@ namespace Sugoroku.Rules
                         return;
                     }
                     if (f.EventId == MuseumId) { MuseumChosen(f, o.Index, events); EndTurn(events); return; }
-                    if (f.Kind == FacilityKind.Exchange) { ExchangeChosen(f, o.Index, events); EndTurn(events); return; }
                     if (f.EventId == PagerId)
                     {
                         bool wait = PagerChosen(f, o.Index, events, out bool back);

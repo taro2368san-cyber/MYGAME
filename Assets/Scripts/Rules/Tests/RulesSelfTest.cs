@@ -364,12 +364,13 @@ namespace Sugoroku.Rules
                 var (eg, _) = LandEvents(sq, "ヒトカゲ", s => s.Players[0].Money = 5500);
                 var ep = eg.State.Players[0];
                 double before = eg.FinalScore(ep);
-                int all = eg.State.Facility?.Options.FindIndex(o => o.StartsWith("全部")) ?? -1;
-                if (all >= 0) Apply(eg, new ChooseOption { Index = all });
-                bool exchanged = ep.Points == 5 && ep.Money == 500 && eg.FinalScore(ep) == before + 5;
+                bool opened = eg.State.Facility?.Kind == FacilityKind.Exchange;
+                bool tooMuch = eg.Validate(new ExchangePoints { Player = 0, Points = 6 }) != null; // 5,500円では 6p は換えられない
+                if (opened) Apply(eg, new ExchangePoints { Points = 3 });
+                bool exchanged = ep.Points == 3 && ep.Money == 2500 && eg.FinalScore(ep) == before + 3 && eg.State.Facility == null;
                 var (cg, _) = LandEvents(sq, "ヒトカゲ", s => { s.Players[0].Money = 5500; s.Week = s.MaxWeeks - 3; });
                 sq.Type = keep;
-                Check(log, "換金所：お金をポイントに換える（換えないお金は勝利ポイントに入らない）、最後の10週は閉まる", all >= 0 && exchanged && cg.State.Facility == null && cg.State.Players[0].Points == 0);
+                Check(log, "換金所：1,000円単位で 好きなだけ ポイントに換える（換えないお金は勝利ポイントに入らない）、最後の10週は閉まる", opened && tooMuch && exchanged && cg.State.Facility == null && cg.State.Players[0].Points == 0);
             }
             {
                 // デバッグ（17.1）：週を進める、状態異常、指定したポケモンとバトル
