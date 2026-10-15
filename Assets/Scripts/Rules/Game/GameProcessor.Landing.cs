@@ -37,6 +37,7 @@ namespace Sugoroku.Rules
                     if (JobNoCenterHeal(player)) events.Add(new NothingHappened { Player = player.Id, Reason = $"{player.Job}なので 回復は してもらえない（入れ替えなどは できる）" });
                     else HealParty(player, events);
                     bool lab = sq.Type == "スタート";
+                    if (lab) LabErrand(player, events); // お使いを届けた
                     if (lab && player.Dex.Count >= TuneInt("lab_researcher_dex") && data.Jobs.Any(j => j.Name == "けんきゅういん") && !player.UnlockedJobs.Contains("けんきゅういん"))
                         UnlockJob(player, "けんきゅういん", events); // 解放した直後は、このままセンターの画面で就ける（9.2）
                     return OpenFacility(new FacilityState { Kind = FacilityKind.Center, Player = player.Id, Square = sq.Id, IsLab = lab }, events);
@@ -56,6 +57,10 @@ namespace Sugoroku.Rules
                     var e = data.EventSquares.FirstOrDefault(x => x.Square == sq.Name);
                     if (e == null || e.Effect.Kind == EffectKind.None) return Nothing(e?.Content is string c && c != "" ? c : "何も起きなかった", events);
                     if (e.Effect.Kind == EffectKind.Museum) return LandMuseum(events);
+                    if (e.Effect.Kind == EffectKind.Errand) return LandErrand(e.Effect, events);
+                    if (e.Effect.Kind == EffectKind.BoxUp) return LandBoxUp(e.Effect, events);
+                    if (e.Effect.Kind == EffectKind.Trade) return LandNpcTrade(sq, true, events);
+                    if (e.Effect.Kind == EffectKind.DayCare) return LandDayCare(events);
                     return StartEvent(e.Effect, events);
                 default: // ワープ（着いた先）、ゴールなど
                     return Nothing("何も起きなかった", events);
@@ -197,7 +202,7 @@ namespace Sugoroku.Rules
         {
             p.Dex.Add(mon.Species);
             if (p.Party.Count < TuneInt("party_size")) { p.Party.Add(mon); ApplyJobHp(p); return false; }
-            if (p.Box.Count < TuneInt("box_max")) { p.Box.Add(mon); ApplyJobHp(p); return false; }
+            if (p.Box.Count < BoxLimit(p)) { p.Box.Add(mon); ApplyJobHp(p); return false; }
             var f = new FacilityState { Kind = FacilityKind.BoxFull, Player = p.Id, Square = p.Square, PendingPokemon = mon, Prompt = $"控えが いっぱい。{mon.Species}を 入れるなら、どの子を 逃がす？" };
             f.Options.AddRange(p.Box.Select(m => $"{m.Species} Lv{m.Level}"));
             f.Options.Add($"{mon.Species}を 逃がす");
@@ -429,7 +434,7 @@ namespace Sugoroku.Rules
                     if (f.Kind != FacilityKind.Center) return "ここではポケモンを入れ替えられません";
                     bool inParty = w.PartySlot >= 0 && w.PartySlot < p.Party.Count, inBox = w.BoxIndex >= 0 && w.BoxIndex < p.Box.Count;
                     if (w.PartySlot >= 0 && !inParty || w.BoxIndex >= 0 && !inBox || !inParty && !inBox) return "入れ替えるポケモンを選んでください";
-                    if (inParty && !inBox && (p.Party.Count <= 1 || p.Box.Count >= TuneInt("box_max"))) return p.Party.Count <= 1 ? "手持ちを0体にはできません" : "控えがいっぱいです";
+                    if (inParty && !inBox && (p.Party.Count <= 1 || p.Box.Count >= BoxLimit(p))) return p.Party.Count <= 1 ? "手持ちを0体にはできません" : "控えがいっぱいです";
                     if (!inParty && inBox && p.Party.Count >= TuneInt("party_size")) return "手持ちがいっぱいです";
                     return null;
                 case HoldItem h:
@@ -553,6 +558,8 @@ namespace Sugoroku.Rules
                         return;
                     }
                     if (f.EventId == MuseumId) { MuseumChosen(f, o.Index, events); EndTurn(events); return; }
+                    if (f.EventId == NpcTradeId) { if (NpcTradeChosen(f, o.Index, events)) return; EndTurn(events); return; }
+                    if (f.EventId == DayCareId) { if (DayCareChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == PagerId)
                     {
                         bool wait = PagerChosen(f, o.Index, events, out bool back);

@@ -27,7 +27,7 @@ namespace Sugoroku.Rules
                     return NextGym(p) != null ? null : "もうすべてのバッジを持っています";
                 case DebugAction.AddPokemon:
                     if (data.FindSpecies(d.Text) == null) return $"ポケモン「{d.Text}」がいません";
-                    return p.Party.Count < TuneInt("party_size") || p.Box.Count < TuneInt("box_max") ? null : "手持ちも控えもいっぱいです";
+                    return p.Party.Count < TuneInt("party_size") || p.Box.Count < BoxLimit(p) ? null : "手持ちも控えもいっぱいです";
                 case DebugAction.WinBattle:
                 case DebugAction.LoseBattle:
                     return State.Phase == Phase.Battle && State.Battle.Step != BattleStep.Reward && State.Battle.Sides.All(s => s.Active >= 0) ? null : "バトル中（コマンドを選ぶとき）だけ";

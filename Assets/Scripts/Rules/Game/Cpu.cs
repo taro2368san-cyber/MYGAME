@@ -189,7 +189,10 @@ namespace Sugoroku.Rules
                 case FacilityKind.BoxFull:
                     yield return new ChooseOption { Player = p.Id, Index = f.Options.Count - 1 }; // 拾わない／来た子を逃がす
                     break;
-                default: // イベントの「はい」、職業に就く、解放する職業は最初のもの
+                case FacilityKind.Event when f.EventId == "交換":
+                    yield return new ChooseOption { Player = p.Id, Index = f.Options.Count - 1 }; // ponytail: CPU は町の人と交換しない。強さを比べて選ぶなら ここで
+                    break;
+                default: // イベントの「はい」、職業に就く、解放する職業は最初のもの、育て屋に あずける・引き取る
                     yield return new ChooseOption { Player = p.Id, Index = 0 };
                     break;
             }

@@ -95,6 +95,7 @@ namespace Sugoroku.Rules
                 case JobChallenge x: return $"{x.Job}の トレーナーが しょうぶを しかけてきた！（勝つと {x.Job}に なれる）";
                 case RocketDefeated x: return $"{Name(x.Player)}は ロケット団を 追いはらった！ {board[x.Square].Place}の 拠点が 自分のものに" + (x.Trainers.Count > 0 ? $"　さらに {string.Join("・", x.Trainers.Select(t => board[t].Name))}の トレーナーも ファンに なった！" : "");
                 case PokemonGiven x: return $"{Name(x.Player)}は {x.Pokemon}を {x.To}に わたした";
+                case BoxExpanded x: return $"{Name(x.Player)}は 控えに {x.Max}体まで あずけられるように なった！";
                 case ItemGiven x: return $"{Name(x.Player)}は {x.To}に {x.Item}を わたした";
                 case SwitchedOut x: return $"{x.Pokemon}は 手持ちに もどった！";
                 case ItemDiscarded x: return x.NotTaken ? $"{x.Item}は 拾わなかった" : $"{x.Item}を すてた";

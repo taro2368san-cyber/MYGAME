@@ -102,7 +102,7 @@ namespace Sugoroku.Rules
     // ---- ここから下は 設計メモ のCSV（xlsx に同じ名前のシートを作ればそちらが使われる。書き方は 設計メモ/CSVの書き方.md）----
 
     // マスやイベントの効果の型（仕様書13.2）。「効果の型」列の言葉で見分ける
-    public enum EffectKind { None, Money, Item, ExtraMove, CureStatus, HealAll, Points, Battle, UnlockJob, Museum } // Museum: 化石を預ける博物館（3.2.2）
+    public enum EffectKind { None, Money, Item, ExtraMove, CureStatus, HealAll, Points, Battle, UnlockJob, Museum, Errand, BoxUp, Trade, DayCare } // Museum: 化石を預ける博物館（3.2.2）。Errand 以降は町の人のイベントマス（GameProcessor.Town.cs）
 
     // ランダムイベント・イベントマスの1件
     public sealed class Effect
@@ -458,6 +458,11 @@ namespace Sugoroku.Rules
             return null;
         }
 
+        // 交換のイベントマスの値「バリヤード Lv15、カモネギ Lv15」→ (種族, Lv)。Lv がなければ 10
+        public static List<(string species, int level)> TradeList(string value) =>
+            value.Split(new[] { '、', ',', '，' }, StringSplitOptions.RemoveEmptyEntries).Select(x => Regex.Match(x.Trim(), @"^(.+?)\s*(?:Lv\s*(\d+))?$"))
+                .Where(m => m.Success).Select(m => (m.Groups[1].Value.Trim(), m.Groups[2].Success ? int.Parse(m.Groups[2].Value) : 10)).ToList();
+
         // ランダムイベント.csv / イベントマス.csv の1行
         static Effect ParseEffect(CsvTable t, string[] row, List<string> problems)
         {
@@ -480,8 +485,12 @@ namespace Sugoroku.Rules
             else if (kind.StartsWith("バトル")) e.Kind = EffectKind.Battle;
             else if (kind.StartsWith("職業")) e.Kind = EffectKind.UnlockJob;
             else if (kind.StartsWith("博物館")) e.Kind = EffectKind.Museum;
+            else if (kind.StartsWith("お使い")) e.Kind = EffectKind.Errand;
+            else if (kind.StartsWith("控えの上限")) e.Kind = EffectKind.BoxUp;
+            else if (kind.StartsWith("交換")) e.Kind = EffectKind.Trade;
+            else if (kind.StartsWith("育て屋")) e.Kind = EffectKind.DayCare;
             else problems.Add($"[警告] {t.Name}: 「{e.Id}」の効果の型「{kind}」はまだ作っていません（何も起きません）");
-            bool numeric = e.Kind == EffectKind.Money || e.Kind == EffectKind.ExtraMove || e.Kind == EffectKind.Points;
+            bool numeric = e.Kind == EffectKind.Money || e.Kind == EffectKind.ExtraMove || e.Kind == EffectKind.Points || e.Kind == EffectKind.Errand || e.Kind == EffectKind.BoxUp;
             if (numeric && !int.TryParse(e.Value, out _)) { problems.Add($"[エラー] {t.Name}: 「{e.Id}」の値「{e.Value}」は数字にしてください"); e.Kind = EffectKind.None; }
             return e;
         }
@@ -550,6 +559,13 @@ namespace Sugoroku.Rules
         {
             void Error(string s) => problems.Add("[エラー] " + s);
             void Warn(string s) => problems.Add("[警告] " + s);
+
+            foreach (var e in d.EventSquares.Where(x => x.Effect.Kind == EffectKind.Trade))
+            {
+                var list = TradeList(e.Effect.Value);
+                if (list.Count == 0) Error($"イベントマス: 「{e.Square}」の交換の値に、もらえるポケモンを「バリヤード Lv15、カモネギ Lv15」のように書いてください");
+                foreach (var (species, _) in list.Where(x => d.FindSpecies(x.species) == null)) Error($"イベントマス: 「{e.Square}」の交換の「{species}」がポケモンシートにありません");
+            }
 
             foreach (var s in d.Shops)
             {

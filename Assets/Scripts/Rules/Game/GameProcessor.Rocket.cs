@@ -131,23 +131,28 @@ namespace Sugoroku.Rules
             t.Goods.Add(""); t.Options.Add("やめる");
         }
 
-        // 渡す子を選んだ（拠点の交換・ライバルの交換）。EventId が "rival:" ならライバルマス
+        // 渡す子を選んだ（拠点の交換・ライバルの交換・町の人の交換）。EventId が "rival:" ならライバルマス、"npc:" なら交換のイベントマス
         bool TradeOption(FacilityState f, int index, List<GameEvent> events)
         {
             var p = State.Players[f.Player];
             var sq = board[f.Square];
-            bool rival = f.EventId.StartsWith("rival:");
+            bool rival = f.EventId.StartsWith("rival:"), npc = f.EventId.StartsWith("npc:");
             string pick = index < f.Goods.Count ? f.Goods[index] : "";
-            bool Back() => rival ? OpenRival(p, sq, f.Owner, false, events) : OpenRocketBase(p, sq, f.Owner, false, events);
+            bool Back() => npc ? LandNpcTrade(sq, false, events) : rival ? OpenRival(p, sq, f.Owner, false, events) : OpenRocketBase(p, sq, f.Owner, false, events);
             if (pick == "") return Back(); // やめる
             var list = pick.StartsWith("box:") ? p.Box : p.Party;
             var give = list[int.Parse(pick.Substring(pick.IndexOf(':') + 1))];
             list.Remove(give);
             if (give.HeldItem != "") { p.PokemonBag.Add(give.HeldItem); give.HeldItem = ""; } // もちものは外れて残る（8.2）
-            string from = rival ? RivalOf(sq).Name : RocketRows(sq)[0].BaseName;
+            string from = npc ? sq.Place + "の 人" : rival ? RivalOf(sq).Name : RocketRows(sq)[0].BaseName;
             events.Add(new PokemonGiven { Player = p.Id, Pokemon = give.Species, To = from });
             var got = Pokemons.Create(data, f.PendingItem, f.Price, $"{from}と 交換", sq.Place, State.Week);
-            if (rival)
+            if (npc)
+            {
+                p.RocketUsed.Add(NpcTradeKey(sq, f.PendingItem)); // 1人1回ずつ
+                Say("ev_trade_ok", events, p, ("ポケモン", f.PendingItem));
+            }
+            else if (rival)
             {
                 p.RocketUsed.Add("rival:" + f.PendingItem); // ライバルの交換も1人1回ずつ
                 Say(RivalOf(sq).Id + "_trade_ok", events, p);

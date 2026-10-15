@@ -367,6 +367,73 @@ namespace Sugoroku.Rules
                 var hp = hg.State.Players[0];
                 Check(log, "博物館：化石を預けると、3週あとに孵る（Lvは最高Lv−5）", asked && deposited && waiting && hp.Fossil == "" && hp.Party.Any(m => m.Species == "カブト" && m.Level == 25 && m.MetHow == "ニビ科学博物館で目覚めた"));
             }
+
+            // 町の人のイベントマス（お使い・マサキの家・交換・育て屋）。盤面にそのマスがあれば試す
+            BoardSquare EventSquareOf(EffectKind k)
+            {
+                var row = data.EventSquares.FirstOrDefault(x => x.Effect.Kind == k);
+                return row == null ? null : board.Squares.Values.FirstOrDefault(x => x.Name == row.Square && x.Neighbors.Count > 0);
+            }
+            List<GameEvent> StepOnto(GameProcessor g, BoardSquare target)
+            {
+                if (g.State.Phase == Phase.Facility) Apply(g, new LeaveFacility());
+                var p = g.State.CurrentPlayer;
+                p.Square = target.Neighbors[0];
+                p.FixedDice = 1;
+                Apply(g, new RollDice());
+                Apply(g, new ChooseDestination { Square = target.Id });
+                return Apply(g, new ConfirmMove());
+            }
+            var errandSq = EventSquareOf(EffectKind.Errand);
+            if (errandSq != null)
+            {
+                int gift = int.Parse(data.EventSquares.First(x => x.Effect.Kind == EffectKind.Errand).Effect.Value);
+                var (eg, _) = LandEvents(errandSq, "ヒトカゲ");
+                var ep = eg.State.Players[0];
+                int balls = ep.BallCount;
+                bool asked = ep.ErrandStage == 1;
+                StepOnto(eg, board[board.StartSquare]);
+                bool paid = ep.ErrandStage == 2 && ep.BallCount == balls + gift;
+                StepOnto(eg, errandSq);
+                StepOnto(eg, board[board.StartSquare]);
+                Check(log, "お使い：頼まれて、研究室に止まるとモンスターボール。1人1回", asked && paid && ep.ErrandStage == 2 && ep.BallCount == balls + gift);
+            }
+            var billSq = EventSquareOf(EffectKind.BoxUp);
+            if (billSq != null)
+            {
+                int max = int.Parse(data.EventSquares.First(x => x.Effect.Kind == EffectKind.BoxUp).Effect.Value);
+                var (xg, xev) = LandEvents(billSq, "ヒトカゲ");
+                var xp = xg.State.Players[0];
+                Check(log, "マサキの家：控えの上限が増える（ほかの人は そのまま）", max <= (int)data.Required("box_max") || xg.BoxLimit(xp) == max && xev.OfType<BoxExpanded>().Any() && xg.BoxLimit(new PlayerState()) == (int)data.Required("box_max"));
+            }
+            var tradeSq = EventSquareOf(EffectKind.Trade);
+            if (tradeSq != null)
+            {
+                var (tg, _) = LandEvents(tradeSq, "ヒトカゲ", s => s.Players[0].Party.Add(Pokemons.Create(data, "リザードン", 60, "", "", 1)));
+                var tp = tg.State.Players[0];
+                var want = GameData.TradeList(data.EventSquares.First(x => x.Effect.Kind == EffectKind.Trade).Effect.Value).First();
+                bool opened = tg.State.Facility?.EventId == "交換";
+                if (opened) Apply(tg, new ChooseOption { Index = 0 });
+                bool choosing = tg.State.Facility?.Kind == FacilityKind.Trade;
+                int give = choosing ? tg.State.Facility.Goods.IndexOf("party:1") : -1; // リザードンを出す
+                if (give >= 0) Apply(tg, new ChooseOption { Index = give });
+                bool got = tp.Party.Concat(tp.Box).Any(m => m.Species == want.species && m.Level == want.level) && !tp.Party.Any(m => m.Species == "リザードン");
+                Check(log, "交換のイベントマス：コストの足りる子を出して交換、1人1回", opened && choosing && give >= 0 && got && tg.NpcTrades(tp, tradeSq).All(x => x.species != want.species));
+            }
+            var careSq = EventSquareOf(EffectKind.DayCare);
+            if (careSq != null)
+            {
+                var (cg, _) = LandEvents(careSq, "ヒトカゲ", s => s.Players[0].Box.Add(Pokemons.Create(data, "ポッポ", 10, "", "", 1)));
+                var cp = cg.State.Players[0];
+                bool asked = cg.State.Facility?.EventId == "育て屋";
+                if (asked) Apply(cg, new ChooseOption { Index = 0 });
+                bool deposited = cp.DayCare?.Species == "ポッポ" && cp.Box.Count == 0;
+                if (cp.DayCare != null) cp.DayCareWeek -= 2 * (int)data.Required("daycare_weeks_per_level"); // 2Lv 育つだけ 週がたった
+                StepOnto(cg, careSq);
+                bool offered = cg.State.Facility?.Options.FirstOrDefault()?.Contains("Lv12") == true;
+                if (offered) Apply(cg, new ChooseOption { Index = 0 });
+                Check(log, "育て屋：控えから あずけて、決まった週ごとに1Lv、引き取ると控えに戻る", asked && deposited && offered && cp.DayCare == null && cp.Box.Any(m => m.Species == "ポッポ" && m.Level == 12));
+            }
             {
                 // 海上マスとつり（4.1.2）：スタートのとなりを一時的に「海上の草むら」にして試す
                 int seaId = board[board.StartSquare].Neighbors[0];
@@ -782,7 +849,7 @@ namespace Sugoroku.Rules
             {
                 Must(p.Money >= 0, $"{p.Name}の所持金がマイナス");
                 Must(p.Party.Count >= 1 && p.Party.Count <= (int)data.Required("party_size"), $"{p.Name}の手持ちが{p.Party.Count}体");
-                Must(p.Box.Count <= (int)data.Required("box_max"), $"{p.Name}の控えが多すぎる");
+                Must(p.Box.Count <= Math.Max((int)data.Required("box_max"), p.BoxMax), $"{p.Name}の控えが多すぎる");
                 int extra = data.JobBonuses.FirstOrDefault(b => b.Job == p.Job && b.Type == "")?.Bag ?? 0; // ロケット団は袋が大きい
                 Must(p.PokemonBag.Count <= (int)data.Required("pokemon_bag") + extra && p.TrainerBag.Count <= (int)data.Required("trainer_bag") + extra, $"{p.Name}の袋があふれている");
                 Must(p.Balls.Values.All(n => n >= 0), $"{p.Name}のボールがマイナス");
