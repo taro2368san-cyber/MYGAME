@@ -64,3 +64,4 @@
 週,news_legend_rate,ポケニュース特番の道路の草むらで 準伝説が出る確率,0.2,,仮,5.3
 週,news_legend_level_bonus,特番の準伝説のLv（その場所の最高Lvに足す）,5,,仮,5.3
 ポケモン,daycare_weeks_per_level,育て屋で 1Lv 育つのに かかる週数,4,週,確定,3.2
+移動,dice_zero_rate,サイコロで 0 が出る確率（ほかの目は 同じ確率で分ける）,0.05,,確定,4

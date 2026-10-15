@@ -30,6 +30,7 @@ namespace Sugoroku.Rules
         public readonly HashSet<int> VisitedCenters = new HashSet<int>();   // 行ったことのあるポケモンセンター（アーマーガーチケット）
         public readonly HashSet<string> RocketUsed = new HashSet<string>();  // ロケット団拠点で「1人1回」の品を使った（行の id）
         public string Fossil = ""; public int FossilWeek;                    // 博物館に預けている化石と、預けた週（3.2.2）
+        public BattleState PendingBattle;                                  // 1往復して止めているバトル（次の自分の番に続き）
         public int ErrandStage;                                            // お使い：0＝まだ、1＝研究室に届ける途中、2＝すんだ
         public int BoxMax;                                                 // マサキの家で増えた控えの上限（0 なら調整値 box_max のまま）
         public PokemonState DayCare; public int DayCareWeek;              // 育て屋に あずけている子と、あずけた週

@@ -13,7 +13,7 @@ namespace Sugoroku.Rules
         {
             var player = Current;
             var sq = board[player.Square];
-            var other = State.Players.FirstOrDefault(p => p != player && p.Square == player.Square && p.Party.Any(m => !m.Fainted));
+            var other = State.Players.FirstOrDefault(p => p != player && p.Square == player.Square && p.Party.Any(m => !m.Fainted) && p.PendingBattle == null); // バトルの途中の人とは戦わない
             if (other != null && player.Party.Any(m => !m.Fainted)) return StartPlayerBattle(other, events);
             SpringTrap(player, events);
 

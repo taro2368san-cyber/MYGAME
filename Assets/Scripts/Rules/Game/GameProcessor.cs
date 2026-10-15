@@ -239,12 +239,20 @@ namespace Sugoroku.Rules
             {
                 // ダート自転車の期間中は、ほかの自転車を使っていなければ ルーレットが2〜4個
                 int count = player.DiceCount == 1 && player.Has("ダート自転車") ? Roll(TuneInt("dart_bike_min"), TuneInt("dart_bike_max")) : player.DiceCount;
-                for (int i = 0; i < count; i++) dice.Add(Roll(TuneInt("dice_min"), TuneInt("dice_max")));
+                for (int i = 0; i < count; i++) dice.Add(RollDie());
             }
             int total = dice.Sum();
             BeginMove(total, events);
             events.Insert(events.Count - 1, new DiceRolled { Player = player.Id, Value = total, Dice = dice, AllowReverse = State.Move.AllowReverse, Reachable = State.Move.Reachable.ToList() });
             if (State.Move.Reachable.Count == 0) { events.Add(new NothingHappened { Player = player.Id, Reason = "止まれるマスがない" }); EndTurn(events); }
+        }
+
+        // 移動のサイコロ1個。0 が出るのは dice_zero_rate の確率だけ（ほかの目は同じ確率）
+        int RollDie()
+        {
+            int min = TuneInt("dice_min"), max = TuneInt("dice_max");
+            if (min > 0 || max <= 0) return Roll(min, max);
+            return Rng.Next(ref State.Rng) < Tune("dice_zero_rate") ? 0 : Roll(1, max);
         }
 
         // steps 歩の移動を始める（サイコロと「追加で進む」で共通）。最後に PathChanged を1つ足す
@@ -356,6 +364,7 @@ namespace Sugoroku.Rules
                 return;
             }
             if (player.Party.Count > 0) player.Party[0].LeadTurns++;
+            if (player.PendingBattle != null) ResumeBattle(player, events); // バトルの続きから
         }
 
         // 手番を終えて次の人へ。全員が1回ずつ動いたら1週進む（仕様書5.1）

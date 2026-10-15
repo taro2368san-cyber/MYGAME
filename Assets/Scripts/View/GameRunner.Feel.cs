@@ -31,7 +31,12 @@ public partial class GameRunner
                 else if (b.Kind == BattleKind.Event) sound.PlayBgm("legend", "gym", "trainer");
                 else sound.PlayBgm("trainer");
                 break;
-            case BattleEnded _: case Caught _: BoardBgm(); break;
+            case BattleResumed b:
+                if (b.Kind == BattleKind.Wild) sound.PlayBgm("wild");
+                else if (b.Kind == BattleKind.Gym || b.Kind == BattleKind.Rival) sound.PlayBgm("gym", "trainer");
+                else sound.PlayBgm("trainer");
+                break;
+            case BattleEnded _: case Caught _: case BattleSuspended _: BoardBgm(); break;
             case RoundResolved r when r.Item == null: sound.PlaySe(r.Missed ? "miss" : r.Guarded ? "guard" : "hit"); break;
             case PokemonFainted _: sound.PlaySe("faint"); break;
             case BallThrown bt: sound.PlaySe(bt.Caught ? "catch" : "ball"); break;
@@ -173,8 +178,8 @@ public partial class GameRunner
 
     static readonly (string key, string title, string text)[] HelpTopics =
     {
-        ("help_move", "移動", "サイコロは{dice}。0なら その場に もう一度 止まります。まとめて方式は止まれるマスが光り、1マスずつ方式は となりへ1歩ずつ進みます。直前のマスには戻れません（止まれるマスがないときだけ、折り返しも数えます）。自転車でサイコロが増え、くつで出目を決められます"),
-        ("help_battle", "バトル", "攻撃側と防御側が同時にコマンドを選びます。物理攻撃は「まもる」、特殊攻撃は「特殊守り」、必殺技は「カウンター」が当たりで、ガードできるとダメージが1/3、カウンターは2倍を はね返します。弱点を突くと1.5倍。必殺技は続けて打てません。先頭1体どうしの クイックバトルと、手持ち全員の フルバトルがあります"),
+        ("help_move", "移動", "サイコロは{dice}。0なら その場に もう一度 止まります。まとめて方式は止まれるマスが光り、1マスずつ方式は となりへ1歩ずつ進みます。直前のマスには戻れません（止まれるマスがないときだけ、折り返しも数えます）。自転車でサイコロが増え、くつで出目を決められます。WASD・矢印キー（コントローラーは右スティック）で 画面を動かせます"),
+        ("help_battle", "バトル", "攻撃側と防御側が同時にコマンドを選びます。物理攻撃は「まもる」、特殊攻撃は「特殊守り」、必殺技は「カウンター」が当たりで、ガードできるとダメージが1/3、カウンターは2倍を はね返します。弱点を突くと1.5倍。必殺技は続けて打てません。攻撃と防御が1往復すると その人の番は終わり、次の自分の番に 続きから戦います（プレイヤーどうしは 最後まで）。先頭1体どうしの クイックバトルと、手持ち全員の フルバトルがあります"),
         ("help_catch", "捕獲", "野生とのバトルでは、攻撃と防御が1往復するたびに ボールを投げられます。相手のHPが少ないほど、ボールが良いほど、バッジが多いほど 捕まえやすくなります。手持ちは3体まで、あふれた子は控えに入ります"),
         ("help_fan", "ファン", "トレーナーに勝つと そのトレーナーが ファンになります。7週ごとに年貢が入り、自分のファンのマスでは回復と道具、ほかの人のファンのマスでは回復代を払います。プレイヤーどうしのバトルの勝利報酬や バトルサーチャーで 奪い合えます"),
         ("help_job", "職業", "条件を満たすと職業が解放され、ポケモンセンターで就いたり変えたりできます。タイプの職業は そのタイプのポケモンが強くなるなど、職業ごとに得意なことがあります"),

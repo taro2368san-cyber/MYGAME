@@ -36,6 +36,15 @@ public partial class GameRunner
         return false;
     }
 
+    // 右スティック（画面を動かす）
+    static Vector2 PadStick()
+    {
+#if ENABLE_INPUT_SYSTEM
+        foreach (var g in Gamepad.all) { var v = g.rightStick.ReadValue(); if (v.sqrMagnitude > 0.04f) return v; }
+#endif
+        return Vector2.zero;
+    }
+
     // メニューを描くときに、カーソルの行を目立たせる
     void PadHighlight(string title, List<Button> made)
     {

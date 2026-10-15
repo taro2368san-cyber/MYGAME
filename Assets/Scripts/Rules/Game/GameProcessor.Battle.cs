@@ -139,6 +139,8 @@ namespace Sugoroku.Rules
         void BeginCommands(List<GameEvent> events)
         {
             var b = B;
+            // 攻守が1往復したら（野生はボールのあと）、すごろくの番を終える。続きは次の自分の番。プレイヤー戦・トーナメントは最後まで
+            if (b.TurnRounds >= 2 && b.IsNpc) { SuspendBattle(events); return; }
             b.Step = BattleStep.Commands;
             b.AttackCmd = null; b.AttackItem = null; b.DefenseCmd = null;
             var a = b.Sides[b.Attacker];
@@ -205,6 +207,7 @@ namespace Sugoroku.Rules
                     if (r.Reward == Reward.Trade)
                     {
                         if (b.Surrendered) return "降参した相手とは ポケモンを交換できません";
+                        if (loser.Party.Count <= 1) return "相手の ポケモンが 1体だけなので 交換できません";
                         var winner = State.Players[c.Player];
                         var mine = r.GiveFromBox ? winner.Box : winner.Party;
                         if (r.Take < 0 || r.Take >= loser.Party.Count || r.Give < 0 || r.Give >= mine.Count) return "交換するポケモンを選んでください";
@@ -258,6 +261,7 @@ namespace Sugoroku.Rules
             var A = b.Sides[b.Attacker];
             var D = b.Sides[1 - b.Attacker];
             b.Rounds++;
+            b.TurnRounds++;
             Attack atk = b.AttackCmd.Value;
             Defense def = b.DefenseCmd.Value;
             if (def == Defense.Flee) { RunAway(1 - b.Attacker, events); return; }
@@ -316,6 +320,32 @@ namespace Sugoroku.Rules
                 b.Step = BattleStep.Ball;
                 events.Add(new BallPrompt { Player = me.Id });
                 return;
+            }
+            BeginCommands(events);
+        }
+
+        void SuspendBattle(List<GameEvent> events)
+        {
+            var b = B;
+            var p = State.Players[b.Sides[0].Player];
+            b.TurnRounds = 0;
+            p.PendingBattle = b;
+            events.Add(new BattleSuspended { Player = p.Id, Opponent = b.Sides[1].Name });
+            EndTurn(events);
+        }
+
+        // 自分の番が来たら、止めていたバトルの続き（サイコロは振らない）
+        void ResumeBattle(PlayerState p, List<GameEvent> events)
+        {
+            var b = State.Battle = p.PendingBattle;
+            p.PendingBattle = null;
+            State.Phase = Phase.Battle;
+            events.Add(new BattleResumed { Player = p.Id, Kind = b.Kind, Full = b.Full, Opponent = b.Sides[1].Name, Players = b.Sides.Select(s => s.Player).ToArray() });
+            for (int i = 0; i < 2; i++)
+            {
+                var m = b.Sides[i].Current;
+                var sp = Pokemons.Of(data, m);
+                events.Add(new SentOut { Side = i, Pokemon = m.Species, Level = m.Level, Hp = m.Hp, MaxHp = Pokemons.MaxHp(data, m), Type = sp.Type, Weakness = sp.Weakness, Status = m.Status });
             }
             BeginCommands(events);
         }

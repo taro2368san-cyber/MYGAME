@@ -77,6 +77,20 @@ namespace Sugoroku.Rules
                 Check(log, "通行条件：バッジがそろうと通れる。全員に開くマスは、ほかの人がそろえても通れる", mine && shared && closed && g3.State.Move.Reachable.Contains(4));
             }
 
+            // サイコロの0は dice_zero_rate の確率だけ（ほかの目は同じ）
+            {
+                var zd = TestData(0, 6);
+                zd.Tuning["dice_zero_rate"] = 0.05;
+                int zeros = 0, sixes = 0;
+                for (ulong seed = 1; seed <= 700; seed++)
+                {
+                    var zg = GameProcessor.NewGame(board, zd, new[] { ("A", MoveMode.Highlight, "") }, 50, seed, out _);
+                    int v = Apply(zg, new RollDice()).OfType<DiceRolled>().Single().Value;
+                    if (v == 0) zeros++; else if (v == 6) sixes++;
+                }
+                Check(log, $"サイコロ：0は めったに出ない（700回で0が{zeros}回、6が{sixes}回）", zeros > 10 && zeros < 60 && sixes > 70);
+            }
+
             // 出目0：その場に もう一度 止まる（どちらの方式でも）
             foreach (var mode in new[] { MoveMode.Highlight, MoveMode.Step })
             {
@@ -366,6 +380,33 @@ namespace Sugoroku.Rules
                 var (hg, _) = LandEvents(museum, "ヒトカゲ", s => { var pl = s.Players[0]; pl.Fossil = "こうらのかせき"; pl.FossilWeek = s.Week - 3; Pokemons.SetLevel(data, pl.Party[0], 30); });
                 var hp = hg.State.Players[0];
                 Check(log, "博物館：化石を預けると、3週あとに孵る（Lvは最高Lv−5）", asked && deposited && waiting && hp.Fossil == "" && hp.Party.Any(m => m.Species == "カブト" && m.Level == 25 && m.MetHow == "ニビ科学博物館で目覚めた"));
+            }
+
+            if (data.FindSpecies("カビゴン") != null)
+            {
+                // バトルは攻守1往復で すごろくの番が終わり、次の自分の番に続きから（プレイヤー戦は最後まで）
+                var sg = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ"), ("B", MoveMode.Highlight, "ヒトカゲ") }, 50, 3, out _);
+                sg.DebugEnabled = true;
+                var sp = sg.State.CurrentPlayer;
+                var other = sg.State.Players.First(x => x != sp);
+                sp.Party[0] = Pokemons.Create(data, "カビゴン", 50, "", "", 1);
+                other.Ailments.Add(new PlayerAilment { Name = "1回休み", Weeks = 1 }); // 相手の番は休みで飛ばす
+                Apply(sg, new DebugCommand { Player = sp.Id, Action = DebugAction.Battle, Value = 50, Text = "カビゴン" });
+                bool suspended = false, resumed = false;
+                int rounds = 0;
+                for (int i = 0; i < 20 && sg.State.Battle != null && !resumed; i++)
+                {
+                    var b = sg.State.Battle;
+                    List<GameEvent> ev;
+                    if (b.Step == BattleStep.Ball) ev = Apply(sg, new ThrowBall { Player = sp.Id, Ball = null });
+                    else if (b.Step != BattleStep.Commands) break;
+                    else if (b.Sides[b.Attacker].Player == sp.Id) ev = Apply(sg, new ChooseAttack { Player = sp.Id, Attack = Attack.Physical });
+                    else ev = Apply(sg, new ChooseDefense { Player = sp.Id, Defense = Defense.Guard });
+                    rounds += ev.OfType<RoundResolved>().Count();
+                    if (ev.OfType<BattleSuspended>().Any()) suspended = rounds == 2 && sp.PendingBattle == null; // 相手が休みなので、同じ呼び出しのうちに続きが始まる
+                    resumed = ev.OfType<BattleResumed>().Any() && sg.State.Battle != null && sg.State.CurrentPlayer == sp;
+                }
+                Check(log, "バトル：攻守1往復で番が終わり、次の自分の番に続きから", suspended && resumed);
             }
 
             // 町の人のイベントマス（お使い・マサキの家・交換・育て屋）。盤面にそのマスがあれば試す

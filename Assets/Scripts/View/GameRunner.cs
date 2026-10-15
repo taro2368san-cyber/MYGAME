@@ -372,13 +372,14 @@ public partial class GameRunner : MonoBehaviour
             {
                 case TurnStarted t:
                     cameraTarget = pieces[t.Player];
+                    camPan = Vector3.zero;
                     yield return ShowNotices(t.Player); // 17.5
                     break;
                 case BallThrown bt: yield return Banner($"{bt.Ball}を なげた！\n…ゆら… …ゆら…", Color.white, shortBattle ? 1 : 2); break; // ボールが揺れる（17.6）
                 case WeekEventHappened we: yield return Banner(text, new Color(0.7f, 0.9f, 1f), 2); continue;            // 週イベントの告知（17.6）
                 case DiceRolled dr: yield return DiceAnim(dr); continue;          // 17.6
                 case InitiativeDrawn idr: yield return CardAnim(idr); continue;
-                case Moved m: yield return MovePiece(m.Player, m.Path); continue;
+                case Moved m: camPan = Vector3.zero; yield return MovePiece(m.Player, m.Path); continue;
                 case Warped w: pieces[w.Player].position = PiecePosition(w.Player, w.To); break;
                 case SentToCenter c: pieces[c.Player].position = PiecePosition(c.Player, c.Square); break;
                 case BattleStarted b:
@@ -388,6 +389,13 @@ public partial class GameRunner : MonoBehaviour
                     cards[0].SetOwner(b.Players[0] >= 0 ? S.Players[b.Players[0]].Name : "");
                     cards[1].SetOwner(b.Players[1] >= 0 ? S.Players[b.Players[1]].Name : b.Opponent);
                     break;
+                case BattleResumed br:
+                    battlePanel.gameObject.SetActive(true);
+                    cards[0].Clear(); cards[1].Clear();
+                    cards[0].SetOwner(S.Players[br.Players[0]].Name);
+                    cards[1].SetOwner(br.Players[1] >= 0 ? S.Players[br.Players[1]].Name : br.Opponent);
+                    break;
+                case BattleSuspended bs: battlePanel.gameObject.SetActive(false); yield return Banner(text, PlayerColor(S.Players[bs.Player]), 1.5f); continue;
                 case SentOut s: cards[s.Side].Show(s.Pokemon, s.Level, s.Hp, s.MaxHp, s.Type, s.Weakness); cards[s.Side].SetStatus(Pokemons.StatusName(s.Status)); break;
                 case StatusInflicted si: cards[si.Side].SetStatus(Pokemons.StatusName(si.Status)); break;
                 case CantMove cm when cm.Woke: cards[cm.Side].SetStatus(""); break;
@@ -793,7 +801,7 @@ public partial class GameRunner : MonoBehaviour
                 var loser = S.Players[b.Sides[1 - b.Winner].Player];
                 foreach (var item in loser.PokemonBag.Concat(loser.TrainerBag).Distinct()) { string it = item; Add($"うばう：{it}", () => Send(new ChooseReward { Player = winner.Id, Reward = Reward.Item, Item = it })); }
                 Add("ファンを1人うばう", () => Send(new ChooseReward { Player = winner.Id, Reward = Reward.Fan }), KeyCode.None, Ok(new ChooseReward { Player = winner.Id, Reward = Reward.Fan }));
-                Add("ポケモンを交換", () => { subMenu = () => TradeMenu(winner, loser, -1); RefreshAll(); }, KeyCode.None, !b.Surrendered);
+                Add("ポケモンを交換", () => { subMenu = () => TradeMenu(winner, loser, -1); RefreshAll(); }, KeyCode.None, !b.Surrendered && loser.Party.Count > 1); // 相手が1体だけなら奪えない
                 Add("許す", () => Send(new ChooseReward { Player = winner.Id, Reward = Reward.Forgive }), KeyCode.Escape);
                 return $"{winner.Name}さん、ほうびを えらんでください";
             }
@@ -859,6 +867,7 @@ public partial class GameRunner : MonoBehaviour
         if (game == null) return;
         zoom = Mathf.Clamp(zoom - Input.mouseScrollDelta.y * 0.1f, 0.3f, 3f);
         if (Input.GetKeyDown(KeyCode.F1) && game.DebugEnabled) ToggleDebug();
+        PanCamera();
         if (playing) return;
         // 入力欄に文字を打っている間は、数字キーなどのショートカットを使わない
         var selected = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
@@ -885,11 +894,23 @@ public partial class GameRunner : MonoBehaviour
         else Send(new StepTo { Player = me, Square = sq.id });
     }
 
+    // 画面を動かす：WASD・矢印キー（コントローラーは右スティック）。UIの下に隠れたマスを押せるように。手番が変わる・コマが動くと もどる
+    // バトル中は A/S/D が防御のキーなので動かさない。探索中は探索の動きにまかせる
+    Vector3 camPan;
+    void PanCamera()
+    {
+        if (exploring || S.Phase == Phase.Battle || overlay != null) return;
+        var selected = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
+        if (selected != null && selected.GetComponent<InputField>() is InputField input && input.isFocused) return;
+        var move = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical")) + PadStick();
+        if (move.sqrMagnitude > 0.04f) camPan += new Vector3(move.x, 0, move.y).normalized * 15f * zoom * Time.deltaTime;
+    }
+
     void LateUpdate()
     {
         var cam = Camera.main;
         if (cam == null || cameraTarget == null) return;
-        Vector3 want = cameraTarget.position + cameraOffset * zoom;
+        Vector3 want = cameraTarget.position + camPan + cameraOffset * zoom;
         cam.transform.position = Vector3.Lerp(cam.transform.position, want, 1 - Mathf.Exp(-6 * Time.deltaTime));
         cam.transform.LookAt(cam.transform.position - cameraOffset);
     }

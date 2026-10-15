@@ -118,6 +118,8 @@ namespace Sugoroku.Rules
                 case SentToCenter x: return T("notice_return", "{トレーナー}の 手持ちが ぜんめつ… ポケモンセンターへ もどされた", ("トレーナー", Name(x.Player)));
                 case GameEnded x: return "ゲーム終了！ " + string.Join("　", x.Ranking.Select((r, i) => $"{i + 1}位 {Name(r.player)}（{r.points:0.#}p）"));
 
+                case BattleSuspended x: return $"{Name(x.Player)}と {x.Opponent}の バトルは、つぎの番に つづく";
+                case BattleResumed x: return $"{Name(x.Player)}は {x.Opponent}との バトルの つづき！";
                 case BattleStarted x: return x.Kind == BattleKind.Wild ? $"{x.Opponent}が とびだしてきた！" : x.Kind == BattleKind.Event ? null : $"{x.Opponent}との バトル！" + (x.Full ? "（フルバトル）" : "");
                 case SelectRequested x: return $"{Name(x.Player)}は 出すポケモンを えらんでください";
                 case SentOut x: return $"{x.Pokemon} Lv{x.Level}（{x.Type}・弱点{x.Weakness}）";
