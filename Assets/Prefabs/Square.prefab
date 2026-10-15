@@ -84,6 +84,8 @@ MonoBehaviour:
   warpId: 0
   shopId: 
   grassKind: 0
+  gateBadges: 0
+  gateShared: 0
 --- !u!65 &5122558334080447420
 BoxCollider:
   m_ObjectHideFlags: 0
