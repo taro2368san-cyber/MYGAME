@@ -42,7 +42,7 @@ public partial class GameRunner
     {
         var p = S.CurrentPlayer;
         var sq = board[id];
-        if (sq.MapId != board[p.Square].MapId) return "別のマップ（建物や洞窟の中など）は ここからは 見えない";
+        if (!seeAll && sq.MapId != board[p.Square].MapId) return "別のマップ（建物や洞窟の中など）は ここからは 見えない";
         string text = $"{sq.Place}の {sq.Type}";
         if (S.JobSquares.TryGetValue(id, out string job)) text += $"　{job}の 職業マス" + (game.JobChallengeOpen(p, id) != null ? "（いま 挑める）" : "");
         if (S.Owners.TryGetValue(id, out int owner)) text += $"　{S.Players[owner].Name}の" + (sq.Type == "ライバル" ? "ライバルマス" : "ファン");
@@ -64,5 +64,6 @@ public partial class GameRunner
         sq.SetGlow(new Color(1, 0.9f, 0.3f), 0.8f);
         RefreshAll();
         sq.SetGlow(new Color(1, 0.9f, 0.3f), 0.8f); // RefreshAll が盤面の光を消すので、もう一度
+        if (debugPanel != null && labelMode == 2) ShowRoute(sq.id); // デバッグ：道順（17.1）
     }
 }

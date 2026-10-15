@@ -9,7 +9,9 @@ using UnityEngine.UI;
 public partial class GameRunner
 {
     RectTransform debugPanel;
-    bool debugWarp, showIds;
+    bool debugWarp, seeAll;   // seeAll：見渡しの制限を外す（別マップの中も見える）
+    int labelMode;            // マスの上の文字：0＝ふつう、1＝ID、2＝今いるマスからの距離（探索でマスを選ぶと道順も光る）
+    static readonly string[] LabelModes = { "ふつう", "ID", "距離・道順" };
     int debugDice = 1;
     string debugItem = "キズくすり", debugPokemon = "ピカチュウ", debugLevel = "10";
     static readonly string[] Weathers = { "", "雨季", "乾季", "すなあらしの日" };
@@ -34,7 +36,10 @@ public partial class GameRunner
 
         var row = DebugRow(col);
         Ui.Button(row, debugWarp ? "ワープ：マスをクリック" : "ワープ", () => { debugWarp = !debugWarp; BuildDebugPanel(); }, 230, 40);
-        Ui.Button(row, showIds ? "ID表示：オン" : "ID表示：オフ", () => { showIds = !showIds; ShowSquareIds(showIds); BuildDebugPanel(); }, 200, 40);
+        Ui.Button(row, "マス：" + LabelModes[labelMode], () => { labelMode = (labelMode + 1) % LabelModes.Length; BuildDebugPanel(); }, 200, 40);
+        ShowSquareLabels(); // 距離は 動くたびに変わるので、パネルを描くたびに出し直す
+        row = DebugRow(col);
+        Ui.Button(row, seeAll ? "見渡しの制限：なし" : "見渡しの制限：あり", () => { seeAll = !seeAll; BuildDebugPanel(); }, 300, 40);
 
         row = DebugRow(col);
         Ui.Button(row, "−", () => { debugDice = Mathf.Max(0, debugDice - 1); BuildDebugPanel(); }, 50, 40);
@@ -96,15 +101,29 @@ public partial class GameRunner
         if (debugPanel != null) BuildDebugPanel();
     }
 
-    // 全マスの番号を表示する（マスの上の文字を一時的に差し替える）
-    void ShowSquareIds(bool on)
+    // 全マスの番号か、今いるマスからの距離を表示する（マスの上の文字を一時的に差し替える）
+    void ShowSquareLabels()
     {
+        var p = S.CurrentPlayer;
         foreach (var kv in squares)
         {
             var label = kv.Value.GetComponentInChildren<TextMesh>();
             if (label == null) continue;
-            if (on) { labelBackup[kv.Value] = label.text; label.text = kv.Key.ToString(); }
-            else if (labelBackup.TryGetValue(kv.Value, out var text)) label.text = text;
+            if (!labelBackup.ContainsKey(kv.Value)) labelBackup[kv.Value] = label.text;
+            if (labelMode == 0) { label.text = labelBackup[kv.Value]; continue; }
+            if (labelMode == 1 || !board.Squares.ContainsKey(kv.Key)) { label.text = kv.Key.ToString(); continue; }
+            int d = Movement.Distance(board, p.Square, kv.Key, p.Badges);
+            label.text = !Movement.CanEnter(board, kv.Key, p.Badges) ? "×" : d < 0 ? "−" : d.ToString();
         }
+    }
+
+    // 経路探索の結果（17.1）：今いるマスから そのマスまでの いちばん短い道順を光らせる
+    void ShowRoute(int goal)
+    {
+        var p = S.CurrentPlayer;
+        int d = Movement.Distance(board, p.Square, goal, p.Badges);
+        var path = d > 0 ? Movement.FindPath(board, p.Square, d, p.Badges, false, goal) : null;
+        if (path == null) return;
+        foreach (int id in path) if (id != goal && squares.TryGetValue(id, out var s)) s.SetGlow(new Color(1, 0.55f, 0.1f), 0.9f);
     }
 }

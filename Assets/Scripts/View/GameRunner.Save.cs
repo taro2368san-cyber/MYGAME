@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -132,10 +133,13 @@ public partial class GameRunner
         Ui.Button(row, "閉じる", CloseOverlay, 200, 70);
     }
 
-    // プレイヤーごとの旅を1ページずつ（1.5）
-    // ponytail: ページを手で送る形。流れるエンドロール（1人1分、○で早送り）にするときは、ここを時間で進める
+    // プレイヤーごとの旅を、下から上へ流す（1.5）。1人 endrollSeconds 秒、○（スペース）を押している間は早送り、START（Esc）で とばす
+    public float endrollSeconds = 60;
+    Coroutine endrollRun;
+
     void ShowEndroll(int index)
     {
+        if (endrollRun != null) { StopCoroutine(endrollRun); endrollRun = null; }
         sound.PlayBgm("endroll");
         var players = S.TurnOrder.Select(id => S.Players[id]).ToList();
         if (index >= players.Count) { ShowResults(); return; }
@@ -159,9 +163,35 @@ public partial class GameRunner
         var longest = p.Party.Concat(p.Box).OrderByDescending(m => m.PartyWeeks).FirstOrDefault();
         if (longest != null && longest.PartyWeeks > 0) Ui.Line(col, narrator.Line("endroll_longest", "いちばん長く いっしょだった ポケモン") + $"：{longest.Species}（{longest.PartyWeeks}週）", 24);
         Ui.Line(col, $"歩いたマス {p.StepsWalked}　バトル {p.Battles}回　図鑑 {p.Dex.Count}種類　捕まえた種類 {p.CaughtSpecies.Count}　バッジ {p.Badges}個　ファン {S.Owners.Count(o => o.Value == p.Id)}人", 24);
-        var row = Row(col);
-        Ui.Button(row, index + 1 < players.Count ? "つぎの人へ" : "結果発表へ", () => ShowEndroll(index + 1), 300, 70);
-        Ui.Button(row, "とばす", ShowResults, 200, 70);
+        // 画面の下の外から始めて、上へ流す（高さは中身に合わせる）
+        col.anchorMin = new Vector2(0.15f, 0); col.anchorMax = new Vector2(0.85f, 0); col.pivot = new Vector2(0.5f, 1);
+        col.anchoredPosition = Vector2.zero;
+        col.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        var corner = Ui.Stack(overlay, "Skip", new Vector2(0.75f, 0.02f), new Vector2(0.98f, 0.1f), false, 0, 0);
+        Ui.Button(corner, "とばす（START・Esc）", SkipEndroll, 380, 64);
+        endrollRun = StartCoroutine(RollEndroll(col, index));
+    }
+
+    IEnumerator RollEndroll(RectTransform col, int index)
+    {
+        yield return null; // 中身の高さが決まるのを待つ
+        while (col != null)
+        {
+            float end = overlay.rect.height + col.rect.height; // いちばん下の行が 画面の上に消えるまで
+            if (col.anchoredPosition.y >= end) break;
+            if (Input.GetKeyDown(KeyCode.Escape)) { SkipEndroll(); yield break; }
+            col.anchoredPosition += new Vector2(0, end / endrollSeconds * Time.deltaTime * (SkipHeld() ? 8 : 1));
+            yield return null;
+        }
+        endrollRun = null;
+        if (col != null) ShowEndroll(index + 1); // 画面が閉じられていたら そこで終わり
+    }
+
+    void SkipEndroll()
+    {
+        if (endrollRun != null) StopCoroutine(endrollRun);
+        endrollRun = null;
+        ShowResults();
     }
 
     string MetText(PokemonState m)

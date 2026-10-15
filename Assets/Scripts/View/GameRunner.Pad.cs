@@ -11,7 +11,7 @@ using UnityEngine.InputSystem.Controls;
 // コントローラー（仕様書16.1 #4・16.5・16.9・17.4）。Input System のパッケージで動く
 // メニュー：十字キーで選ぶ、○で決定、×でもどる。バトル：攻撃 ○物理 △特殊 □必殺 L1/R1どうぐ、防御 ○まもる △特殊守り □カウンター L1/R1にげる
 // 移動：←→で止まるマスを選ぶ、○で選ぶ・決定、×で1歩もどす。ふだんはコントローラー1、プレイヤー戦は 仕掛けた側が1・相手が2（16.5 #28）
-// ponytail: タイトル・設定・ゲーム設定の画面は まだマウスとキーボードだけ（名前の五十音表はコントローラーでも打てる）
+// ボタンを並べた画面（タイトル・設定・ゲーム設定・つづきから・結果発表など）：十字キーで選ぶ、○で押す、×でもどる。エンドロールは ○で早送り、STARTで とばす
 public partial class GameRunner
 {
     int menuCursor;                            // メニューで選んでいる行
@@ -20,6 +20,11 @@ public partial class GameRunner
     readonly int[] padDevice = { -1, -1 };     // 登録したコントローラー1・2（デバイスの番号）。-1 ならつないだ順
     int padRegister = -1;                      // コントローラー登録中なら 0（1番を待つ）・1（2番を待つ）
     GameObject padLostPanel;                   // コントローラーが抜けたときの表示（17.4）
+    Button screenSel;                          // ボタンを並べた画面で選んでいるボタン
+    Color screenSelColor;                      // 選ぶ前の色（はずしたら戻す）
+    int screenIndex;                           // 画面を描き直しても同じ位置を選ぶため
+    string screenName;                         // 画面が変わったら先頭に戻すため
+    static readonly string[] BackLabels = { "もどる", "タイトルへ", "閉じる", "やめる" }; // ×で押すボタン
 
     // 演出の早送り（スペース、コントローラーの ○・×）
     static bool SkipHeld()
@@ -76,10 +81,12 @@ public partial class GameRunner
         if (padRegister >= 0) { PadRegisterUpdate(); return true; }
         if (PadLostCheck()) return true;
         if (kanaFor >= 0) return PadKana();
-        if (game == null || playing) return false;
+        if (endrollRun != null) { if (Down(Pad(0) ?? Gamepad.current, x => x.startButton)) SkipEndroll(); return true; } // ○は SkipHeld で早送り
+        if (game == null) return PadScreen(Pad(0) ?? Gamepad.current);
+        if (playing) return false;
         var g = ActingPad();
         if (g == null) return false;
-        if (overlay != null) { if (Down(g, x => x.buttonSouth) || Down(g, x => x.buttonEast)) { CloseOverlay(); return true; } return false; }
+        if (overlay != null) return PadScreen(g);
         if (exploring)
         {
             var stick = g.leftStick.ReadValue() + g.dpad.ReadValue();
@@ -168,6 +175,47 @@ public partial class GameRunner
         if (Down(g, x => x.buttonSouth)) { KanaBack(); return true; }
         if (Down(g, x => x.buttonNorth) || Down(g, x => x.startButton)) { CloseKana(); return true; }
         return false;
+    }
+
+    // ボタンを並べた画面（ゲームの外の画面と、ゲーム中に開いた画面）。いちばん上の画面のボタンだけを選ぶ
+    bool PadScreen(Gamepad g)
+    {
+        if (g == null) return false;
+        var root = overlay != null ? (Transform)overlay : canvas.transform.GetChild(canvas.transform.childCount - 1);
+        var list = root.GetComponentsInChildren<Button>().Where(b => b.interactable).ToList();
+        if (list.Count == 0) return false;
+        if (root.name != screenName) { screenName = root.name; screenIndex = 0; }
+        if (screenSel == null || !list.Contains(screenSel)) ScreenSelect(list[Mathf.Clamp(screenIndex, 0, list.Count - 1)], list);
+        var dir = Down(g, x => x.dpad.right) ? Vector2.right : Down(g, x => x.dpad.left) ? Vector2.left : Down(g, x => x.dpad.up) ? Vector2.up : Down(g, x => x.dpad.down) ? Vector2.down : Vector2.zero;
+        if (dir != Vector2.zero)
+        {
+            // その向きにある、いちばん近いボタン（向きからずれているほど遠いとみなす）
+            Vector2 from = screenSel.transform.position;
+            var next = list.Where(b => b != screenSel)
+                .Select(b => (b, d: (Vector2)b.transform.position - from))
+                .Where(x => Vector2.Dot(x.d.normalized, dir) > 0.4f)
+                .OrderBy(x => x.d.magnitude * (2 - Vector2.Dot(x.d.normalized, dir))).Select(x => x.b).FirstOrDefault();
+            if (next != null) ScreenSelect(next, list);
+            return true;
+        }
+        if (Down(g, x => x.buttonEast)) { screenSel.onClick.Invoke(); return true; }
+        if (Down(g, x => x.buttonSouth))
+        {
+            var back = list.FirstOrDefault(b => BackLabels.Any(l => b.GetComponentInChildren<Text>().text.StartsWith(l)));
+            if (back != null) back.onClick.Invoke();
+            else if (overlay != null) CloseOverlay();
+            return true;
+        }
+        return false;
+    }
+
+    void ScreenSelect(Button b, List<Button> list)
+    {
+        if (screenSel != null) screenSel.image.color = screenSelColor;
+        screenSel = b;
+        screenSelColor = b.image.color;
+        screenIndex = list.IndexOf(b);
+        b.image.color = new Color(1f, 0.85f, 0.4f);
     }
 
     // ---- コントローラー登録（16.1 #4）：○を押したコントローラーが 1番、次に押したものが 2番 ----

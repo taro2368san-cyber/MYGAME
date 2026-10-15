@@ -398,6 +398,7 @@ public partial class GameRunner : MonoBehaviour
                 case RankChanged rc: cards[rc.Side].Flash($"{rc.Stat}{(rc.Delta > 0 ? "↑" : "↓")}"); break;
                 case RoundResolved rb when rb.Bond: yield return Banner(text.Split('\n').Last(), Color.white, 2); continue; // 絆による回避（7.18）
                 case RoundResolved r:
+                    if (r.Item == null) yield return AttackAnim(r); // 技の演出（17.6）
                     cards[r.Attacker].SetHp(r.AttackerHp); cards[1 - r.Attacker].SetHp(r.DefenderHp);
                     cards[r.Attacker].Flash($"攻撃ダイス {r.Dice}");
                     break;
@@ -962,5 +963,6 @@ public partial class GameRunner : MonoBehaviour
         }
 
         public void Flash(string text) => flash.text = text;
+        public Image Body => circle; // 技の演出で動かす
     }
 }

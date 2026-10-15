@@ -68,6 +68,35 @@ public partial class GameRunner
         banner.transform.parent.gameObject.SetActive(false);
     }
 
+    // 技の演出（17.6）：1.5秒（短縮で0.5秒）。攻撃側が前に出て、当たれば受けた側が揺れて光る
+    // ガードは青く光るだけ、はずれは よける、カウンターは攻撃側が揺れる。急所・弱点は大きく揺れる。光の色は 物理 白・特殊 紫・必殺 オレンジ
+    // ponytail: ポケモンの絵を動かすだけ。技ごとのエフェクトは素材ができたら足す
+    IEnumerator AttackAnim(RoundResolved r)
+    {
+        float total = shortBattle ? 0.5f : 1.5f;
+        var atk = cards[r.Attacker].Body; var def = cards[1 - r.Attacker].Body;
+        var hurt = r.Reflected ? atk : def;
+        Color baseColor = hurt.color;
+        bool blocked = r.Missed || r.Guarded || r.Absorbed;
+        Color glow = r.Guarded || r.Absorbed ? new Color(0.4f, 0.65f, 1f) : r.Attack == Attack.Special ? new Color(0.8f, 0.55f, 1f) : r.Attack == Attack.Super ? new Color(1f, 0.6f, 0.2f) : Color.white;
+        float dir = r.Attacker == 0 ? 1 : -1, power = r.Critical || r.Weakness ? 2 : 1;
+        cards[1 - r.Attacker].Flash(r.Missed ? "はずれ" : r.Reflected ? "カウンター！" : r.Guarded ? "ガード" : r.Critical ? "きゅうしょ！" : r.Weakness ? "ばつぐん！" : "");
+        for (float t = 0; t < total && !SkipHeld(); t += Time.deltaTime)
+        {
+            float k = t / total, hit = Mathf.Clamp01((k - 0.25f) / 0.5f); // hit：当たってからの進み（0〜1）
+            bool during = hit > 0 && hit < 1;
+            Vector2 a = new Vector2(dir * 60 * Mathf.Sin(Mathf.Clamp01(k / 0.4f) * Mathf.PI), 0); // 前に出て戻る
+            Vector2 d = r.Missed ? new Vector2(dir * 50, 25) * Mathf.Sin(hit * Mathf.PI) : Vector2.zero; // よける
+            Vector2 shake = during && !blocked ? new Vector2(Mathf.Sin(t * 80) * 12 * power, 0) : Vector2.zero;
+            if (r.Reflected) a += shake; else d += shake;
+            atk.rectTransform.anchoredPosition = a; def.rectTransform.anchoredPosition = d;
+            hurt.color = during && !r.Missed ? Color.Lerp(baseColor, glow, Mathf.PingPong(hit * 4, 1)) : baseColor;
+            yield return null;
+        }
+        atk.rectTransform.anchoredPosition = def.rectTransform.anchoredPosition = Vector2.zero;
+        hurt.color = baseColor;
+    }
+
     IEnumerator CardAnim(InitiativeDrawn x)
     {
         float total = shortBattle ? 1f : 2f;
