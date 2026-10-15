@@ -139,12 +139,14 @@ namespace Sugoroku.Rules
 
             // ニビジムとライバルマスに、となりから1歩で止まらせる
             BattleStarted LandOn(BoardSquare target, Action<GameState> setup = null) => LandEvents(target, "ヒトカゲ", setup).events.OfType<BattleStarted>().SingleOrDefault();
-            (GameProcessor g, List<GameEvent> events) LandEvents(BoardSquare target, string starter, Action<GameState> setup = null)
+            (GameProcessor g, List<GameEvent> events) LandEvents(BoardSquare target, string starter, Action<GameState> setup = null, ulong seed = 7)
             {
-                var g = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, starter) }, 50, 7, out _);
+                var g = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, starter) }, 50, seed, out _);
                 var p = g.State.CurrentPlayer;
                 setup?.Invoke(g.State);
                 p.Square = target.Neighbors[0];
+                // まだ入れないエリアのマスなら、入れるだけのバッジを持たせる（バッジ1個のエリアのトレーナーマスに職業マスが出たときなど）
+                while (p.Badges < Math.Max(target.RequiredBadges, board[p.Square].RequiredBadges)) p.Gyms.Add("テスト" + p.Badges);
                 p.FixedDice = 1;
                 Apply(g, new RollDice());
                 Apply(g, new ChooseDestination { Square = target.Id });
@@ -494,13 +496,17 @@ namespace Sugoroku.Rules
             if (rivalSq != null && data.Rivals.Count > 0)
             {
                 // 脱出ボタン：フルバトルでダメージを受けたら交代（いまの子は選べない）
-                var (bg, _) = LandEvents(rivalSq, "ヒトカゲ", s =>
+                // ダメージを受ける前に勝ってしまう流れもあるので、乱数の種を変えて 交代が起きるバトルを探す
+                GameProcessor bg = null;
+                bool switched = false;
+                for (ulong seed = 1; seed <= 20 && !switched; seed++)
+                {
+                (bg, _) = LandEvents(rivalSq, "ヒトカゲ", s =>
                 {
                     var pl = s.Players[0];
                     pl.Party[0] = Pokemons.Create(data, "カメックス", 60, "", "", 1); pl.Party[0].HeldItem = "脱出ボタン";
                     pl.Party.Add(Pokemons.Create(data, "リザードン", 60, "", "", 1));
-                });
-                bool switched = false;
+                }, seed);
                 for (int i = 0; i < 40 && bg.State.Battle != null && !switched; i++)
                 {
                     var b = bg.State.Battle;
@@ -508,6 +514,7 @@ namespace Sugoroku.Rules
                     if (b.Step != BattleStep.Commands) break; // 先に倒れた（選び直し）など
                     var ev = b.Sides[b.Attacker].Player == 0 ? bg.Apply(new ChooseAttack { Player = 0, Attack = Attack.Special }, out _) : bg.Apply(new ChooseDefense { Player = 0, Defense = Defense.Counter }, out _);
                     switched = ev.OfType<SwitchedOut>().Any(x => x.Side == 0);
+                }
                 }
                 Check(log, "脱出ボタン：ダメージを受けたら交代、いまの子は選べない、なくならない", switched && bg.State.Players[0].Party[0].HeldItem == "脱出ボタン" && bg.State.Battle?.Step == BattleStep.Select && bg.Validate(new SelectPokemon { Player = 0, Slot = 0 }) != null && bg.Validate(new SelectPokemon { Player = 0, Slot = 1 }) == null);
             }
