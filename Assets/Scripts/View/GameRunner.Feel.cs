@@ -60,7 +60,7 @@ public partial class GameRunner
         var rnd = new System.Random();
         for (float t = 0; t < 1.1f && !SkipHeld(); t += 0.08f)
         {
-            yield return ShowBig("サイコロ　" + string.Join("　", d.Dice.Select(_ => rnd.Next(1, 11))), new Color(0.8f, 0.8f, 0.8f));
+            yield return ShowBig("サイコロ　" + string.Join("　", d.Dice.Select(_ => rnd.Next((int)data.Required("dice_min"), (int)data.Required("dice_max") + 1))), new Color(0.8f, 0.8f, 0.8f));
             yield return Wait(0.08f);
         }
         yield return ShowBig(d.Dice.Count > 1 ? $"サイコロ　{string.Join(" ＋ ", d.Dice)} ＝ {d.Value}" : $"サイコロ　{d.Value}", Color.white);
@@ -144,7 +144,7 @@ public partial class GameRunner
 
     static readonly (string key, string title, string text)[] HelpTopics =
     {
-        ("help_move", "移動", "サイコロは1〜10。まとめて方式は止まれるマスが光り、1マスずつ方式は となりへ1歩ずつ進みます。直前のマスには戻れません（止まれるマスがないときだけ、折り返しも数えます）。自転車でサイコロが増え、くつで出目を決められます"),
+        ("help_move", "移動", "サイコロは{dice}。0なら その場に もう一度 止まります。まとめて方式は止まれるマスが光り、1マスずつ方式は となりへ1歩ずつ進みます。直前のマスには戻れません（止まれるマスがないときだけ、折り返しも数えます）。自転車でサイコロが増え、くつで出目を決められます"),
         ("help_battle", "バトル", "攻撃側と防御側が同時にコマンドを選びます。物理攻撃は「まもる」、特殊攻撃は「特殊守り」、必殺技は「カウンター」が当たりで、ガードできるとダメージが1/3、カウンターは2倍を はね返します。弱点を突くと1.5倍。必殺技は続けて打てません。先頭1体どうしの クイックバトルと、手持ち全員の フルバトルがあります"),
         ("help_catch", "捕獲", "野生とのバトルでは、攻撃と防御が1往復するたびに ボールを投げられます。相手のHPが少ないほど、ボールが良いほど、バッジが多いほど 捕まえやすくなります。手持ちは3体まで、あふれた子は控えに入ります"),
         ("help_fan", "ファン", "トレーナーに勝つと そのトレーナーが ファンになります。7週ごとに年貢が入り、自分のファンのマスでは回復と道具、ほかの人のファンのマスでは回復代を払います。プレイヤーどうしのバトルの勝利報酬や バトルサーチャーで 奪い合えます"),
@@ -156,7 +156,7 @@ public partial class GameRunner
     {
         var col = Overlay("Help");
         Ui.Line(col, "あそびかた：" + HelpTopics[topic].title, 44);
-        Ui.Line(col, narrator.Line(HelpTopics[topic].key, HelpTopics[topic].text), 28);
+        Ui.Line(col, narrator.Line(HelpTopics[topic].key, HelpTopics[topic].text).Replace("{dice}", $"{data.Required("dice_min")}〜{data.Required("dice_max")}"), 28);
         var row = Row(col);
         for (int i = 0; i < HelpTopics.Length; i++) { int k = i; Ui.Button(row, HelpTopics[i].title, () => ShowHelp(k), 150, 56); }
         Ui.Button(Row(col), "閉じる", CloseOverlay, 200, 64);

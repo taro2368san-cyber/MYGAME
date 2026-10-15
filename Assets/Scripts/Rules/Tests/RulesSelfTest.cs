@@ -59,6 +59,17 @@ namespace Sugoroku.Rules
             events = Apply(game, new ConfirmMove());
             Check(log, "ワープに止まると相手のマスへ", events.OfType<Warped>().Any(w => w.From == 8 && w.To == 9) && events.OfType<Landed>().Single().Square == 9);
 
+            // 出目0：その場に もう一度 止まる（どちらの方式でも）
+            foreach (var mode in new[] { MoveMode.Highlight, MoveMode.Step })
+            {
+                game = NewGame(board, 0, mode);
+                Apply(game, new RollDice());
+                Check(log, $"出目0（{mode}）：止まれるのは今のマスだけ", Same(new HashSet<int>(game.State.Move.Reachable), 1));
+                if (mode == MoveMode.Highlight) Apply(game, new ChooseDestination { Square = 1 });
+                events = Apply(game, new ConfirmMove());
+                Check(log, $"出目0（{mode}）：今のマスに止まる", events.OfType<Landed>().Single().Square == 1 && game.State.Players[0].Square == 1);
+            }
+
             // 手番と週（2人・1週で終わる）
             game = NewGame(board, 3, MoveMode.Highlight, players: 2, weeks: 1);
             int first = game.State.CurrentPlayer.Id;
@@ -799,7 +810,7 @@ namespace Sugoroku.Rules
         {
             var data = new GameData();
             foreach (var (k, v) in new (string, double)[] { ("dice_min", diceMin), ("dice_max", diceMax), ("start_money", 500), ("start_balls", 3), ("start_level", 5),
-                ("weekly_event_min", 3), ("weekly_event_max", 8), ("dividend_interval", 7), ("badge_point", 5), ("yen_per_point", 1000) })
+                ("weekly_event_min", 3), ("weekly_event_max", 8), ("dividend_interval", 7), ("badge_point", 5), ("yen_per_point", 1000), ("lab_researcher_dex", 130) })
                 data.Tuning[k] = v;
             return data;
         }
