@@ -183,19 +183,30 @@ public partial class GameRunner
         if (g == null) return false;
         var root = overlay != null ? (Transform)overlay : canvas.transform.GetChild(canvas.transform.childCount - 1);
         var list = root.GetComponentsInChildren<Button>().Where(b => b.interactable).ToList();
-        if (list.Count == 0) return false;
+        if (list.Count == 0)
+        {
+            // ボタンのない画面は ○・×で閉じる
+            if (overlay != null && (Down(g, x => x.buttonSouth) || Down(g, x => x.buttonEast))) { CloseOverlay(); return true; }
+            return false;
+        }
         if (root.name != screenName) { screenName = root.name; screenIndex = 0; }
         if (screenSel == null || !list.Contains(screenSel)) ScreenSelect(list[Mathf.Clamp(screenIndex, 0, list.Count - 1)], list);
         var dir = Down(g, x => x.dpad.right) ? Vector2.right : Down(g, x => x.dpad.left) ? Vector2.left : Down(g, x => x.dpad.up) ? Vector2.up : Down(g, x => x.dpad.down) ? Vector2.down : Vector2.zero;
         if (dir != Vector2.zero)
         {
-            // その向きにある、いちばん近いボタン（向きからずれているほど遠いとみなす）
+            // 上下：その向きのいちばん近い行の中で、横にいちばん近いボタン。左右：同じ行の となり（なければ動かない）
             Vector2 from = screenSel.transform.position;
-            var next = list.Where(b => b != screenSel)
-                .Select(b => (b, d: (Vector2)b.transform.position - from))
-                .Where(x => Vector2.Dot(x.d.normalized, dir) > 0.4f)
-                .OrderBy(x => x.d.magnitude * (2 - Vector2.Dot(x.d.normalized, dir))).Select(x => x.b).FirstOrDefault();
-            if (next != null) ScreenSelect(next, list);
+            float tol = 20 * canvas.scaleFactor; // 同じ行（列）とみなすずれ
+            var cands = list.Where(b => b != screenSel)
+                .Select(b => { var d = (Vector2)b.transform.position - from; return (b, along: Vector2.Dot(d, dir), side: Mathf.Abs(Vector2.Dot(d, new Vector2(dir.y, dir.x)))); })
+                .Where(x => x.along > tol / 2).ToList();
+            if (cands.Count > 0)
+            {
+                float near = cands.Min(x => x.along);
+                var next = dir.x != 0 ? cands.Where(x => x.side < tol).OrderBy(x => x.along).Select(x => x.b).FirstOrDefault()
+                         : cands.Where(x => x.along <= near + tol).OrderBy(x => x.side).First().b;
+                if (next != null) ScreenSelect(next, list);
+            }
             return true;
         }
         if (Down(g, x => x.buttonEast)) { screenSel.onClick.Invoke(); return true; }
