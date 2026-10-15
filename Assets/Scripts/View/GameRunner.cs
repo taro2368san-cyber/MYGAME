@@ -494,7 +494,7 @@ public partial class GameRunner : MonoBehaviour
             bool now = S.Phase != Phase.GameOver && p == S.CurrentPlayer;
             string party = string.Join("\n", p.Party.Select(m => $"  {m.Species} Lv{m.Level} {m.Hp}/{Pokemons.MaxHp(data, m)}" + (m.Fainted ? "（たおれている）" : "")));
             string bag = string.Join("、", p.PokemonBag.Concat(p.TrainerBag));
-            Ui.Line(players, $"{(now ? "▶ " : "")}{p.Name}{CharacterLabel(p)}　{p.Money}円　バッジ{p.Badges}　ボール{p.BallCount}" + (p.Has("1回休み") ? "　(1回休み)" : "") + (p.Job != "" ? $"　{p.Job}" : "") +
+            Ui.Line(players, $"{(now ? "▶ " : "")}{p.Name}{CharacterLabel(p)}　{p.Money}円　バッジ{p.Badges}　ボール{p.BallCount}" + (p.Has("1回休み") ? "　(1回休み)" : "") + (p.PendingBattle != null ? $"　(バトルの途中：{p.PendingBattle.Sides[1].Name})" : "") + (p.Job != "" ? $"　{p.Job}" : "") +
                 $"\n  {board[p.Square].Place}　図鑑{p.Dex.Count}　ファン{S.Owners.Count(o => o.Value == id)}" + (p.Box.Count > 0 ? $"　控え{p.Box.Count}" : "") + (p.UnlockedJobs.Count > 0 ? $"　解放した職業：{string.Join("/", p.UnlockedJobs)}" : "") +
                 $"\n{party}" + (bag != "" ? $"\n  道具：{bag}" : ""), 20, PlayerColor(p));
         }
