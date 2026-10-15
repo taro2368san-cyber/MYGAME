@@ -48,7 +48,7 @@ namespace Sugoroku.Rules
             if (p.Has("のろい") && Has("おふだ")) yield return Use("おふだ");
             // 弱っていて、行ったことのあるセンターへ飛べるなら飛ぶ（いちばん近いところ）
             if (p.Party.Any(m => Hurt(d, m)) && Has("アーマーガーチケット"))
-                foreach (int c in p.VisitedCenters.OrderBy(c => Movement.Distance(board, p.Square, c, p.Badges) is int n && n > 0 ? n : 999)) // 道で行けない所は後回し
+                foreach (int c in p.VisitedCenters.OrderBy(c => Movement.Distance(board, p.Square, c, p.Badges, g.TopBadges) is int n && n > 0 ? n : 999)) // 道で行けない所は後回し
                     yield return Use("アーマーガーチケット", c);
             // 妨害：同じエリアにいる人のうち、点数がいちばん高い人へ（8.3）
             foreach (var o in s.Players.Where(o => o != p).OrderByDescending(g.Score))
@@ -95,7 +95,7 @@ namespace Sugoroku.Rules
         // 次の目標（挑めるジム。ジムトレーナーが残っていればそのマス）までの、各マスからの歩数。ワープは1歩として数える
         static Dictionary<int, int> DistanceToNextGym(GameProcessor g, GameData d, BoardData board, PlayerState p)
         {
-            var gyms = board.Squares.Values.Where(s => s.Type == "ジム" && Movement.CanEnter(board, s.Id, p.Badges) && GymOpenFor(d, p, s))
+            var gyms = board.Squares.Values.Where(s => s.Type == "ジム" && Movement.CanEnter(board, s.Id, p.Badges, g.TopBadges) && GymOpenFor(d, p, s))
                 .SelectMany(s => GymTrainersLeft(g, d, board, s) is var left && left.Count > 0 ? left : new List<int> { s.Id }).Distinct().ToList();
             if (gyms.Count == 0) return null;
             var dist = gyms.ToDictionary(x => x, x => 0);
@@ -106,7 +106,7 @@ namespace Sugoroku.Rules
                 var next = board[s].Neighbors.ToList();
                 if (board[s].WarpPartner >= 0) next.Add(board[s].WarpPartner);
                 foreach (int n in next)
-                    if (!dist.ContainsKey(n) && Movement.CanEnter(board, n, p.Badges)) { dist[n] = dist[s] + 1; queue.Enqueue(n); }
+                    if (!dist.ContainsKey(n) && Movement.CanEnter(board, n, p.Badges, g.TopBadges)) { dist[n] = dist[s] + 1; queue.Enqueue(n); }
             }
             return dist;
         }

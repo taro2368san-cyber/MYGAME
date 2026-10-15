@@ -59,6 +59,24 @@ namespace Sugoroku.Rules
             events = Apply(game, new ConfirmMove());
             Check(log, "ワープに止まると相手のマスへ", events.OfType<Warped>().Any(w => w.From == 8 && w.To == 9) && events.OfType<Landed>().Single().Square == 9);
 
+            // マスの通行条件（バッジの数）：自分だけ開くマスと、だれか1人がそろえれば全員に開くマス
+            {
+                var gated = TestBoard();
+                gated[4].GateBadges = 1;
+                bool mine = !Movement.Reachable(gated, 1, 3, 0, false).Contains(4) && Movement.Reachable(gated, 1, 3, 1, false).Contains(4)
+                    && !Movement.Reachable(gated, 1, 3, 0, false, null, 1).Contains(4); // ほかの人がそろえても、自分だけのマスは通れない
+                gated[4].GateShared = true;
+                bool shared = !Movement.Reachable(gated, 1, 3, 0, false, null, 0).Contains(4) && Movement.Reachable(gated, 1, 3, 0, false, null, 1).Contains(4);
+                var g2 = GameProcessor.NewGame(gated, TestData(3, 3), new[] { ("A", MoveMode.Highlight, ""), ("B", MoveMode.Highlight, "") }, 50, 1, out _);
+                var other = g2.State.Players.First(p => p != g2.State.CurrentPlayer);
+                Apply(g2, new RollDice { Player = g2.State.CurrentPlayer.Id });
+                bool closed = !g2.State.Move.Reachable.Contains(4);
+                var g3 = GameProcessor.NewGame(gated, TestData(3, 3), new[] { ("A", MoveMode.Highlight, ""), ("B", MoveMode.Highlight, "") }, 50, 1, out _);
+                g3.State.Players.First(p => p != g3.State.CurrentPlayer).Gyms.Add("テスト");
+                Apply(g3, new RollDice { Player = g3.State.CurrentPlayer.Id });
+                Check(log, "通行条件：バッジがそろうと通れる。全員に開くマスは、ほかの人がそろえても通れる", mine && shared && closed && g3.State.Move.Reachable.Contains(4));
+            }
+
             // 出目0：その場に もう一度 止まる（どちらの方式でも）
             foreach (var mode in new[] { MoveMode.Highlight, MoveMode.Step })
             {

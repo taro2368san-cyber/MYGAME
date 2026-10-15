@@ -17,6 +17,8 @@ namespace Sugoroku.Rules
         public int WarpId;
         public float X, Z;               // 表示用の座標（ルールでは使わない）
         public int RequiredBadges;       // この場所に入るのに必要なバッジの数
+        public int GateBadges;           // このマスを通るのに必要なバッジの数（マスの通行条件。0 なら条件なし）
+        public bool GateShared;          // true：だれか1人が条件を満たせば全員が通れる。false：満たした人だけ
         public int Map;                  // 道でつながったかたまりの番号（ワープでしか行けない所は別のかたまりになる）
         public int WarpPartner = -1;     // 同じワープ番号の相手のマス（いなければ -1）
         public readonly List<int> Neighbors = new List<int>();
@@ -42,6 +44,7 @@ namespace Sugoroku.Rules
                 {
                     Id = int.Parse(sq.Get(r, "ID")), Name = sq.Get(r, "名前"), Type = sq.Get(r, "種類"), Place = sq.Get(r, "場所"),
                     WarpId = int.TryParse(sq.Get(r, "ワープ番号"), out int w) ? w : 0, ShopId = sq.Get(r, "ショップ"), MapId = sq.Get(r, "マップID"), GrassKind = sq.Get(r, "種類") == "草むら" ? sq.Get(r, "草むらの種類") : "",
+                    GateBadges = int.TryParse(sq.Get(r, "通行バッジ"), out int gate) ? gate : 0, GateShared = sq.Get(r, "通行は全員") == "はい",
                     X = float.Parse(sq.Get(r, "X"), CultureInfo.InvariantCulture), Z = float.Parse(sq.Get(r, "Z"), CultureInfo.InvariantCulture),
                 };
                 if (place == null) problems.Add($"[エラー] 盤面: マス「{s.Name}」の場所「{s.Place}」が xlsx のエリアシートにありません");
@@ -64,6 +67,10 @@ namespace Sugoroku.Rules
                 problems.Add($"[警告] 盤面: {g.Key}の海上{g.Count()}マスは、出現シートに{g.Key}の水上がないので野生が出ません");
             foreach (var g in all.Where(s => s.Type == "草むら" && !s.Sea && !data.Encounters.Any(e => e.Place == s.Place && e.Method == "草むら")).GroupBy(s => s.Place))
                 problems.Add($"[警告] 盤面: {g.Key}の草むら{g.Count()}マスは、出現シートに{g.Key}の草むらがないので野生が出ません");
+            foreach (var s in all.Where(s => s.GateBadges > 8)) // バッジは8個まで（3.3）
+                problems.Add($"[警告] 盤面: マス「{s.Name}」（{s.Place}）の通行バッジが{s.GateBadges}個です。バッジは8個までなので、だれも通れません");
+            foreach (var s in all.Where(s => s.GateBadges > 0 && s.GateBadges <= s.RequiredBadges))
+                problems.Add($"[警告] 盤面: マス「{s.Name}」（{s.Place}）の通行バッジ{s.GateBadges}個は、場所の解放条件（バッジ{s.RequiredBadges}個）より多くないので、意味がありません");
             foreach (var s in all.Where(s => s.Type == "ショップ"))
             {
                 if (s.ShopId != "" && data.FindShop(s.ShopId) == null) problems.Add($"[エラー] 盤面: ショップ「{s.Name}」のショップid「{s.ShopId}」がショップ.csvにありません");

@@ -227,6 +227,9 @@ namespace Sugoroku.Rules
 
         // ---- 移動（4章）----
 
+        // いちばんバッジの多い人の数（全員に開く通行条件のマスで使う）
+        public int TopBadges => State.Players.Count == 0 ? 0 : State.Players.Max(p => p.Badges);
+
         void DoRoll(List<GameEvent> events)
         {
             var player = Current;
@@ -251,7 +254,7 @@ namespace Sugoroku.Rules
             var move = State.Move = new MoveState { Dice = steps, Extra = JobExtraSteps(player) };
             move.Path.Add(player.Square);
             // サイクリングは 目〜目＋Extra 歩のどこで止まってもよい
-            HashSet<int> Reach(bool reverse) { var r = new HashSet<int>(); for (int k = 0; k <= move.Extra; k++) r.UnionWith(Movement.Reachable(board, player.Square, steps + k, player.Badges, reverse, State.Blocked.Keys)); return r; }
+            HashSet<int> Reach(bool reverse) { var r = new HashSet<int>(); for (int k = 0; k <= move.Extra; k++) r.UnionWith(Movement.Reachable(board, player.Square, steps + k, player.Badges, reverse, State.Blocked.Keys, TopBadges)); return r; }
             move.Reachable = Reach(false);
             if (move.Reachable.Count == 0)
             {
@@ -279,9 +282,9 @@ namespace Sugoroku.Rules
                     if (IsUndoStep(step.Square)) return null;
                     if (left <= 0) return "もう歩数が残っていません";
                     if (!board[cur].Neighbors.Contains(step.Square)) return "となりのマスではありません";
-                    if (!Movement.CanEnter(board, step.Square, player.Badges)) return "まだ入れないエリアです";
+                    if (!Movement.CanEnter(board, step.Square, player.Badges, TopBadges)) return board[step.Square].RequiredBadges > player.Badges ? "まだ入れないエリアです" : $"バッジ{board[step.Square].GateBadges}個で 通れるようになるマスです";
                     if (State.Blocked.ContainsKey(step.Square)) return "カビゴンが ねていて 通れない";
-                    return Movement.CanFinish(board, cur, step.Square, left - 1, player.Badges, move.AllowReverse, move.Reachable, State.Blocked.Keys, move.Extra) ? null : "その道では、ちょうど止まれるマスがありません";
+                    return Movement.CanFinish(board, cur, step.Square, left - 1, player.Badges, move.AllowReverse, move.Reachable, State.Blocked.Keys, move.Extra, TopBadges) ? null : "その道では、ちょうど止まれるマスがありません";
                 case StepBack _:
                     if (player.MoveMode != MoveMode.Step) return "ハイライト方式では1歩戻しはありません";
                     return move.Path.Count > 1 ? null : "出発したマスより前には戻れません";
@@ -299,7 +302,7 @@ namespace Sugoroku.Rules
             {
                 case ChooseDestination choose:
                     for (int k = 0; k <= move.Extra; k++) // 少ない歩数で行けるなら、その道
-                        if (Movement.FindPath(board, move.Path[0], move.Dice + k, player.Badges, move.AllowReverse, choose.Square, State.Blocked.Keys) is List<int> path) { move.Path = path; break; }
+                        if (Movement.FindPath(board, move.Path[0], move.Dice + k, player.Badges, move.AllowReverse, choose.Square, State.Blocked.Keys, TopBadges) is List<int> path) { move.Path = path; break; }
                     break;
                 case StepTo step:
                     if (IsUndoStep(step.Square)) move.Path.RemoveAt(move.Path.Count - 1);
@@ -315,7 +318,7 @@ namespace Sugoroku.Rules
                     State.Move = null;
                     // ワープは止まったときだけ。着いた先ではもう一度ワープしない
                     int partner = board[to].WarpPartner;
-                    if (partner >= 0 && Movement.CanEnter(board, partner, player.Badges))
+                    if (partner >= 0 && Movement.CanEnter(board, partner, player.Badges, TopBadges))
                     {
                         if (board[to].MapId == "") player.LastMainWarp = to;
                         player.Square = partner;

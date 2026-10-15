@@ -93,9 +93,9 @@ public static class GameDataTools
 
         string F(float v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
         string Q(object v) => "\"" + v.ToString().Replace("\"", "\"\"") + "\"";
-        var sq = new StringBuilder("\"ID\",\"名前\",\"種類\",\"場所\",\"ワープ番号\",\"ショップ\",\"マップID\",\"草むらの種類\",\"X\",\"Z\"\n");
+        var sq = new StringBuilder("\"ID\",\"名前\",\"種類\",\"場所\",\"ワープ番号\",\"ショップ\",\"マップID\",\"草むらの種類\",\"X\",\"Z\",\"通行バッジ\",\"通行は全員\"\n");
         foreach (var s in squares.OrderBy(s => s.id))
-            sq.Append(string.Join(",", Q(s.id), Q(s.name), Q(s.type), Q(s.Place ?? ""), Q(s.warpId), Q(s.shopId ?? ""), Q(s.MapId), Q(s.type == SquareType.草むら ? s.grassKind.ToString() : ""), Q(F(s.transform.position.x)), Q(F(s.transform.position.z)))).Append('\n');
+            sq.Append(string.Join(",", Q(s.id), Q(s.name), Q(s.type), Q(s.Place ?? ""), Q(s.warpId), Q(s.shopId ?? ""), Q(s.MapId), Q(s.type == SquareType.草むら ? s.grassKind.ToString() : ""), Q(F(s.transform.position.x)), Q(F(s.transform.position.z)), Q(s.gateBadges), Q(s.gateBadges > 0 && s.gateShared ? "はい" : ""))).Append('\n');
         var rd = new StringBuilder("\"A\",\"B\"\n");
         // 並び順をそろえる（Unity が返す順は毎回ちがうので、変わっていない盤面でも差分が出てしまう）
         foreach (var r in Object.FindObjectsByType<SugorokuRoad>().OrderBy(r => r.squareA == null ? 0 : Mathf.Min(r.squareA.id, r.squareB == null ? 0 : r.squareB.id)).ThenBy(r => r.squareA == null ? 0 : Mathf.Max(r.squareA.id, r.squareB == null ? 0 : r.squareB.id)))

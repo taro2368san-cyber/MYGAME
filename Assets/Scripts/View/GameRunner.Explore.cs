@@ -46,8 +46,9 @@ public partial class GameRunner
         string text = $"{sq.Place}の {sq.Type}";
         if (S.JobSquares.TryGetValue(id, out string job)) text += $"　{job}の 職業マス" + (game.JobChallengeOpen(p, id) != null ? "（いま 挑める）" : "");
         if (S.Owners.TryGetValue(id, out int owner)) text += $"　{S.Players[owner].Name}の" + (sq.Type == "ライバル" ? "ライバルマス" : "ファン");
-        if (!Movement.CanEnter(board, id, p.Badges)) return text + $"　まだ入れない（バッジ{sq.RequiredBadges}個で解放）";
-        int d = Movement.Distance(board, p.Square, id, p.Badges);
+        if (sq.RequiredBadges > p.Badges) return text + $"　まだ入れない（バッジ{sq.RequiredBadges}個で解放）";
+        if (!Movement.CanEnter(board, id, p.Badges, game.TopBadges)) return text + $"　まだ通れない（バッジ{sq.GateBadges}個で通れる" + (sq.GateShared ? "。だれか1人が そろえれば 全員" : "") + "）";
+        int d = Movement.Distance(board, p.Square, id, p.Badges, game.TopBadges);
         return text + (d < 0 ? "　道では 行けない（ワープの先）" : d == 0 ? "　今いるマス" : $"　ここから {d}マス");
     }
 

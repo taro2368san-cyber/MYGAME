@@ -33,6 +33,12 @@ public class SugorokuSquare : MonoBehaviour
     [Tooltip("草むらマスのとき：草むら／海上（海や川の上。出現表の「水上」から出て、となりのマスで つりができる）／洞窟（草むらと同じ。見た目の区別）")]
     public GrassKind grassKind;
 
+    [Tooltip("通行条件：このマスを通る（止まる）のに必要なバッジの数。0 なら条件なし。場所の解放条件（エリアシート）とあわせて見る")]
+    [Min(0)] public int gateBadges;
+
+    [Tooltip("通行条件をだれか1人が満たしたら、全員が通れるようにする。オフなら 満たした人だけが通れる")]
+    public bool gateShared;
+
     // このマスが属する場所（真下にある板の場所。板の上になければ null）
     public string Place
     {

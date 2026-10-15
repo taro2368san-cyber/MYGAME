@@ -40,7 +40,7 @@ namespace Sugoroku.Rules
                     if (!ok) return use == ItemUse.Ticket ? "行ったことのある ポケモンセンターを 選んでください" : "自分のファンのマスを 選んでください";
                     if (target == p.Square) return "もう そこに います";
                     if (State.Blocked.ContainsKey(target)) return "カビゴンが いて 入れません";
-                    return Movement.CanEnter(board, target, p.Badges) ? null : "まだ入れない エリアです";
+                    return Movement.CanEnter(board, target, p.Badges, TopBadges) ? null : "まだ入れない マスです";
                 }
                 case ItemUse.Weather: return null;
                 case ItemUse.Pager: return data.RandomEvents.Any(e => e.Bell) ? null : "ポケベルで 呼べる人が いません";
