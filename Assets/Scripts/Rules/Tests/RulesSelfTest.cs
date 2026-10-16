@@ -409,6 +409,35 @@ namespace Sugoroku.Rules
                 Check(log, "バトル：攻守1往復で番が終わり、次の自分の番に続きから", suspended && resumed);
             }
 
+            // お金の出入り（8.10）：年貢と回復代はマスの換算額から、空マスはエリアの中央値の前後
+            var area2Trainer = board.Squares.Values.FirstOrDefault(s => s.Type == "トレーナー" && s.Area == "エリア2" && s.Neighbors.Count > 0);
+            if (area2Trainer != null)
+            {
+                var mg = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 5, out _);
+                mg.DebugEnabled = true;
+                mg.State.Owners[area2Trainer.Id] = 0;
+                var div = new List<Dividend>();
+                for (int i = 0; i < 8 && div.Count == 0; i++) div.AddRange(Apply(mg, new DebugCommand { Action = DebugAction.NextWeek }).OfType<Dividend>());
+                int tribute = (int)(data.Required("trainer_value_area2") * data.Required("tribute_ratio"));
+                var (hg, _) = LandEvents(area2Trainer, "ヒトカゲ", s => s.Owners[area2Trainer.Id] = 99);
+                int heal = (int)(data.Required("trainer_value_area2") * data.Required("fan_heal_ratio"));
+                Check(log, $"お金：年貢はマスの換算額×割合（エリア2で{tribute}円）、ほかの人のファンマスの回復代も換算額から（{heal}円）", div.Count == 1 && div[0].Amount == tribute && hg.State.Facility?.Kind == FacilityKind.FanHeal && hg.State.Facility.Price == heal);
+            }
+            var emptySq = board.Squares.Values.FirstOrDefault(s => s.Type == "空マス" && s.Area == "エリア1" && s.MapId == "" && s.Neighbors.Count > 0);
+            if (emptySq != null)
+            {
+                double median = data.Required("empty_money_area1"), spread = data.Required("empty_money_spread");
+                int unit = (int)data.Required("empty_money_unit");
+                var amounts = new List<int>();
+                for (ulong seed = 1; seed <= 40; seed++)
+                {
+                    var (eg, ev) = LandEvents(emptySq, "ヒトカゲ", null, seed);
+                    amounts.AddRange(ev.OfType<MoneyChanged>().Where(m => m.Reason == "空マス").Select(m => m.Amount));
+                }
+                Check(log, $"お金：空マスは ランダムイベントが起きなければ 中央値の前後（{amounts.Count}回、{(amounts.Count > 0 ? amounts.Min() : 0)}〜{(amounts.Count > 0 ? amounts.Max() : 0)}円）",
+                    amounts.Count >= 20 && amounts.All(a => a >= median * (1 - spread) - unit && a <= median * (1 + spread) && a % unit == 0) && amounts.Distinct().Count() > 3);
+            }
+
             // 町の人のイベントマス（お使い・マサキの家・交換・育て屋）。盤面にそのマスがあれば試す
             BoardSquare EventSquareOf(EffectKind k)
             {
@@ -943,7 +972,8 @@ namespace Sugoroku.Rules
         {
             var data = new GameData();
             foreach (var (k, v) in new (string, double)[] { ("dice_min", diceMin), ("dice_max", diceMax), ("start_money", 500), ("start_balls", 3), ("start_level", 5),
-                ("weekly_event_min", 3), ("weekly_event_max", 8), ("dividend_interval", 7), ("badge_point", 5), ("yen_per_point", 1000), ("lab_researcher_dex", 130) })
+                ("weekly_event_min", 3), ("weekly_event_max", 8), ("dividend_interval", 7), ("badge_point", 5), ("yen_per_point", 1000), ("lab_researcher_dex", 130),
+                ("empty_money_area1", 100), ("empty_money_spread", 0.5), ("empty_money_unit", 10) })
                 data.Tuning[k] = v;
             return data;
         }

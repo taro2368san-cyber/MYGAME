@@ -319,15 +319,22 @@ namespace Sugoroku.Rules
         {
             IEnumerable<string[]> Rows(CsvTable t) => t == null ? Enumerable.Empty<string[]>() : t.Rows.Where(r => !t.Has("状態") || t.Get(r, "状態") != "未定");
 
-            // 調整値の追加：調整値シートにないキーだけ足す（xlsx に同じキーがあれば xlsx が正）
-            var extra = Optional(dir, "調整値の追加", problems);
-            foreach (var r in Rows(extra))
+            // 調整値の追加・調整値_○○（お金、チケットなど）：調整値シートにないキーだけ足す（xlsx に同じキーがあれば xlsx が正）
+            var tuningFiles = new[] { "調整値の追加" }.Concat(Directory.Exists(dir) ? Directory.GetFiles(dir, "調整値_*.csv").Select(Path.GetFileNameWithoutExtension).OrderBy(x => x, StringComparer.Ordinal) : Enumerable.Empty<string>());
+            var fromSheet = new HashSet<string>(data.Tuning.Keys);
+            var seen = new Dictionary<string, string>();
+            foreach (string file in tuningFiles)
             {
-                string key = extra.Get(r, "キー");
-                double? v = Num(extra, r, "値", problems);
-                if (key == "" || v == null) continue;
-                if (data.Tuning.ContainsKey(key)) problems.Add($"[警告] 調整値の追加: キー「{key}」は調整値シートにもあるので、調整値シートの値を使います");
-                else data.Tuning[key] = v.Value;
+                var extra = Optional(dir, file, problems);
+                foreach (var r in Rows(extra))
+                {
+                    string key = extra.Get(r, "キー");
+                    double? v = Num(extra, r, "値", problems);
+                    if (key == "" || v == null) continue;
+                    if (fromSheet.Contains(key)) problems.Add($"[警告] {file}: キー「{key}」は調整値シートにもあるので、調整値シートの値を使います");
+                    else if (seen.TryGetValue(key, out string first)) problems.Add($"[警告] {file}: キー「{key}」は {first}.csv にもあるので、{first}.csv の値を使います");
+                    else { data.Tuning[key] = v.Value; seen[key] = file; }
+                }
             }
 
             var shops = Optional(dir, "ショップ", problems);

@@ -413,7 +413,7 @@ namespace Sugoroku.Rules
             if ((State.Week - 1) % TuneInt("dividend_interval") == 0)
                 foreach (var p in State.Players)
                 {
-                    int amount = OwnedSquares(p.Id, "トレーナー").Concat(OwnedSquares(p.Id, "ロケット団")).Sum(s => TuneInt($"tribute_trainer_area{AreaNumber(s)}")); // ロケット団マスもトレーナーマスと同じ額（仮）
+                    int amount = OwnedSquares(p.Id, "トレーナー").Concat(OwnedSquares(p.Id, "ロケット団")).Sum(s => (int)(SquareValue(s) * Tune("tribute_ratio"))); // 1人につき マスの換算額×tribute_ratio（8.10）
                     if (amount <= 0) continue;
                     p.Money += amount;
                     events.Add(new Dividend { Player = p.Id, Amount = amount });
@@ -433,8 +433,7 @@ namespace Sugoroku.Rules
         // 順位用ポイント（12章）：所持ポイント＋（所持金＋トレーナーマス・ロケット団マスの換算額）÷1,000。最下位の救済や途中の順位に使う
         public double Score(PlayerState p) =>
             p.Points + p.Badges * Tune("badge_point")
-            + (p.Money + OwnedSquares(p.Id, "トレーナー").Sum(s => Tune($"trainer_value_area{AreaNumber(s)}"))
-                       + OwnedSquares(p.Id, "ロケット団").Sum(s => Tune($"rocket_value_area{AreaNumber(s)}"))) / Tune("yen_per_point");
+            + (p.Money + OwnedSquares(p.Id, "トレーナー").Concat(OwnedSquares(p.Id, "ロケット団")).Sum(SquareValue)) / Tune("yen_per_point");
 
         // 結果発表の内訳（16.1 #11）
         public (double points, double badges, double rule, double rocket) ScoreBreakdown(PlayerState p) =>
@@ -456,6 +455,18 @@ namespace Sugoroku.Rules
 
         IEnumerable<BoardSquare> OwnedSquares(int player, string type) =>
             State.Owners.Where(o => o.Value == player).Select(o => board[o.Key]).Where(s => s.Type == type);
+
+        // マスの換算額（12章）：トレーナーマスは trainer_value_area○、ロケット団マスは rocket_value_area○。年貢と回復代もここから（8.10）
+        double SquareValue(BoardSquare s) => Tune($"{(s.Type == "ロケット団" ? "rocket" : "trainer")}_value_area{AreaNumber(s)}");
+
+        // 空マスでもらえるお金（8.10）：エリアの中央値 ×(1−spread)〜(1＋spread) の一様乱数を、unit 単位で切り捨て
+        int EmptySquareMoney(BoardSquare s)
+        {
+            double median = Tune($"empty_money_area{AreaNumber(s)}"), spread = Tune("empty_money_spread");
+            int unit = Math.Max(1, TuneInt("empty_money_unit"));
+            double yen = median * (1 - spread + 2 * spread * Rng.Next(ref State.Rng));
+            return (int)(yen / unit) * unit;
+        }
 
         static int AreaNumber(BoardSquare s) => int.TryParse(new string((s.Area ?? "").Where(char.IsDigit).ToArray()), out int n) ? n : 1;
 

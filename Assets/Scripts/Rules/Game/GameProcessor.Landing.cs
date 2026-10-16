@@ -20,7 +20,14 @@ namespace Sugoroku.Rules
             switch (sq.Type)
             {
                 case "空マス":
-                    return RandomEvent(events, out bool w1) ? w1 : Nothing("何も起きなかった", events);
+                {
+                    if (RandomEvent(events, out bool w1)) return w1;
+                    // ランダムイベントが起きなければ お金（8.10）。島（別マップの 島）では もらえない
+                    int yen = sq.MapId.StartsWith("island_") ? 0 : EmptySquareMoney(sq);
+                    if (yen <= 0) return Nothing("何も起きなかった", events);
+                    AddMoney(player, yen, "空マス", events);
+                    return false;
+                }
                 case "草むら":
                     if (RandomEvent(events, out bool w2)) return w2;
                     if (player.Has("ゴールドスプレー")) return Nothing("ゴールドスプレーで 野生のポケモンが よってこない", events);
@@ -272,7 +279,7 @@ namespace Sugoroku.Rules
                 var gift = first == null ? null : Pick(data.BallSquareItems, x => x.Weights[first.Id]);
                 return gift != null && GiveItem(p, gift.Item, events);
             }
-            var facility = new FacilityState { Kind = FacilityKind.FanHeal, Player = p.Id, Square = sq.Id, Owner = owner, Price = TuneInt("fan_heal_price") };
+            var facility = new FacilityState { Kind = FacilityKind.FanHeal, Player = p.Id, Square = sq.Id, Owner = owner, Price = (int)(SquareValue(sq) * Tune("fan_heal_ratio")) }; // 回復代＝そのマスの換算額×fan_heal_ratio（8.10）
             Say(entry != null && entry.IsGymTrainer ? "gymtrainer_cleared" : "trainer_other", events, p, ("名前", name), ("所有者", owner >= 0 && owner < State.Players.Count ? State.Players[owner].Name : "だれか"), ("金額", facility.Price.ToString()), ("リーダー", leader));
             if (TuneInt("fan_heal_forced") == 1)
             {
