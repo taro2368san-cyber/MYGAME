@@ -192,6 +192,7 @@ public partial class GameRunner : MonoBehaviour
     {
         var row = Row(col);
         Ui.Line(row, $"P{i + 1}", 30, ColorOf(CharacterOf(i), i));
+        if (CharacterSprite(CharacterOf(i)) is Sprite face) IconIn(row, face, 60); // キャラクターの絵
         Ui.Button(row, "キャラ：" + CharacterOf(i).Name, () => { NextCharacter(i); ShowSetup(); }, 230);
         Ui.Button(row, StarterOf(i), () => { NextStarter(i); ShowSetup(); }, 170);
         var field = Ui.Input(row, names[i] ?? "", (int)data.Required("name_max"), 170, v => names[i] = v, IsNameChar);
@@ -278,6 +279,23 @@ public partial class GameRunner : MonoBehaviour
         {
             Transform piece;
             if (pieceVisual != null) piece = Instantiate(pieceVisual).transform;
+            else if (CharacterSprite(data.Characters.FirstOrDefault(c => c.Id == p.Character)) is Sprite art)
+            {
+                // キャラクターの絵（Resources/Characters）を立てる。足もとに その人の色の輪
+                piece = new GameObject("Piece").transform;
+                var ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                Destroy(ring.GetComponent<Collider>());
+                ring.name = "Ring";
+                ring.transform.SetParent(piece, false);
+                ring.transform.localPosition = new Vector3(0, -0.58f, 0);
+                ring.transform.localScale = new Vector3(0.6f, 0.015f, 0.6f);
+                ring.GetComponent<Renderer>().material.color = PlayerColor(p);
+                var sr = new GameObject("Sprite", typeof(SpriteRenderer)).GetComponent<SpriteRenderer>();
+                sr.sprite = art;
+                sr.transform.SetParent(piece, false);
+                sr.transform.localPosition = new Vector3(0, -0.6f, 0); // 絵の足もと（下の中央）を盤面に
+                sr.transform.localScale = Vector3.one * 1.3f;
+            }
             else
             {
                 var go = GameObject.CreatePrimitive(PrimitiveType.Capsule);

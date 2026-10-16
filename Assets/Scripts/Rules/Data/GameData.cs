@@ -139,7 +139,7 @@ namespace Sugoroku.Rules
     public sealed class RivalEntry { public string Id, Name, Game, Place; public int Order, TradeLevel; public List<string> Trades = new List<string>(); }
     // ライバル_手持ち.csv の1行：条件（御三家を選んだ人がいる など）に合う手持ちを、優先の小さい順に使う
     public sealed class RivalParty { public string Id, RivalId, CondKind, CondValue; public int Priority; public List<(string species, int level)> Party = new List<(string, int)>(); }
-    public sealed class Character { public string Id, Name, Color; public int Generation; public List<string> Starters = new List<string>(); } // 仕様書1.1。Color はコマの色（#RRGGBB）
+    public sealed class Character { public string Id, Name, Color, Art; public int Generation; public List<string> Starters = new List<string>(); } // 仕様書1.1。Color はコマの色（#RRGGBB）、Art は Resources/Characters の絵の名前（番号）
     // イベントルール（2.2、13.3）。方式：「数に応じて」＝数×係数、「1位だけ」＝いちばん多い人に係数（同数は全員）
     public sealed class EventRule { public string Id, Name, Description, Target, Mode; public double Coef; }
     // 職業の補正（9.1、9.5）。Type が空なら手持ち全員、あればそのタイプのポケモンだけ。値は倍率（空欄は1）
@@ -427,7 +427,7 @@ namespace Sugoroku.Rules
             foreach (var r in Rows(chars))
                 data.Characters.Add(new Character
                 {
-                    Id = chars.Get(r, "id"), Name = chars.Get(r, "名前"), Color = chars.Get(r, "色"), Generation = Int(chars, r, "世代", problems) ?? 0,
+                    Id = chars.Get(r, "id"), Name = chars.Get(r, "名前"), Color = chars.Get(r, "色"), Art = chars.Get(r, "絵"), Generation = Int(chars, r, "世代", problems) ?? 0,
                     Starters = chars.Get(r, "御三家").Split('|').Select(s => s.Trim()).Where(s => s != "").ToList(),
                 });
 

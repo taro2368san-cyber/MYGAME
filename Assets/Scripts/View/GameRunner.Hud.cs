@@ -15,8 +15,29 @@ public partial class GameRunner
 
     GameObject hudRoot;                 // A〜D（バトル中は隠す）
     Text weekText, placeText;
-    Image currentFrame;
+    Image currentFrame, currentIcon;
     Text currentText;
+    readonly System.Collections.Generic.Dictionary<string, Sprite> characterSprites = new System.Collections.Generic.Dictionary<string, Sprite>();
+
+    // キャラクターの絵（キャラクター.csv の「絵」＝ Resources/Characters/<番号>）。なければ null
+    Sprite CharacterSprite(Character c)
+    {
+        if (c == null || string.IsNullOrEmpty(c.Art)) return null;
+        if (!characterSprites.TryGetValue(c.Art, out var s)) characterSprites[c.Art] = s = Resources.Load<Sprite>("Characters/" + c.Art);
+        return s;
+    }
+
+    Sprite SpriteOf(PlayerState p) => CharacterSprite(data.Characters.FirstOrDefault(c => c.Id == p.Character));
+
+    // 並べる箱の中に置く キャラクターの絵
+    static Image IconIn(Transform parent, Sprite sprite, float height)
+    {
+        var img = new GameObject("Icon", typeof(RectTransform), typeof(Image), typeof(LayoutElement)).GetComponent<Image>();
+        img.transform.SetParent(parent, false);
+        img.sprite = sprite; img.preserveAspect = true; img.raycastTarget = false;
+        var le = img.GetComponent<LayoutElement>(); le.preferredHeight = height; le.preferredWidth = height * 0.7f; le.minWidth = height * 0.7f;
+        return img;
+    }
     RectTransform othersCol;
     GameObject messagePanel;
     readonly List<Transform> buddies = new List<Transform>();
@@ -38,8 +59,11 @@ public partial class GameRunner
         currentFrame = Ui.Panel(root, "C_Current", new Vector2(0.7f, 0.80f), new Vector2(0.995f, 0.99f), Color.white);
         var inner = Ui.Panel(currentFrame.transform, "Inner", Vector2.zero, Vector2.one, HudColor);
         inner.rectTransform.offsetMin = new Vector2(6, 6); inner.rectTransform.offsetMax = new Vector2(-6, -6);
+        currentIcon = Ui.Panel(inner.transform, "Icon", new Vector2(0.01f, 0.08f), new Vector2(0.17f, 0.92f), Color.white);
+        currentIcon.preserveAspect = true;
         currentText = Ui.Label(inner.transform, "", 26, TextAnchor.MiddleLeft);
-        currentText.rectTransform.offsetMin = new Vector2(16, 6); currentText.rectTransform.offsetMax = new Vector2(-10, -6);
+        currentText.rectTransform.anchorMin = new Vector2(0.18f, 0);
+        currentText.rectTransform.offsetMin = new Vector2(6, 6); currentText.rectTransform.offsetMax = new Vector2(-10, -6);
 
         othersCol = Ui.Stack(root, "D_Others", new Vector2(0.76f, 0.44f), new Vector2(0.995f, 0.79f), true, 8, 0);
         othersCol.GetComponent<VerticalLayoutGroup>().childForceExpandHeight = false;
@@ -70,6 +94,8 @@ public partial class GameRunner
 
         // C 手番のプレイヤー（枠はその人の色）
         currentFrame.color = PlayerColor(cur);
+        currentIcon.sprite = SpriteOf(cur);
+        currentIcon.enabled = currentIcon.sprite != null;
         var lead = cur.Party.FirstOrDefault();
         currentText.text = $"<size=34>{cur.Name}</size>{CharacterLabel(cur)}　{RankOf(cur)}位\n{cur.Money:#,0}円　バッジ{cur.Badges}　ボール{cur.BallCount}" +
             (lead != null ? $"\n先頭：{lead.Species} Lv{lead.Level}　HP {lead.Hp}/{Pokemons.MaxHp(data, lead)}" : "") + (StateText(cur) != "" ? $"\n<size=22>{StateText(cur).Trim()}</size>" : "");
@@ -84,7 +110,14 @@ public partial class GameRunner
             frame.gameObject.AddComponent<LayoutElement>().preferredHeight = 92;
             var box = Ui.Panel(frame.transform, "Inner", Vector2.zero, Vector2.one, HudColor);
             box.rectTransform.offsetMin = new Vector2(5, 5); box.rectTransform.offsetMax = new Vector2(-5, -5);
+            var icon = SpriteOf(p);
+            if (icon != null)
+            {
+                var img = Ui.Panel(box.transform, "Icon", new Vector2(0.02f, 0.08f), new Vector2(0.14f, 0.92f), Color.white);
+                img.sprite = icon; img.preserveAspect = true;
+            }
             var t = Ui.Label(box.transform, $"{p.Name}　{RankOf(p)}位\n{p.Money:#,0}円　バッジ{p.Badges}" + (StateText(p) != "" ? $"\n<size=18>{StateText(p).Trim()}</size>" : ""), 22, TextAnchor.MiddleLeft);
+            if (icon != null) t.rectTransform.anchorMin = new Vector2(0.15f, 0);
             t.rectTransform.offsetMin = new Vector2(12, 2); t.rectTransform.offsetMax = new Vector2(-6, -2);
         }
 
@@ -129,6 +162,8 @@ public partial class GameRunner
         for (int i = 0; i < buddies.Count && i < pieces.Count; i++)
         {
             buddies[i].position = pieces[i].position + new Vector3(0.42f, -0.4f, -0.12f);
+            var art = pieces[i].Find("Sprite");
+            if (art != null && cam != null) art.rotation = cam.transform.rotation; // キャラクターの絵は いつもこちらを向く
             if (cam != null) buddies[i].GetComponentInChildren<TextMesh>().transform.rotation = cam.transform.rotation; // 名前はいつもこちらを向く
         }
     }
