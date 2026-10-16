@@ -3,7 +3,7 @@ using Sugoroku.Rules;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-// 見渡しモード「探索」（16.7）。サイコロを振る前に盤面を見て回る
+// 見渡しモード「マップ」（16.7、旧「探索」）。サイコロを振る前に盤面を見て回る
 // WASD・矢印キーで動く、ホイールで寄る・引く、マスをクリックで情報と距離、Esc でもどる（回転はしない）
 public partial class GameRunner
 {
@@ -34,7 +34,7 @@ public partial class GameRunner
     void ExploreMenu()
     {
         Add("もどる", EndExplore, KeyCode.Escape);
-        DrawMenu(exploreSquare < 0 ? "探索：WASD・矢印で移動、マスをクリックで くわしく（Escで もどる）" : SquareInfo(exploreSquare));
+        DrawMenu(exploreSquare < 0 ? "マップ：WASD・矢印で移動、マスをクリックで くわしく（Escで もどる）" : SquareInfo(exploreSquare));
     }
 
     // マスの名前・説明・持ち主・解放・今いるマスからの距離（16.7）

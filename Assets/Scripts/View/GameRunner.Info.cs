@@ -2,21 +2,21 @@ using System.Linq;
 using Sugoroku.Rules;
 using UnityEngine;
 
-// 「その他」メニュー（16.6）：手持ちの詳細・図鑑・順位・イベントルール。どれも見るだけ
+// 「システム」メニュー（16.6、UI仕様書_メイン画面 E）：図鑑・職業・順位・イベントルール・あそびかた・設定・セーブ
 public partial class GameRunner
 {
-    void OtherMenu()
+    void SystemMenu()
     {
         var p = S.CurrentPlayer;
-        for (int i = 0; i < p.Party.Count; i++) { int k = i; Add($"くわしく：{p.Party[i].Species}", () => ShowPokemon(p, k)); }
         Add("図鑑", () => ShowDex(p));
         Add("職業", () => ShowJobs(p));
         Add("順位", ShowRanking);
         Add("イベントルール", ShowRule);
         Add("あそびかた", () => ShowHelp(0));
         Add("設定", ShowGameSettings);
+        Add("セーブ", () => { CloseOverlay(); subMenu = SaveMenu; RefreshAll(); });
         Add("もどる", () => { CloseOverlay(); subMenu = null; RefreshAll(); }, KeyCode.Escape);
-        DrawMenu("その他");
+        DrawMenu("システム");
     }
 
     // 手持ちの詳細（16.6 #41）：6ステータス、特性、技3つ、状態、レベル、コスト、弱点、出会い

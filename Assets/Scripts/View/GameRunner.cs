@@ -52,8 +52,8 @@ public partial class GameRunner : MonoBehaviour
 
     // 画面
     Canvas canvas;
-    Text header, log, prompt;
-    RectTransform players, buttons, battlePanel;
+    Text log, prompt;
+    RectTransform buttons, battlePanel;
     readonly List<string> logLines = new List<string>();
     readonly List<(string label, Action action, KeyCode key, bool enabled)> menu = new List<(string, Action, KeyCode, bool)>();
     Action subMenu; // 「どうぐ」などで開いた小さなメニュー（null なら場面ごとのメニュー）
@@ -273,6 +273,7 @@ public partial class GameRunner : MonoBehaviour
         lastAutoSaveWeek = S.Week;
         logLines.Clear();
         BuildGameScreen();
+        if (Camera.main != null) { Camera.main.clearFlags = CameraClearFlags.SolidColor; Camera.main.backgroundColor = SkyColor; } // 背景は明るい水色
         foreach (var p in S.Players)
         {
             Transform piece;
@@ -297,21 +298,22 @@ public partial class GameRunner : MonoBehaviour
     void BuildGameScreen()
     {
         Ui.Clear(canvas.transform);
-        var top = Ui.Panel(canvas.transform, "Header", new Vector2(0, 0.94f), Vector2.one, new Color(0, 0, 0, 0.75f));
-        header = Ui.Label(top.transform, "", 30, TextAnchor.MiddleLeft);
-        var left = Ui.Panel(canvas.transform, "Players", new Vector2(0, 0.3f), new Vector2(0.23f, 0.94f), new Color(0, 0, 0, 0.6f));
-        players = Ui.Stack(left.transform, "List", Vector2.zero, Vector2.one, true, 6, 10);
-        var bottom = Ui.Panel(canvas.transform, "Log", Vector2.zero, new Vector2(0.58f, 0.3f), new Color(0, 0, 0, 0.75f));
+        BuildHud(); // A 週と天気・B 場所名・C 手番の人・D ほかの人（GameRunner.Hud.cs）
+        // G メッセージ（下の中央）
+        var bottom = Ui.Panel(canvas.transform, "G_Message", new Vector2(0.32f, 0.01f), new Vector2(0.75f, 0.25f), HudColor);
+        messagePanel = bottom.gameObject;
         log = Ui.Label(bottom.transform, "", 24);
         log.rectTransform.offsetMin = new Vector2(16, 8); log.rectTransform.offsetMax = new Vector2(-16, -8);
         log.verticalOverflow = VerticalWrapMode.Truncate;
-        var right = Ui.Panel(canvas.transform, "Menu", new Vector2(0.58f, 0), new Vector2(1, 0.3f), new Color(0.05f, 0.05f, 0.1f, 0.85f));
-        var promptRect = Ui.Rect(right.transform, "Prompt", new Vector2(0, 0.8f), Vector2.one);
+        // E メニュー（左下）。準備フェーズは 移動／どうぐ／マップ／ポケモン／システム。ほかの場面の選択肢もここに出す
+        var right = Ui.Panel(canvas.transform, "E_Menu", new Vector2(0.005f, 0.01f), new Vector2(0.31f, 0.52f), HudColor);
+        var promptRect = Ui.Rect(right.transform, "Prompt", new Vector2(0, 0.86f), Vector2.one);
         prompt = Ui.Label(promptRect, "", 24, TextAnchor.MiddleLeft, new Color(1, 0.9f, 0.5f));
-        prompt.rectTransform.offsetMin = new Vector2(12, 0);
-        buttons = Ui.Rect(right.transform, "Buttons", Vector2.zero, new Vector2(1, 0.8f));
+        prompt.rectTransform.offsetMin = new Vector2(14, 0); prompt.rectTransform.offsetMax = new Vector2(-10, 0);
+        buttons = Ui.Rect(right.transform, "Buttons", Vector2.zero, new Vector2(1, 0.86f));
         var grid = buttons.gameObject.AddComponent<GridLayoutGroup>();
-        grid.cellSize = new Vector2(255, 52); grid.spacing = new Vector2(8, 8); grid.padding = new RectOffset(10, 10, 6, 6);
+        grid.cellSize = new Vector2(560, 50); grid.spacing = new Vector2(8, 6); grid.padding = new RectOffset(12, 12, 6, 6);
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount; grid.constraintCount = 1;
 
         battlePanel = Ui.Panel(canvas.transform, "Battle", new Vector2(0.27f, 0.36f), new Vector2(0.97f, 0.9f), new Color(0.05f, 0.05f, 0.1f, 0.85f)).rectTransform;
         cards[0] = new BattleCard(Ui.Rect(battlePanel, "Side0", new Vector2(0.03f, 0.08f), new Vector2(0.47f, 0.92f)), this);
@@ -386,6 +388,7 @@ public partial class GameRunner : MonoBehaviour
                 case TicketChanged tc: yield return Banner(text, PlayerColor(S.Players[tc.Player]), 2); continue;
                 case SentToCenter c: pieces[c.Player].position = PiecePosition(c.Player, c.Square); break;
                 case BattleStarted b:
+                    hudRoot.SetActive(false); // バトル中は A〜D を隠す
                     if ((b.Kind == BattleKind.Player || b.Kind == BattleKind.Tournament) && !S.Players[b.Players[0]].IsCpu && !S.Players[b.Players[1]].IsCpu) yield return Banner($"{S.Players[b.Players[0]].Name}さんは コントローラー1、{S.Players[b.Players[1]].Name}さんは 2を 持ってください", Color.white, 2);
                     battlePanel.gameObject.SetActive(true);
                     cards[0].Clear(); cards[1].Clear();
@@ -393,6 +396,7 @@ public partial class GameRunner : MonoBehaviour
                     cards[1].SetOwner(b.Players[1] >= 0 ? S.Players[b.Players[1]].Name : b.Opponent);
                     break;
                 case BattleResumed br:
+                    hudRoot.SetActive(false);
                     battlePanel.gameObject.SetActive(true);
                     cards[0].Clear(); cards[1].Clear();
                     cards[0].SetOwner(S.Players[br.Players[0]].Name);
@@ -485,23 +489,8 @@ public partial class GameRunner : MonoBehaviour
     void RefreshAll()
     {
         if (game == null) return;
-        string weather = S.FluteWeeks > 0 ? $"　天候：{S.FluteWeather}（ふえ、あと{S.FluteWeeks}週）" : S.Weather != "" ? $"　天候：{S.Weather}（あと{S.WeatherWeeks}週）" : "";
-        string ev = (S.WeekEvent != "" ? $"　{S.WeekEvent}中（あと{S.WeekEventWeeks}週）" : "") + (S.NewsKind != "" ? $"　{S.NewsKind}：{S.NewsPlace}（あと{S.NewsWeeks}週）" : "");
-        var rule = data.EventRules.FirstOrDefault(r => r.Id == S.EventRule);
-        header.text = $"  {Math.Min(S.Week, S.MaxWeeks)}／{S.MaxWeeks}週" + weather + ev + (S.Phase != Phase.GameOver ? $"　　{S.CurrentPlayer.Name}の ばん" : "") + (rule != null ? $"　　イベントルール：{rule.Name}" : "");
-
-        Ui.Clear(players);
-        foreach (int id in S.TurnOrder)
-        {
-            var p = S.Players[id];
-            bool now = S.Phase != Phase.GameOver && p == S.CurrentPlayer;
-            string party = string.Join("\n", p.Party.Select(m => $"  {m.Species} Lv{m.Level} {m.Hp}/{Pokemons.MaxHp(data, m)}" + (m.Fainted ? "（たおれている）" : "")));
-            string bag = string.Join("、", p.PokemonBag.Concat(p.TrainerBag));
-            Ui.Line(players, $"{(now ? "▶ " : "")}{p.Name}{CharacterLabel(p)}　{p.Money}円　バッジ{p.Badges}　ボール{p.BallCount}" + (p.Has("1回休み") ? "　(1回休み)" : "") + (p.PendingBattle != null ? $"　(バトルの途中：{p.PendingBattle.Sides[1].Name})" : "") + (p.Job != "" ? $"　{p.Job}" : "") +
-                $"\n  {board[p.Square].Place}　図鑑{p.Dex.Count}　ファン{S.Owners.Count(o => o.Value == id)}" + (p.Box.Count > 0 ? $"　控え{p.Box.Count}" : "") + (p.UnlockedJobs.Count > 0 ? $"　解放した職業：{string.Join("/", p.UnlockedJobs)}" : "") +
-                $"\n{party}" + (bag != "" ? $"\n  道具：{bag}" : ""), 20, PlayerColor(p));
-        }
         if (S.Battle == null) battlePanel.gameObject.SetActive(false);
+        RefreshHud(); // メイン画面の部品（UI仕様書_メイン画面）
         PaintBoard(true);
         BuildMenu();
         if (debugPanel != null) BuildDebugPanel();
@@ -586,13 +575,12 @@ public partial class GameRunner : MonoBehaviour
         {
             case Phase.Prepare:
                 title = $"{p.Name}の ばん：サイコロを振る前";
+                // E メニュー（UI仕様書_メイン画面）：移動／どうぐ／マップ／ポケモン／システム
                 Add("移動", () => { subMenu = () => DiceMenu(me); RefreshAll(); }, KeyCode.Return);
                 Add("どうぐ", () => { subMenu = () => ItemMenu(me); RefreshAll(); }, KeyCode.None, !p.UsedItem && p.PokemonBag.Concat(p.TrainerBag).Any());
-                Add("入れ替え", () => { subMenu = () => SwapMenu(me, -1); RefreshAll(); }, KeyCode.None, p.Party.Count > 1);
-                if (Ok(new Fish { Player = me })) Add("つり（動かずに、つったポケモンとバトル）", () => Send(new Fish { Player = me }));
-                Add("探索", StartExplore);
-                Add("その他", () => { subMenu = OtherMenu; RefreshAll(); });
-                Add("セーブ", () => { subMenu = SaveMenu; RefreshAll(); });
+                Add("マップ", StartExplore);
+                Add("ポケモン", () => { subMenu = () => PokemonMenu(me); RefreshAll(); });
+                Add("システム", () => { subMenu = SystemMenu; RefreshAll(); });
                 break;
             case Phase.Moving:
                 int left = S.Move.Dice + S.Move.Extra - (S.Move.Path.Count - 1);
@@ -612,8 +600,32 @@ public partial class GameRunner : MonoBehaviour
     {
         var p = S.Players[me];
         Add("サイコロを振る", () => Send(new RollDice { Player = me }), KeyCode.Return);
+        if (Ok(new Fish { Player = me })) Add("つり（動かずに、つったポケモンとバトル）", () => Send(new Fish { Player = me })); // 移動の代わり（4.1.2）
         Add("もどる", () => { subMenu = null; RefreshAll(); }, KeyCode.Escape);
         DrawMenu(p.FixedDice >= 0 ? $"Enterで すすむ（出目は {p.FixedDice}）" : p.DiceCount > 1 ? $"Enterで サイコロを振る（{p.DiceCount}個）" : "Enterで サイコロを振る");
+    }
+
+    // ポケモン：手持ち一覧。1体を選ぶと くわしく／入れ替え（UI仕様書_メイン画面 E）
+    void PokemonMenu(int me)
+    {
+        var p = S.Players[me];
+        for (int i = 0; i < p.Party.Count; i++)
+        {
+            int k = i;
+            var m = p.Party[k];
+            Add($"{(k == 0 ? "先頭 " : "")}{m.Species} Lv{m.Level}　HP {m.Hp}/{Pokemons.MaxHp(data, m)}" + (m.Fainted ? "（たおれている）" : ""), () => { subMenu = () => PokemonActions(me, k); RefreshAll(); });
+        }
+        Add("もどる", () => { subMenu = null; RefreshAll(); }, KeyCode.Escape);
+        DrawMenu("ポケモン：どの子？");
+    }
+
+    void PokemonActions(int me, int slot)
+    {
+        var p = S.Players[me];
+        Add("くわしく見る", () => ShowPokemon(p, slot));
+        Add("ならびを入れ替える", () => { subMenu = () => SwapMenu(me, slot); RefreshAll(); }, KeyCode.None, p.Party.Count > 1);
+        Add("もどる", () => { CloseOverlay(); subMenu = () => PokemonMenu(me); RefreshAll(); }, KeyCode.Escape);
+        DrawMenu($"{p.Party[slot].Species}を どうする？");
     }
 
     // 入れ替え：1体目を選んでから2体目を選ぶ（16.9）
@@ -627,7 +639,7 @@ public partial class GameRunner : MonoBehaviour
             if (first < 0) Add(label, () => { subMenu = () => SwapMenu(me, k); RefreshAll(); });
             else Add(label, () => Send(new SwapParty { Player = me, A = first, B = k }), KeyCode.None, k != first);
         }
-        Add("もどる", () => { subMenu = first < 0 ? null : (Action)(() => SwapMenu(me, -1)); RefreshAll(); }, KeyCode.Escape);
+        Add("もどる", () => { subMenu = first < 0 ? null : (Action)(() => PokemonMenu(me)); RefreshAll(); }, KeyCode.Escape);
         DrawMenu(first < 0 ? "入れ替える1体目を えらぶ" : $"{p.Party[first].Species}と 入れ替える子を えらぶ");
     }
 
@@ -850,6 +862,10 @@ public partial class GameRunner : MonoBehaviour
     {
         prompt.text = title;
         Ui.Clear(buttons);
+        // 項目が多いときは2列に
+        var grid = buttons.GetComponent<GridLayoutGroup>();
+        grid.constraintCount = menu.Count > 7 ? 2 : 1;
+        grid.cellSize = new Vector2(menu.Count > 7 ? 276 : 560, menu.Count > 14 ? 40 : 50);
         var made = new List<Button>();
         for (int i = 0; i < menu.Count; i++)
         {
@@ -916,6 +932,7 @@ public partial class GameRunner : MonoBehaviour
         Vector3 want = cameraTarget.position + camPan + cameraOffset * zoom;
         cam.transform.position = Vector3.Lerp(cam.transform.position, want, 1 - Mathf.Exp(-6 * Time.deltaTime));
         cam.transform.LookAt(cam.transform.position - cameraOffset);
+        MoveBuddies(); // 先頭のポケモンがコマについていく
     }
 
     // ---- バトルのポケモン表示（タイプの色の丸と名前。Resources に絵があればそれを使う、17.7）----
