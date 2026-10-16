@@ -56,3 +56,5 @@
 週,news_legend_level_bonus,特番の準伝説のLv（その場所の最高Lvに足す）,5,,仮,5.3
 ポケモン,daycare_weeks_per_level,育て屋で 1Lv 育つのに かかる週数,4,週,確定,3.2
 移動,dice_zero_rate,サイコロで 0 が出る確率（ほかの目は 同じ確率で分ける）,0.05,,確定,4
+チケット,ticket_rescue_badges,下位救済で謎のチケットがもらえるバッジの数（これ以上）,3,個,確定,12
+チケット,ticket_rescue_weeks,下位救済で謎のチケットがもらえる連続最下位の週数,20,週,確定,12
