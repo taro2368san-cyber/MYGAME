@@ -84,6 +84,17 @@ namespace Sugoroku.Rules
                 problems.Add($"[警告] 盤面: {g}にジムトレーナーがいません（トレーナー.csv の種類「ジムトレーナー」）。ジムにはすぐ挑めます");
             foreach (var t in data.Trainers.Where(t => board.Squares.Values.FirstOrDefault(s => s.Name == t.Square) is BoardSquare s && (s.Type != "トレーナー" || s.Place != t.Place)))
                 problems.Add($"[警告] トレーナー.csv: {t.Id} のマス「{t.Square}」は盤面では {board.Squares.Values.First(s => s.Name == t.Square).Place}の{board.Squares.Values.First(s => s.Name == t.Square).Type}です");
+            // 島マップ（3.4）：港（船着場）、伝説の島ならシンボル。島があるのに本マップの船着場がなければ渡れない
+            foreach (var i in data.IslandMaps)
+            {
+                var onIsland = all.Where(s => s.Place == i.Name).ToList();
+                if (onIsland.Count == 0) { problems.Add($"[警告] 盤面: 島マップ「{i.Name}」のマスがまだありません（チケットで ここには渡れません）"); continue; }
+                if (!onIsland.Any(s => s.Type == "船着場")) problems.Add($"[エラー] 盤面: 島マップ「{i.Name}」に港（船着場）のマスがありません");
+                if (i.Kind == "伝説の島" && !onIsland.Any(s => s.Type == "シンボル")) problems.Add($"[警告] 盤面: 伝説の島「{i.Name}」にシンボルのマスがありません（伝説が出ません）");
+                if (onIsland.Any(s => s.MapId != i.MapId)) problems.Add($"[警告] 盤面: 島マップ「{i.Name}」のマスのマップIDが「{i.MapId}」になっていません（板の mapId を確かめてください）");
+            }
+            if (data.IslandMaps.Any(i => all.Any(s => s.Place == i.Name)) && !all.Any(s => s.Type == "船着場" && !data.IsIslandMap(s.MapId)))
+                problems.Add("[警告] 盤面: クチバシティに船着場のマスがありません。チケットを使えません（3.4）");
             if (!all.Any(s => s.Type == "ポイント交換NPC"))
                 problems.Add("[警告] 盤面: ポイント交換NPC（換金所）のマスがありません。お金を勝利ポイントに換えられないので、最終得点はバッジとイベントルールだけになります（2.1）");
             foreach (var s in all.Where(s => s.Type == "ゴール"))
@@ -95,7 +106,7 @@ namespace Sugoroku.Rules
         // 「最初から」→0、「バッジ○個」→○。それ以外（チケットなど）は普通には入れない
         public static int ParseUnlock(string unlock)
         {
-            if (unlock == "最初から") return 0;
+            if (unlock == "最初から" || unlock == "チケット") return 0; // 島はチケットの船でしか行けない（3.4）
             var m = Regex.Match(unlock, @"バッジ(\d+)個");
             return m.Success ? int.Parse(m.Groups[1].Value) : int.MaxValue;
         }

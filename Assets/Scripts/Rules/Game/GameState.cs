@@ -30,7 +30,9 @@ namespace Sugoroku.Rules
         public readonly HashSet<int> VisitedCenters = new HashSet<int>();   // 行ったことのあるポケモンセンター（アーマーガーチケット）
         public readonly HashSet<string> RocketUsed = new HashSet<string>();  // ロケット団拠点で「1人1回」の品を使った（行の id）
         public string Fossil = ""; public int FossilWeek;                    // 博物館に預けている化石と、預けた週（3.2.2）
-        public BattleState PendingBattle;                                  // 1往復して止めているバトル（次の自分の番に続き）
+        public BattleState PendingBattle;
+        public int IslandTurns; public string IslandLegend = ""; public int IslandLegendLevel; // 島にいる手番の数と、この島に出る伝説（3.4）
+        public int TicketChangeWeeks, TicketLastWeeks;                     // 謎のチケットが変わるまでの週数と、数えた最下位の週（12章）                                  // 1往復して止めているバトル（次の自分の番に続き）
         public int ErrandStage;                                            // お使い：0＝まだ、1＝研究室に届ける途中、2＝すんだ
         public int BoxMax;                                                 // マサキの家で増えた控えの上限（0 なら調整値 box_max のまま）
         public PokemonState DayCare; public int DayCareWeek;              // 育て屋に あずけている子と、あずけた週
@@ -178,7 +180,11 @@ namespace Sugoroku.Rules
     public sealed class JobChallenge : GameEvent { public int Player; public string Job; }
     public sealed class RocketDefeated : GameEvent { public int Player, Square; public bool First; public List<int> Trainers; } // Trainers: 報酬でもらったトレーナーマス
     public sealed class PokemonGiven : GameEvent { public int Player; public string Pokemon, To; }
-    public sealed class BoxExpanded : GameEvent { public int Player, Max; } // マサキの家で控えの上限が増えた
+    public sealed class BoxExpanded : GameEvent { public int Player, Max; }
+    public sealed class SailedToIsland : GameEvent { public int Player, From, To; public string Island, Legend; }     // チケットで島へ（Legend は伝説の島の伝説）
+    public sealed class ReturnedFromIsland : GameEvent { public int Player, From, To; public string Reason; }
+    public sealed class TicketChanged : GameEvent { public int Player; }                                           // 謎のチケットが不思議なチケットに
+    public sealed class RescueGiven : GameEvent { public int Player; public string Item; }                       // 下位救済（12章） // マサキの家で控えの上限が増えた
     public sealed class ItemGiven : GameEvent { public int Player; public string Item, To; } // 条件「道具を渡す」で渡した
     public sealed class ItemDiscarded : GameEvent { public int Player; public string Item; public bool NotTaken; } // NotTaken: 拾わなかった
     public sealed class ExtraMoveStarted : GameEvent { public int Player, Steps; public List<int> Reachable; }

@@ -36,7 +36,8 @@ namespace Sugoroku.Rules
         public string TrainerId, DialogKey, EventId, Job; // トレーナー戦のトレーナー id とセリフのキー、イベント戦のイベント id
         public readonly BattleSide[] Sides = new BattleSide[2];   // 0 が仕掛けた側（手番のプレイヤー）
         public int Attacker, Rounds;
-        public int TurnRounds;  // この番に戦ったラウンド数（2で1往復。1往復したら番を終える）
+        public int TurnRounds;
+        public bool Legend;     // チケットの島の伝説（勝つか捕まえると いなくなる）  // この番に戦ったラウンド数（2で1往復。1往復したら番を終える）
         public int First;                          // 先攻・後攻のカードで先攻になった側
         public int ForcedSwitch = -1;              // ラウンドの終わりに交代する側（脱出ボタン・レッドカード）
         public bool ForcedRandom;                  // レッドカード：交代先はランダム

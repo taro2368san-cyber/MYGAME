@@ -13,7 +13,7 @@ namespace Sugoroku.Rules
         {
             var player = Current;
             var sq = board[player.Square];
-            var other = State.Players.FirstOrDefault(p => p != player && p.Square == player.Square && p.Party.Any(m => !m.Fainted) && p.PendingBattle == null); // バトルの途中の人とは戦わない
+            var other = State.Players.FirstOrDefault(p => p != player && p.Square == player.Square && p.Party.Any(m => !m.Fainted) && p.PendingBattle == null && !OnIsland(player)); // バトルの途中の人とは戦わない。島はその人だけのエリア
             if (other != null && player.Party.Any(m => !m.Fainted)) return StartPlayerBattle(other, events);
             SpringTrap(player, events);
 
@@ -23,7 +23,7 @@ namespace Sugoroku.Rules
                 {
                     if (RandomEvent(events, out bool w1)) return w1;
                     // ランダムイベントが起きなければ お金（8.10）。島（別マップの 島）では もらえない
-                    int yen = sq.MapId.StartsWith("island_") ? 0 : EmptySquareMoney(sq);
+                    int yen = data.IsIslandMap(sq.MapId) ? 0 : EmptySquareMoney(sq);
                     if (yen <= 0) return Nothing("何も起きなかった", events);
                     AddMoney(player, yen, "空マス", events);
                     return false;
@@ -34,6 +34,8 @@ namespace Sugoroku.Rules
                     // 海上の草むらは出現表の「水上」（4.1.2）
                     return StartWild(sq, events, sq.Sea ? "水上" : "草むら") || Nothing("野生のポケモンは出てこなかった", events);
                 case "トレーナー": return LandTrainer(sq, events);
+                case "船着場": return LandPort(sq, events);
+                case "シンボル": return LandSymbol(events);
                 case "ポケモンセンター":
                 case "スタート": // スタートは研究室（3.2.1）：センターの機能＋進化サービス＋けんきゅういんの解放
                     if (State.WeekEvent == "ストライキ") return Nothing("ストライキ中で休みだった", events);
@@ -565,6 +567,7 @@ namespace Sugoroku.Rules
                         return;
                     }
                     if (f.EventId == MuseumId) { MuseumChosen(f, o.Index, events); EndTurn(events); return; }
+                    if (f.EventId == PortId) { if (PortChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == NpcTradeId) { if (NpcTradeChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == DayCareId) { if (DayCareChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == PagerId)

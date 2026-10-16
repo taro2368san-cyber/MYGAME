@@ -120,6 +120,10 @@ namespace Sugoroku.Rules
     public sealed class BallTier { public string Id, Name; public int MinBadges, MaxBadges; } // ボールマスの段階（バッジの数で決まる）
     public sealed class BallSquareItem { public string Item, Bag; public int Count; public readonly Dictionary<string, int> Weights = new Dictionary<string, int>(); } // Weights: 段階id → 重み
     public sealed class EventSquare { public string Square, Content; public Effect Effect; }
+    // 島マップ.csv の1行（3.4、チケットの設定.md）。Kind：地方の島／伝説の島
+    public sealed class IslandMap { public string MapId, Name, Kind; }
+    // チケットの行き先.csv の1行。Kind：島（Target は島の名前）／伝説（Target はポケモン、Level はそのLv）。Island は渡る島マップの名前
+    public sealed class TicketRow { public string Id, Ticket, Kind, Target, Island; public int Weight, Level; }
     // ロケット団拠点.csv の1行（11.3）。Mode: 買う／もらう／交換、Kind: アイテム／ポケモン。Once: 1人1回
     public sealed class RocketBaseRow { public string Id, BaseId, BaseName, Place, Mode, Kind, Item, Note; public int? Price, OwnerPrice, Level; public double? Cost, OwnerCost; public bool Once; } // Level: もらう・買うポケモンのLv
     public sealed class TrainerEntry
@@ -173,6 +177,9 @@ namespace Sugoroku.Rules
         public readonly List<RocketBaseRow> RocketBases = new List<RocketBaseRow>();   // 鍵付きボールマスの当たり枠（段階は開けた人のバッジ）
         public readonly List<Effect> RandomEvents = new List<Effect>();
         public readonly List<EventSquare> EventSquares = new List<EventSquare>();
+        public readonly List<IslandMap> IslandMaps = new List<IslandMap>();
+        public readonly List<TicketRow> TicketRows = new List<TicketRow>();
+        public bool IsIslandMap(string mapId) => !string.IsNullOrEmpty(mapId) && IslandMaps.Any(i => i.MapId == mapId);
         public readonly List<TrainerEntry> Trainers = new List<TrainerEntry>();
         public readonly List<TrainerClass> TrainerClasses = new List<TrainerClass>();
         public readonly List<EventParty> EventParties = new List<EventParty>();
@@ -374,6 +381,13 @@ namespace Sugoroku.Rules
             var random = Optional(dir, "ランダムイベント", problems);
             foreach (var r in Rows(random)) data.RandomEvents.Add(ParseEffect(random, r, problems));
 
+            var islands = Optional(dir, "島マップ", problems);
+            foreach (var r in Rows(islands))
+                data.IslandMaps.Add(new IslandMap { MapId = islands.Get(r, "マップID"), Name = islands.Get(r, "名前"), Kind = islands.Get(r, "種類") });
+            var tickets = Optional(dir, "チケットの行き先", problems);
+            foreach (var r in Rows(tickets))
+                data.TicketRows.Add(new TicketRow { Id = tickets.Get(r, "id"), Ticket = tickets.Get(r, "チケット"), Kind = tickets.Get(r, "行き先の種類"), Target = tickets.Get(r, "行き先"), Island = tickets.Get(r, "島マップ"), Weight = Int(tickets, r, "重み", problems) ?? 0, Level = Int(tickets, r, "Lv", problems) ?? 0 });
+
             var events = Optional(dir, "イベントマス", problems);
             foreach (var r in Rows(events))
                 data.EventSquares.Add(new EventSquare { Square = events.Get(r, "マス"), Content = events.Get(r, "内容"), Effect = ParseEffect(events, r, problems) });
@@ -566,6 +580,16 @@ namespace Sugoroku.Rules
         {
             void Error(string s) => problems.Add("[エラー] " + s);
             void Warn(string s) => problems.Add("[警告] " + s);
+
+            foreach (var t in d.TicketRows)
+            {
+                if (d.FindItem(t.Ticket) == null) Error($"チケットの行き先: {t.Id} のチケット「{t.Ticket}」がアイテム一覧にありません");
+                if (!d.IslandMaps.Any(i => i.Name == t.Island)) Error($"チケットの行き先: {t.Id} の島マップ「{t.Island}」が 島マップ.csv にありません");
+                if (t.Weight <= 0) Warn($"チケットの行き先: {t.Id} の重みが0なので、出ません");
+                if (t.Kind == "伝説" && (d.FindSpecies(t.Target) == null || t.Level <= 0)) Error($"チケットの行き先: {t.Id} の伝説「{t.Target}」がポケモンシートにないか、Lvがありません");
+                if (t.Kind != "伝説" && t.Kind != "島") Warn($"チケットの行き先: {t.Id} の行き先の種類「{t.Kind}」は 島／伝説 のどちらかにしてください");
+            }
+            foreach (var i in d.IslandMaps.Where(i => !places.Contains(i.Name))) Error($"島マップ: 「{i.Name}」がエリアシートの場所にありません");
 
             foreach (var e in d.EventSquares.Where(x => x.Effect.Kind == EffectKind.Trade))
             {

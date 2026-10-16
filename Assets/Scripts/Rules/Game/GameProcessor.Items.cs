@@ -10,7 +10,7 @@ namespace Sugoroku.Rules
     public sealed partial class GameProcessor
     {
         // 妨害が届くのは同じエリアの相手だけ（8.3）
-        bool SameArea(PlayerState a, PlayerState b) => board[a.Square].Area == board[b.Square].Area;
+        bool SameArea(PlayerState a, PlayerState b) => !OnIsland(a) && !OnIsland(b) && board[a.Square].Area == board[b.Square].Area; // 島はその人だけのエリア（3.4）
 
         // 使えるか（CheckUseItem から。ポケモンに使う道具より後）。だめなら理由
         string CheckTrainerItem(PlayerState p, ItemUse use, double value, int target)

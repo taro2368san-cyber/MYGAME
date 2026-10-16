@@ -381,6 +381,9 @@ public partial class GameRunner : MonoBehaviour
                 case InitiativeDrawn idr: yield return CardAnim(idr); continue;
                 case Moved m: camPan = Vector3.zero; yield return MovePiece(m.Player, m.Path); continue;
                 case Warped w: pieces[w.Player].position = PiecePosition(w.Player, w.To); break;
+                case SailedToIsland si: pieces[si.Player].position = PiecePosition(si.Player, si.To); cameraTarget = pieces[si.Player]; camPan = Vector3.zero; yield return Banner(text, PlayerColor(S.Players[si.Player]), 2); continue;
+                case ReturnedFromIsland ri: pieces[ri.Player].position = PiecePosition(ri.Player, ri.To); cameraTarget = pieces[ri.Player]; camPan = Vector3.zero; break;
+                case TicketChanged tc: yield return Banner(text, PlayerColor(S.Players[tc.Player]), 2); continue;
                 case SentToCenter c: pieces[c.Player].position = PiecePosition(c.Player, c.Square); break;
                 case BattleStarted b:
                     if ((b.Kind == BattleKind.Player || b.Kind == BattleKind.Tournament) && !S.Players[b.Players[0]].IsCpu && !S.Players[b.Players[1]].IsCpu) yield return Banner($"{S.Players[b.Players[0]].Name}さんは コントローラー1、{S.Players[b.Players[1]].Name}さんは 2を 持ってください", Color.white, 2);

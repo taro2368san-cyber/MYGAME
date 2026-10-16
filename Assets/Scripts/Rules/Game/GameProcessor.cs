@@ -353,6 +353,7 @@ namespace Sugoroku.Rules
             var player = Current;
             player.UsedItem = false; player.DiceCount = 1; player.FixedDice = -1;
             events.Add(new TurnStarted { Player = player.Id });
+            IslandTurnStart(player, events); // 島にいられる手番（3.4）
             // プレイヤーの状態は、自分のターンが来るたびに残り週数を1減らす（休んだ週も数える、10章）
             string rest = player.Has("さいみん") ? "さいみん" : player.Has("1回休み") ? "1回休み" : null; // さいみんも1回休み（7.17）
             foreach (var a in player.Ailments) a.Weeks--;
@@ -400,6 +401,7 @@ namespace Sugoroku.Rules
                 double worst = State.Players.Min(p => Score(p));
                 foreach (var p in State.Players) p.LastPlaceWeeks = Score(p) <= worst + 1e-9 ? p.LastPlaceWeeks + 1 : 0;
                 foreach (var p in State.Players) CheckRocketScout(p, events);
+                TicketWeekEnd(worst, events); // 謎のチケットの変化と下位救済（12章）
             }
 
             if (State.WeatherWeeks > 0 && --State.WeatherWeeks == 0) { events.Add(new WeekEventEnded { Name = State.Weather }); State.Weather = ""; }
@@ -510,6 +512,7 @@ namespace Sugoroku.Rules
             var bag = ItemEffects.BagOf(data.FindItem(item));
             if (bag == Bag.Ball) p.Balls[item] = (p.Balls.TryGetValue(item, out int n) ? n : 0) + 1;
             else (bag == Bag.Pokemon ? p.PokemonBag : p.TrainerBag).Add(item);
+            TicketReceived(p, item);
         }
 
         // 文言CSVのセリフ（キーがなければ何も出さない）。表示は Narrator が行にする

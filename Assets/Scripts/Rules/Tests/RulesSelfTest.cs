@@ -438,6 +438,110 @@ namespace Sugoroku.Rules
                     amounts.Count >= 20 && amounts.All(a => a >= median * (1 - spread) - unit && a <= median * (1 + spread) && a % unit == 0) && amounts.Distinct().Count() > 3);
             }
 
+            // 島とチケット（3.4、12章）：テスト用の小さな盤面
+            // 本マップ：1スタート─2船着場─3 の輪。島A（伝説）：4港─5─6シンボル─7 の輪。島B（地方）：8港─9─10 の輪。止まっても何も起きないマスは「ワープ」（番号なし）
+            if (data.FindSpecies("ミュウ") != null)
+            {
+                BoardSquare Isq(int id, string type, string place, string map = "") => new BoardSquare { Id = id, Name = "i" + id, Type = type, Place = place, MapId = map };
+                var isq = new List<BoardSquare> {
+                    Isq(1, "スタート", "マサラタウン"), Isq(2, "船着場", "クチバシティ"), Isq(3, "ワープ", "マサラタウン"),
+                    Isq(4, "船着場", "テスト島A", "island_testa"), Isq(5, "ワープ", "テスト島A", "island_testa"), Isq(6, "シンボル", "テスト島A", "island_testa"), Isq(7, "ワープ", "テスト島A", "island_testa"),
+                    Isq(8, "船着場", "テスト島B", "island_testb"), Isq(9, "ワープ", "テスト島B", "island_testb"), Isq(10, "ワープ", "テスト島B", "island_testb"),
+                };
+                var ib = BoardData.Create(isq, new[] { (1, 2), (2, 3), (3, 1), (4, 5), (5, 6), (6, 7), (7, 4), (8, 9), (9, 10), (10, 8) }, new List<string>());
+                var addMaps = new[] { new IslandMap { MapId = "island_testa", Name = "テスト島A", Kind = "伝説の島" }, new IslandMap { MapId = "island_testb", Name = "テスト島B", Kind = "地方の島" } };
+                var addRows = new[] {
+                    new TicketRow { Id = "t_a", Ticket = GameProcessor.MysteryTicket, Kind = "伝説", Target = "ミュウ", Island = "テスト島A", Weight = 1, Level = 30 },
+                    new TicketRow { Id = "t_b", Ticket = GameProcessor.MysteryTicket, Kind = "島", Target = "テスト島B", Island = "テスト島B", Weight = 3 },
+                };
+                data.IslandMaps.AddRange(addMaps);
+                data.TicketRows.AddRange(addRows);
+                try
+                {
+                    GameProcessor IGame(ulong seed, int players = 1) => GameProcessor.NewGame(ib, data, Enumerable.Range(0, players).Select(i => ($"P{i}", MoveMode.Highlight, "ヒトカゲ")).ToArray(), 50, seed, out _);
+                    List<GameEvent> Go(GameProcessor g, int from, int to)
+                    {
+                        if (g.State.Phase == Phase.Facility) Apply(g, new LeaveFacility { Player = g.State.CurrentPlayer.Id });
+                        var p = g.State.CurrentPlayer;
+                        p.Square = from;
+                        p.FixedDice = 1;
+                        Apply(g, new RollDice { Player = p.Id });
+                        Apply(g, new ChooseDestination { Player = p.Id, Square = to });
+                        return Apply(g, new ConfirmMove { Player = p.Id });
+                    }
+                    // チケットを持って船着場に止まり、使う。行き先（島の港）を返す
+                    (GameProcessor g, int port) Sail(ulong seed, int players = 1)
+                    {
+                        var g = IGame(seed, players);
+                        var p = g.State.CurrentPlayer;
+                        p.TrainerBag.Add(GameProcessor.MysteryTicket);
+                        Go(g, 1, 2);
+                        bool asked = g.State.Facility?.Options.Count == 2;
+                        if (asked) Apply(g, new ChooseOption { Player = p.Id, Index = 0 });
+                        return (g, asked && !p.TrainerBag.Contains(GameProcessor.MysteryTicket) ? p.Square : -1);
+                    }
+
+                    int toA = 0, toB = 0;
+                    for (ulong seed = 1; seed <= 200; seed++) { var (_, port) = Sail(seed); if (port == 4) toA++; else if (port == 8) toB++; }
+                    Check(log, $"チケット：行き先は重みで抽選（重み1：3 → {toA}回：{toB}回）、本マップにない島には行かない", toA + toB == 200 && toA > 25 && toA < 80);
+
+                    // 伝説の島：シンボルに止まると伝説とバトル、勝つと いなくなる。港に止まると クチバへ
+                    ulong legendSeed = 1;
+                    while (Sail(legendSeed).port != 4) legendSeed++;
+                    var (lg, _) = Sail(legendSeed);
+                    lg.DebugEnabled = true;
+                    var lp = lg.State.Players[0];
+                    bool hasLegend = lp.IslandLegend == "ミュウ" && lp.IslandLegendLevel == 30;
+                    var bev = Go(lg, 5, 6).OfType<BattleStarted>().FirstOrDefault();
+                    bool fought = bev?.Opponent == "野生のミュウ" && lg.State.Battle?.Legend == true;
+                    if (lg.State.Battle != null) Apply(lg, new DebugCommand { Player = lp.Id, Action = DebugAction.WinBattle });
+                    bool gone = lp.IslandLegend == "";
+                    var back = Go(lg, 5, 4);
+                    Check(log, "伝説の島：シンボルで伝説とバトル、勝つと いなくなる、港に止まると クチバの船着場へ", hasLegend && fought && gone && back.OfType<ReturnedFromIsland>().Any() && lp.Square == 2);
+
+                    // 島にいられるのは ticket_island_turns 手番まで。過ぎた手番の始めに クチバへ
+                    ulong islandSeed = 1;
+                    while (Sail(islandSeed).port != 8) islandSeed++;
+                    var (tg, _) = Sail(islandSeed);
+                    var tp = tg.State.Players[0];
+                    int moves = 0;
+                    for (int i = 0; i < 12 && tp.Square != 2; i++) { var ev = Go(tg, i % 2 == 0 ? 9 : 10, i % 2 == 0 ? 10 : 9); moves++; if (ev.OfType<ReturnedFromIsland>().Any()) break; }
+                    Check(log, $"島：{(int)data.Required("ticket_island_turns")}手番 動いたら、次の手番の始めに クチバへ（{moves}手番で戻った）", tp.Square == 2 && moves == (int)data.Required("ticket_island_turns"));
+
+                    // 謎のチケット → 不思議なチケット：最下位の週だけ数える
+                    var cg = IGame(3, 2);
+                    cg.DebugEnabled = true;
+                    var cp = cg.State.CurrentPlayer;
+                    var rich = cg.State.Players.First(x => x != cp);
+                    Apply(cg, new DebugCommand { Player = cp.Id, Action = DebugAction.Item, Text = GameProcessor.MysteryTicket });
+                    int target = cp.TicketChangeWeeks;
+                    rich.Money = 1000000;
+                    cp.Money = 1000000 * 2; // はじめは最下位ではない（数えない）
+                    for (int i = 0; i < 3; i++) Apply(cg, new DebugCommand { Player = cg.State.CurrentPlayer.Id, Action = DebugAction.NextWeek });
+                    bool notYet = cp.TicketLastWeeks == 0 && cp.TrainerBag.Contains(GameProcessor.MysteryTicket);
+                    cp.Money = 0;
+                    int weeks = 0;
+                    while (weeks < 10 && !cp.TrainerBag.Contains(GameProcessor.WonderTicket)) { Apply(cg, new DebugCommand { Player = cg.State.CurrentPlayer.Id, Action = DebugAction.NextWeek }); weeks++; }
+                    Check(log, $"謎のチケット：最下位の週だけ数えて {target}週で 不思議なチケットに（{weeks}週）", target >= (int)data.Required("ticket_change_weeks_min") && target <= (int)data.Required("ticket_change_weeks_max") && notYet && weeks == target && !cp.TrainerBag.Contains(GameProcessor.MysteryTicket));
+
+                    // 下位救済：バッジがそろって、決まった週数だけ最下位が続くと 謎のチケット（1回の連続で1枚）
+                    var rg = IGame(4, 2);
+                    rg.DebugEnabled = true;
+                    var rp = rg.State.CurrentPlayer;
+                    rg.State.Players.First(x => x != rp).Money = 1000000;
+                    for (int i = 0; i < (int)data.Required("ticket_rescue_badges"); i++) rp.Gyms.Add("テスト" + i);
+                    int given = 0;
+                    for (int i = 0; i < (int)data.Required("ticket_rescue_weeks") + 5; i++)
+                        given += Apply(rg, new DebugCommand { Player = rg.State.CurrentPlayer.Id, Action = DebugAction.NextWeek }).OfType<RescueGiven>().Count();
+                    Check(log, "下位救済：バッジ3個以上で 最下位が20週つづくと 謎のチケット（1枚だけ）", given == 1 && (rp.TrainerBag.Contains(GameProcessor.MysteryTicket) || rp.TrainerBag.Contains(GameProcessor.WonderTicket))); // 最下位が続くと そのまま 不思議なチケットに変わる
+                }
+                finally
+                {
+                    foreach (var m in addMaps) data.IslandMaps.Remove(m);
+                    foreach (var r in addRows) data.TicketRows.Remove(r);
+                }
+            }
+
             // 町の人のイベントマス（お使い・マサキの家・交換・育て屋）。盤面にそのマスがあれば試す
             BoardSquare EventSquareOf(EffectKind k)
             {
@@ -973,7 +1077,7 @@ namespace Sugoroku.Rules
             var data = new GameData();
             foreach (var (k, v) in new (string, double)[] { ("dice_min", diceMin), ("dice_max", diceMax), ("start_money", 500), ("start_balls", 3), ("start_level", 5),
                 ("weekly_event_min", 3), ("weekly_event_max", 8), ("dividend_interval", 7), ("badge_point", 5), ("yen_per_point", 1000), ("lab_researcher_dex", 130),
-                ("empty_money_area1", 100), ("empty_money_spread", 0.5), ("empty_money_unit", 10) })
+                ("empty_money_area1", 100), ("empty_money_spread", 0.5), ("empty_money_unit", 10), ("ticket_rescue_badges", 3), ("ticket_rescue_weeks", 20) })
                 data.Tuning[k] = v;
             return data;
         }
