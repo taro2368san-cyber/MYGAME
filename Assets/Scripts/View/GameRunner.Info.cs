@@ -25,6 +25,12 @@ public partial class GameRunner
         var m = p.Party[slot];
         var sp = Pokemons.Of(data, m);
         var col = Overlay("Pokemon");
+        if (PokemonSprite(m.Species) is Sprite art)
+        {
+            var artRow = Row(col);
+            artRow.GetComponent<UnityEngine.UI.LayoutElement>().preferredHeight = 220;
+            IconIn(artRow, art, 220).GetComponent<UnityEngine.UI.LayoutElement>().preferredWidth = 220;
+        }
         Ui.Line(col, $"{m.Species}　Lv{m.Level}" + (m.Fainted ? "（たおれている）" : ""), 48, TypeColor(sp.Type));
         Ui.Line(col, $"タイプ {sp.Type}　弱点 {sp.Weakness}　コスト {Pokemons.Cost10(data, m) / 10.0:0.0}　必殺は{(Pokemons.Attack(data, m) >= Pokemons.SpAttack(data, m) ? "こうげき" : "とくこう")}で出す", 28);
         Ui.Line(col, $"HP {m.Hp}/{Pokemons.MaxHp(data, m)}　こうげき {Pokemons.Attack(data, m)}　ぼうぎょ {Pokemons.Defense(data, m)}　とくこう {Pokemons.SpAttack(data, m)}　とくぼう {Pokemons.SpDefense(data, m)}　すばやさ {Pokemons.Speed(data, m)}", 28);

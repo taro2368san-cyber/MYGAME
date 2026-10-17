@@ -126,8 +126,7 @@ public partial class GameRunner
         SyncBuddies();
     }
 
-    // ---- F：コマの横についてくる先頭のポケモン（タイプの色の玉と名前） ----
-    // ponytail: 絵（Resources/Pokemon）があってもまだ玉のまま。絵ができたら SpriteRenderer に差し替える
+    // ---- F：コマの横についてくる先頭のポケモン（絵と名前。絵がなければタイプの色の玉） ----
 
     void SyncBuddies()
     {
@@ -135,22 +134,33 @@ public partial class GameRunner
         {
             if (buddies.Count <= i)
             {
-                var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                Destroy(go.GetComponent<Collider>()); // マスのクリックのじゃまをしない
-                go.name = "Buddy";
-                go.transform.localScale = Vector3.one * 0.32f;
+                var go = new GameObject("Buddy");
+                var ball = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                Destroy(ball.GetComponent<Collider>()); // マスのクリックのじゃまをしない
+                ball.name = "Ball";
+                ball.transform.SetParent(go.transform, false);
+                ball.transform.localScale = Vector3.one * 0.32f;
+                var art = new GameObject("Art", typeof(SpriteRenderer));
+                art.transform.SetParent(go.transform, false);
+                art.transform.localPosition = new Vector3(0, 0.6f, 0); // 絵（96px）の下の端を コマの足もとあたりに
+                art.transform.localScale = Vector3.one * 1.5f;
                 var label = new GameObject("Label", typeof(TextMesh)).GetComponent<TextMesh>();
                 label.transform.SetParent(go.transform, false);
-                label.transform.localPosition = new Vector3(0, 1.4f, 0);
+                label.transform.localPosition = new Vector3(0, 1.1f, 0);
                 label.font = Ui.Font; label.GetComponent<MeshRenderer>().material = Ui.Font.material;
-                label.fontSize = 40; label.characterSize = 0.09f; label.anchor = TextAnchor.MiddleCenter; label.color = Color.black;
+                label.fontSize = 40; label.characterSize = 0.029f; label.anchor = TextAnchor.MiddleCenter; label.color = Color.black;
                 buddies.Add(go.transform);
             }
             var lead = S.Players[i].Party.FirstOrDefault();
             var b = buddies[i];
             b.gameObject.SetActive(lead != null);
             if (lead == null) continue;
-            b.GetComponent<Renderer>().material.color = TypeColor(Pokemons.Of(data, lead).Type);
+            var sprite = PokemonSprite(lead.Species);
+            var sr = b.Find("Art").GetComponent<SpriteRenderer>();
+            sr.sprite = sprite;
+            var ballGo = b.Find("Ball").gameObject;
+            ballGo.SetActive(sprite == null);
+            ballGo.GetComponent<Renderer>().material.color = TypeColor(Pokemons.Of(data, lead).Type);
             b.GetComponentInChildren<TextMesh>().text = lead.Species;
         }
     }
@@ -161,10 +171,10 @@ public partial class GameRunner
         var cam = Camera.main;
         for (int i = 0; i < buddies.Count && i < pieces.Count; i++)
         {
-            buddies[i].position = pieces[i].position + new Vector3(0.42f, -0.4f, -0.12f);
+            buddies[i].position = pieces[i].position + new Vector3(0.6f, -0.4f, -0.12f);
             var art = pieces[i].Find("Sprite");
             if (art != null && cam != null) art.rotation = cam.transform.rotation; // キャラクターの絵は いつもこちらを向く
-            if (cam != null) buddies[i].GetComponentInChildren<TextMesh>().transform.rotation = cam.transform.rotation; // 名前はいつもこちらを向く
+            if (cam != null) buddies[i].rotation = cam.transform.rotation; // ポケモンの絵と名前は いつもこちらを向く
         }
     }
 }
