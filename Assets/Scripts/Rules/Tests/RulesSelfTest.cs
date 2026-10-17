@@ -631,9 +631,15 @@ namespace Sugoroku.Rules
                 var wild = sev.OfType<BattleStarted>().FirstOrDefault(b => b.Kind == BattleKind.Wild);
                 bool waterTable = wild == null || data.Encounters.Any(e => e.Place == sea.Place && e.Method == "水上" && wild.Opponent == "野生の" + e.Pokemon);
                 (sea.Type, sea.GrassKind) = keep;
-                var g4 = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
-                bool noFishOnLand = g4.Validate(new Fish { Player = 0 }) != null;
-                Check(log, "海上マス：なみのりを覚えた人だけ行き先に選べる（ひでんマシンは袋に入らない）、止まると水上の野生、となりでは だれでも つりができる", closed && learned && reach.Contains(seaId) && fished && waterTable && noFishOnLand);
+                // つりは 海上マスから道で2マス以内（小さい盤面：1─2─3─4。1から 3は2マス、4は3マス）
+                bool FishAt(int seaSquare)
+                {
+                    var tb = TestBoard();
+                    tb[seaSquare].GrassKind = "海上";
+                    var tg = GameProcessor.NewGame(tb, TestData(3, 3), new[] { ("A", MoveMode.Highlight, "") }, 50, 1, out _);
+                    return tg.Validate(new Fish { Player = 0 }) == null;
+                }
+                Check(log, "海上マス：なみのりを覚えた人だけ行き先に選べる（ひでんマシンは袋に入らない）、止まると水上の野生、2マス以内なら だれでも つりができる", closed && learned && reach.Contains(seaId) && fished && waterTable && FishAt(2) && FishAt(3) && !FishAt(4));
             }
             {
                 // 換金所（2.1・2.3）：1,000円で1p。最後の10週は閉まる。勝利ポイントには換えたポイントだけが入り、お金は入らない

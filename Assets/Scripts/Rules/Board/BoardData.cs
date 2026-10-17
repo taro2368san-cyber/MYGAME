@@ -13,7 +13,7 @@ namespace Sugoroku.Rules
         public string ShopId = "";          // ショップマスのとき、ショップ.csv の id（空なら場所で探す）
         public string MapId = "";
         public string GrassKind = "";       // 草むらマスの中の種類：草むら／海上／洞窟
-        public bool Sea => GrassKind == "海上"; // 海上（出現表は「水上」、となりで つり。4.1.2）           // メインマップ以外の板（洞窟・建物・島）の id。メインマップは ""
+        public bool Sea => GrassKind == "海上"; // 海上（出現表は「水上」、2マス以内で つり。4.1.2）           // メインマップ以外の板（洞窟・建物・島）の id。メインマップは ""
         public int WarpId;
         public float X, Z;               // 表示用の座標（ルールでは使わない）
         public int RequiredBadges;       // この場所に入るのに必要なバッジの数
