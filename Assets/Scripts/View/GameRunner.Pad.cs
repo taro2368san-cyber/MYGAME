@@ -117,6 +117,12 @@ public partial class GameRunner
         {
             int me = S.CurrentPlayer.Id;
             int tip = S.Move.Path[S.Move.Path.Count - 1];
+            // まとめて方式：右スティックで画面を動かすと、画面の真ん中に いちばん近いマスを選ぶ（画面を動かすのは PanCamera にまかせるので true は返さない）
+            if (S.CurrentPlayer.MoveMode == MoveMode.Highlight && g.rightStick.ReadValue().sqrMagnitude > 0.04f)
+            {
+                int c = CenterSquare();
+                if (c >= 0 && c != padSquare) { padSquare = c; PaintBoard(true); }
+            }
             var dir = PadDirection(g);
             if (dir != Vector2.zero)
             {
@@ -188,6 +194,23 @@ public partial class GameRunner
         return fresh ? v.normalized : Vector2.zero;
     }
 #endif
+
+    // 画面の真ん中に いちばん近いマス（真ん中から 画面の高さの1割より遠いマスは選ばない）。なければ -1
+    int CenterSquare()
+    {
+        var cam = Camera.main;
+        if (cam == null) return -1;
+        var center = new Vector2(Screen.width / 2f, Screen.height / 2f);
+        int best = -1; float bestDist = Screen.height * 0.1f;
+        foreach (var kv in squares)
+        {
+            Vector3 sp = cam.WorldToScreenPoint(kv.Value.transform.position);
+            if (sp.z <= 0) continue; // カメラの後ろ
+            float d = Vector2.Distance(sp, center);
+            if (d < bestDist) { bestDist = d; best = kv.Key; }
+        }
+        return best;
+    }
 
     // from から 道がつながっている となりのマスのうち、押した向き dir（画面で見た向き）に いちばん近い道の先。
     // 道がななめでも、向きのずれが 80度までなら その道とみなす（十字キーの上で 右上の道に進める）。なければ -1
