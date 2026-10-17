@@ -380,7 +380,7 @@ public partial class GameRunner : MonoBehaviour
     IEnumerator PlayQueue()
     {
         playing = true;
-        menu.Clear(); DrawMenu(""); PaintBoard(false);
+        menu.Clear(); menuArt.Clear(); DrawMenu(""); PaintBoard(false);
         while (queue.Count > 0)
         {
             var e = queue.Dequeue();
@@ -571,11 +571,14 @@ public partial class GameRunner : MonoBehaviour
     // ---- メニュー（場面ごとのボタン）----
 
     void Add(string label, Action action, KeyCode key = KeyCode.None, bool enabled = true) => menu.Add((label, action, key, enabled));
+    // ポケモンの行：ボタンの左に そのポケモンの絵を出す
+    readonly Dictionary<int, string> menuArt = new Dictionary<int, string>(); // 行の番号 → 種族
+    void AddMon(string species, string label, Action action, KeyCode key = KeyCode.None, bool enabled = true) { menuArt[menu.Count] = species; Add(label, action, key, enabled); }
     bool Ok(Command c) => game.Validate(c) == null;
 
     void BuildMenu()
     {
-        menu.Clear();
+        menu.Clear(); menuArt.Clear();
         if (S.Phase == Phase.GameOver)
         {
             Add("結果発表", ShowResults, KeyCode.Return);
@@ -631,7 +634,7 @@ public partial class GameRunner : MonoBehaviour
         {
             int k = i;
             var m = p.Party[k];
-            Add($"{(k == 0 ? "先頭 " : "")}{m.Species} Lv{m.Level}　HP {m.Hp}/{Pokemons.MaxHp(data, m)}" + (m.Fainted ? "（たおれている）" : ""), () => { subMenu = () => PokemonActions(me, k); RefreshAll(); });
+            AddMon(m.Species, $"{(k == 0 ? "先頭 " : "")}{m.Species} Lv{m.Level}　HP {m.Hp}/{Pokemons.MaxHp(data, m)}" + (m.Fainted ? "（たおれている）" : ""), () => { subMenu = () => PokemonActions(me, k); RefreshAll(); });
         }
         Add("もどる", () => { subMenu = null; RefreshAll(); }, KeyCode.Escape);
         DrawMenu("ポケモン：どの子？");
@@ -654,8 +657,8 @@ public partial class GameRunner : MonoBehaviour
         {
             int k = i;
             string label = $"{(k == 0 ? "先頭 " : "")}{p.Party[k].Species} Lv{p.Party[k].Level}";
-            if (first < 0) Add(label, () => { subMenu = () => SwapMenu(me, k); RefreshAll(); });
-            else Add(label, () => Send(new SwapParty { Player = me, A = first, B = k }), KeyCode.None, k != first);
+            if (first < 0) AddMon(p.Party[k].Species, label, () => { subMenu = () => SwapMenu(me, k); RefreshAll(); });
+            else AddMon(p.Party[k].Species, label, () => Send(new SwapParty { Player = me, A = first, B = k }), KeyCode.None, k != first);
         }
         Add("もどる", () => { subMenu = first < 0 ? null : (Action)(() => PokemonMenu(me)); RefreshAll(); }, KeyCode.Escape);
         DrawMenu(first < 0 ? "入れ替える1体目を えらぶ" : $"{p.Party[first].Species}と 入れ替える子を えらぶ");
@@ -715,7 +718,14 @@ public partial class GameRunner : MonoBehaviour
             case FacilityKind.BagFull:
             case FacilityKind.BoxFull:
             case FacilityKind.JobOffer:
-                for (int i = 0; i < f.Options.Count; i++) { var c = new ChooseOption { Player = me, Index = i }; Add(f.Options[i], () => Send(c), i == f.Options.Count - 1 ? KeyCode.Escape : KeyCode.None); }
+                for (int i = 0; i < f.Options.Count; i++)
+                {
+                    var c = new ChooseOption { Player = me, Index = i };
+                    var key = i == f.Options.Count - 1 ? KeyCode.Escape : KeyCode.None;
+                    // 控えがいっぱい：控えの子と、来た子（最後の行）に絵
+                    if (f.Kind == FacilityKind.BoxFull) AddMon(i < p.Box.Count ? p.Box[i].Species : f.PendingPokemon.Species, f.Options[i], () => Send(c), key);
+                    else Add(f.Options[i], () => Send(c), key);
+                }
                 return $"{p.Name}さん：{f.Prompt}";
             case FacilityKind.Exchange:
             {
@@ -757,8 +767,8 @@ public partial class GameRunner : MonoBehaviour
                 Add("店を出る", () => Send(new LeaveFacility { Player = me }), KeyCode.Escape);
                 return $"{(f.Prompt != "" ? f.Prompt : "ショップ")}（所持金 {p.Money}円）" + (S.WeekEvent == "セール" ? "　セール中！" : "");
             case FacilityKind.Center:
-                for (int i = 0; i < p.Party.Count; i++) { var c = new CenterSwap { Player = me, PartySlot = i }; Add($"あずける {p.Party[i].Species}", () => Send(c), KeyCode.None, Ok(c)); }
-                for (int i = 0; i < p.Box.Count; i++) { var c = new CenterSwap { Player = me, BoxIndex = i }; Add($"手持ちに {p.Box[i].Species} Lv{p.Box[i].Level}", () => Send(c), KeyCode.None, Ok(c)); }
+                for (int i = 0; i < p.Party.Count; i++) { var c = new CenterSwap { Player = me, PartySlot = i }; AddMon(p.Party[i].Species, $"あずける {p.Party[i].Species}", () => Send(c), KeyCode.None, Ok(c)); }
+                for (int i = 0; i < p.Box.Count; i++) { var c = new CenterSwap { Player = me, BoxIndex = i }; AddMon(p.Box[i].Species, $"手持ちに {p.Box[i].Species} Lv{p.Box[i].Level}", () => Send(c), KeyCode.None, Ok(c)); }
                 foreach (var job in p.UnlockedJobs) { var c = new ChangeJob { Player = me, Job = job }; Add($"職業：{job}に 就く", () => Send(c), KeyCode.None, Ok(c)); }
                 // もちものの着けはずし（8.2）
                 var heldItems = p.PokemonBag.Where(x => data.FindItem(x)?.IsHeldItem == true).Distinct().ToList();
@@ -853,7 +863,7 @@ public partial class GameRunner : MonoBehaviour
     {
         if (take < 0)
         {
-            for (int i = 0; i < loser.Party.Count; i++) { int k = i; var m = loser.Party[i]; Add($"{m.Species} Lv{m.Level}（コスト{Pokemons.Cost10(data, m) / 10.0:0.0}）", () => { subMenu = () => TradeMenu(winner, loser, k); RefreshAll(); }); }
+            for (int i = 0; i < loser.Party.Count; i++) { int k = i; var m = loser.Party[i]; AddMon(m.Species, $"{m.Species} Lv{m.Level}（コスト{Pokemons.Cost10(data, m) / 10.0:0.0}）", () => { subMenu = () => TradeMenu(winner, loser, k); RefreshAll(); }); }
             Add("もどる", () => { subMenu = null; RefreshAll(); }, KeyCode.Escape);
             DrawMenu($"{winner.Name}さん：{loser.Name}さんの どの子が ほしい？");
             return;
@@ -861,7 +871,7 @@ public partial class GameRunner : MonoBehaviour
         void Offer(PokemonState m, int index, bool box)
         {
             var c = new ChooseReward { Player = winner.Id, Reward = Reward.Trade, Take = take, Give = index, GiveFromBox = box };
-            Add($"{(box ? "控え " : "")}{m.Species} Lv{m.Level}（コスト{Pokemons.Cost10(data, m) / 10.0:0.0}）", () => Send(c), KeyCode.None, Ok(c));
+            AddMon(m.Species, $"{(box ? "控え " : "")}{m.Species} Lv{m.Level}（コスト{Pokemons.Cost10(data, m) / 10.0:0.0}）", () => Send(c), KeyCode.None, Ok(c));
         }
         for (int i = 0; i < winner.Party.Count; i++) Offer(winner.Party[i], i, false);
         for (int i = 0; i < winner.Box.Count; i++) Offer(winner.Box[i], i, true);
@@ -890,6 +900,14 @@ public partial class GameRunner : MonoBehaviour
             var (label, action, _, enabled) = menu[i];
             var b = Ui.Button(buttons, i < 9 ? $"{i + 1}. {label}" : label, action);
             b.interactable = enabled;
+            if (menuArt.TryGetValue(i, out var species) && PokemonIcon(species) is Sprite art)
+            {
+                float h = grid.cellSize.y - 4;
+                var icon = Ui.Panel(b.transform, "Mon", new Vector2(0, 0.5f), new Vector2(0, 0.5f), Color.white);
+                icon.sprite = art; icon.preserveAspect = true; icon.raycastTarget = false;
+                icon.rectTransform.sizeDelta = new Vector2(h, h); icon.rectTransform.anchoredPosition = new Vector2(6 + h / 2, 0);
+                b.GetComponentInChildren<Text>().rectTransform.offsetMin = new Vector2(h + 10, 0); // 文字は絵の右から
+            }
             made.Add(b);
         }
         PadHighlight(title, made); // コントローラーのカーソル
@@ -956,6 +974,33 @@ public partial class GameRunner : MonoBehaviour
     // ---- バトルのポケモン表示（タイプの色の丸と名前。Resources に絵があればそれを使う、17.7）----
 
     public Sprite PokemonSprite(string species) => Resources.Load<Sprite>($"{pokemonSpriteFolder}/{species}");
+
+    // 一覧に並べる小さい絵：まわりの透明な余白を切ったもの（96pxの絵は余白が大きく、小さく出すと見えないため）。絵がなければ null
+    readonly Dictionary<string, Sprite> icons = new Dictionary<string, Sprite>();
+    public Sprite PokemonIcon(string species)
+    {
+        if (icons.TryGetValue(species, out var icon)) return icon;
+        var full = PokemonSprite(species);
+        if (full == null || !full.texture.isReadable) return icons[species] = full;
+        var tex = full.texture;
+        var px = tex.GetPixels32();
+        int x0 = tex.width, y0 = tex.height, x1 = -1, y1 = -1;
+        for (int y = 0; y < tex.height; y++)
+            for (int x = 0; x < tex.width; x++)
+                if (px[y * tex.width + x].a > 0) { x0 = Math.Min(x0, x); x1 = Math.Max(x1, x); y0 = Math.Min(y0, y); y1 = Math.Max(y1, y); }
+        return icons[species] = x1 < 0 ? full : Sprite.Create(tex, new Rect(x0, y0, x1 - x0 + 1, y1 - y0 + 1), new Vector2(0.5f, 0.5f));
+    }
+
+    // 並べる箱の中に置く ポケモンの絵（縦横の比はそのまま）
+    Image MonIcon(Transform parent, string species, float size)
+    {
+        var img = new GameObject("Mon", typeof(RectTransform), typeof(Image), typeof(LayoutElement)).GetComponent<Image>();
+        img.transform.SetParent(parent, false);
+        img.sprite = PokemonIcon(species); img.preserveAspect = true; img.raycastTarget = false;
+        img.enabled = img.sprite != null;
+        var le = img.GetComponent<LayoutElement>(); le.preferredWidth = le.preferredHeight = le.minWidth = le.minHeight = size;
+        return img;
+    }
 
     public static Color TypeColor(string type)
     {

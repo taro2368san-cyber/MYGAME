@@ -25,11 +25,11 @@ public partial class GameRunner
         var m = p.Party[slot];
         var sp = Pokemons.Of(data, m);
         var col = Overlay("Pokemon");
-        if (PokemonSprite(m.Species) is Sprite art)
+        if (PokemonIcon(m.Species) != null)
         {
             var artRow = Row(col);
-            artRow.GetComponent<UnityEngine.UI.LayoutElement>().preferredHeight = 220;
-            IconIn(artRow, art, 220).GetComponent<UnityEngine.UI.LayoutElement>().preferredWidth = 220;
+            artRow.GetComponent<UnityEngine.UI.LayoutElement>().preferredHeight = 180;
+            MonIcon(artRow, m.Species, 180);
         }
         Ui.Line(col, $"{m.Species}　Lv{m.Level}" + (m.Fainted ? "（たおれている）" : ""), 48, TypeColor(sp.Type));
         Ui.Line(col, $"タイプ {sp.Type}　弱点 {sp.Weakness}　コスト {Pokemons.Cost10(data, m) / 10.0:0.0}　必殺は{(Pokemons.Attack(data, m) >= Pokemons.SpAttack(data, m) ? "こうげき" : "とくこう")}で出す", 28);
@@ -47,12 +47,35 @@ public partial class GameRunner
     }
 
     // 図鑑（16.6 #44）
-    void ShowDex(PlayerState p)
+    // 1ページに 8列×4段。絵・番号・名前
+    void ShowDex(PlayerState p, int page = 0)
     {
+        const int cols = 8, perPage = cols * 4;
+        var seen = data.Species.Where(s => p.Dex.Contains(s.Name)).OrderBy(s => s.Number).ToList();
+        int pages = Mathf.Max(1, (seen.Count + perPage - 1) / perPage);
+        page = Mathf.Clamp(page, 0, pages - 1);
         var col = Overlay("Dex");
-        Ui.Line(col, $"{p.Name}の 図鑑　{p.Dex.Count}／{data.Species.Count}種類", 44, PlayerColor(p));
-        Ui.Line(col, string.Join("　", data.Species.Where(s => p.Dex.Contains(s.Name)).OrderBy(s => s.Number).Select(s => $"{s.Number}.{s.Name}")), 24);
-        Ui.Button(Row(col), "閉じる", CloseOverlay, 200, 64);
+        Ui.Line(col, $"{p.Name}の 図鑑　{p.Dex.Count}／{data.Species.Count}種類" + (pages > 1 ? $"　{page + 1}／{pages}ページ" : ""), 44, PlayerColor(p));
+        var grid = Ui.Rect(col, "Grid", Vector2.zero, Vector2.one);
+        grid.gameObject.AddComponent<UnityEngine.UI.LayoutElement>().preferredHeight = 4 * 150;
+        var g = grid.gameObject.AddComponent<UnityEngine.UI.GridLayoutGroup>();
+        g.cellSize = new Vector2(170, 140); g.spacing = new Vector2(6, 10);
+        g.constraint = UnityEngine.UI.GridLayoutGroup.Constraint.FixedColumnCount; g.constraintCount = cols;
+        foreach (var s in seen.Skip(page * perPage).Take(perPage))
+        {
+            var cell = Ui.Stack(grid, "Mon", Vector2.zero, Vector2.one, true, 2, 0);
+            cell.GetComponent<UnityEngine.UI.VerticalLayoutGroup>().childAlignment = TextAnchor.UpperCenter;
+            cell.GetComponent<UnityEngine.UI.VerticalLayoutGroup>().childForceExpandWidth = false;
+            MonIcon(cell, s.Name, 96);
+            Ui.Line(cell, $"{s.Number}.{s.Name}", 20).alignment = TextAnchor.UpperCenter;
+        }
+        var row = Row(col);
+        if (pages > 1)
+        {
+            Ui.Button(row, "まえのページ", () => ShowDex(p, page - 1), 240, 64).interactable = page > 0;
+            Ui.Button(row, "つぎのページ", () => ShowDex(p, page + 1), 240, 64).interactable = page < pages - 1;
+        }
+        Ui.Button(row, "閉じる", CloseOverlay, 200, 64);
     }
 
     // 順位（16.6 #46）
