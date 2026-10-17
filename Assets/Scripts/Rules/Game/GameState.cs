@@ -41,6 +41,7 @@ namespace Sugoroku.Rules
         public int RocketDefeats;                                            // ロケット団を追いはらった回数（最多討伐賞、2.1）                                     // 旅の数字：歩いたマス、バトルの数
         public int BikeUses;                                                 // 自転車を使った回数（サイクリングの解放）
         public int LastMainWarp = -1;                                        // 最後に止まったメインマップのワープマス（あなぬけひもで戻る先）
+        public bool Surf;                                                    // なみのりを覚えた（ひでんマシン なみのり。海上マスに入れる、4.1.2）
 
         // この手番の準備フェーズで決めたこと
         public bool UsedItem;

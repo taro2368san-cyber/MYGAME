@@ -106,7 +106,7 @@ namespace Sugoroku.Rules
                 case ExtraMoveStarted x: return $"もう {x.Steps}マス 進む";
                 case MoneyChanged x: return x.Amount > 0 ? $"{Name(x.Player)}は {x.Amount}円 もらった（{x.Reason}）" : $"{Name(x.Player)}は {-x.Amount}円 うしなった（{x.Reason}）" + (x.To >= 0 ? $" → {Name(x.To)}へ" : "");
                 case PointsChanged x: return $"{Name(x.Player)}は {x.Amount}ポイント もらった";
-                case ItemGained x: return x.BagFull ? $"{x.Item}を みつけたが、袋が いっぱいだ" : $"{Name(x.Player)}は {x.Item}を てにいれた！";
+                case ItemGained x: return x.BagFull ? $"{x.Item}を みつけたが、袋が いっぱいだ" : $"{Name(x.Player)}は {x.Item}を てにいれた！" + (x.Item == GameProcessor.SurfItem ? "\nなみのりを 覚えた！ 海上マスに 入れるようになった" : "");
                 case ItemLost x: return x.To >= 0 ? $"{Name(x.To)}は {Name(x.Player)}から {x.Item}を うばった！" : null;
                 case PartyHealed x: return $"{Name(x.Player)}の ポケモンは 元気に なった";
                 case FacilityOpened x:

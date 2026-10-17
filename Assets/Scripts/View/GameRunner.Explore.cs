@@ -48,7 +48,8 @@ public partial class GameRunner
         if (S.Owners.TryGetValue(id, out int owner)) text += $"　{S.Players[owner].Name}の" + (sq.Type == "ライバル" ? "ライバルマス" : "ファン");
         if (sq.RequiredBadges > p.Badges) return text + $"　まだ入れない（バッジ{sq.RequiredBadges}個で解放）";
         if (!Movement.CanEnter(board, id, p.Badges, game.TopBadges)) return text + $"　まだ通れない（バッジ{sq.GateBadges}個で通れる" + (sq.GateShared ? "。だれか1人が そろえれば 全員" : "") + "）";
-        int d = Movement.Distance(board, p.Square, id, p.Badges, game.TopBadges);
+        if (!Movement.CanEnter(board, id, p.Badges, game.TopBadges, p.Surf)) return text + "　なみのりを 覚えると 入れる";
+        int d = Movement.Distance(board, p.Square, id, p.Badges, game.TopBadges, p.Surf);
         return text + (d < 0 ? "　道では 行けない（ワープの先）" : d == 0 ? "　今いるマス" : $"　ここから {d}マス");
     }
 

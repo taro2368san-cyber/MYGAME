@@ -4,10 +4,13 @@ using System.Linq;
 namespace Sugoroku.Rules
 {
     // 海上マスとつり（仕様書4.1.2）
-    // 海上マス：草むらマスの中の種類「海上」。だれでも行き先に選べる。止まると出現表の「水上」から野生（BoardSquare.Sea）
-    // つり：海上マスのとなりにいるとき、準備フェーズで「移動」の代わりに選べる。動かずに、出現表の「つり」から野生とバトル。その手番は終わる
+    // 海上マス：草むらマスの中の種類「海上」。なみのりを覚えた人だけが入れる（Movement.CanEnter の surf）。止まると出現表の「水上」から野生（BoardSquare.Sea）
+    // なみのり：道具「ひでんマシン なみのり」をもらうと覚える。袋には入らない（すてる・とられる・わたすことがない）
+    // つり：海上マスのとなりにいるとき、準備フェーズで「移動」の代わりに選べる（なみのりは要らない）。動かずに、出現表の「つり」から野生とバトル。その手番は終わる
     public sealed partial class GameProcessor
     {
+        public const string SurfItem = "ひでんマシン なみのり";
+
         // 今いるマスのとなりの海上マス（なければ null）
         BoardSquare SeaNextTo(PlayerState p) => board[p.Square].Neighbors.Select(n => board[n]).FirstOrDefault(s => s.Sea);
 

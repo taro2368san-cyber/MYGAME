@@ -616,17 +616,24 @@ namespace Sugoroku.Rules
                 sea.Type = "草むら"; sea.GrassKind = "海上";
                 var g = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
                 g.State.Players[0].FixedDice = 1;
-                var reach = Apply(g, new RollDice()).OfType<DiceRolled>().First().Reachable;
+                bool closed = !Apply(g, new RollDice()).OfType<DiceRolled>().First().Reachable.Contains(seaId); // なみのりなしでは入れない
+                var g2 = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
+                g2.DebugEnabled = true;
+                var sp = g2.State.Players[0];
+                Apply(g2, new DebugCommand { Player = 0, Action = DebugAction.Item, Text = GameProcessor.SurfItem });
+                bool learned = sp.Surf && !sp.TrainerBag.Contains(GameProcessor.SurfItem) && !sp.PokemonBag.Contains(GameProcessor.SurfItem); // 覚えるだけで 袋には入らない
+                sp.FixedDice = 1;
+                var reach = Apply(g2, new RollDice()).OfType<DiceRolled>().First().Reachable;
                 var g3 = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
                 var fev = Apply(g3, new Fish());
                 bool fished = fev.OfType<Fished>().Any() && (fev.OfType<BattleStarted>().Any(b => b.Kind == BattleKind.Wild) || !data.Encounters.Any(e => e.Method == "つり" && (e.Place == board[board.StartSquare].Place || e.Place == sea.Place)));
-                var (_, sev) = LandEvents(sea, "ヒトカゲ");
+                var (_, sev) = LandEvents(sea, "ヒトカゲ", s => s.Players[0].Surf = true);
                 var wild = sev.OfType<BattleStarted>().FirstOrDefault(b => b.Kind == BattleKind.Wild);
                 bool waterTable = wild == null || data.Encounters.Any(e => e.Place == sea.Place && e.Method == "水上" && wild.Opponent == "野生の" + e.Pokemon);
                 (sea.Type, sea.GrassKind) = keep;
                 var g4 = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
                 bool noFishOnLand = g4.Validate(new Fish { Player = 0 }) != null;
-                Check(log, "海上マス：だれでも行き先に選べる、止まると水上の野生、となりでは つりができる", reach.Contains(seaId) && fished && waterTable && noFishOnLand);
+                Check(log, "海上マス：なみのりを覚えた人だけ行き先に選べる（ひでんマシンは袋に入らない）、止まると水上の野生、となりでは だれでも つりができる", closed && learned && reach.Contains(seaId) && fished && waterTable && noFishOnLand);
             }
             {
                 // 換金所（2.1・2.3）：1,000円で1p。最後の10週は閉まる。勝利ポイントには換えたポイントだけが入り、お金は入らない

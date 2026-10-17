@@ -566,6 +566,18 @@ public partial class GameRunner : MonoBehaviour
         }
         if (move == null) padSquare = -1;
         else if (padSquare >= 0 && squares.TryGetValue(padSquare, out var cursor)) cursor.SetGlow(Color.white, 1); // コントローラーで選んでいるマス
+        HideSeaRoads();
+    }
+
+    // なみのりを覚えていない人の手番は、海上マスにつながる道を見せない（4.1.2）
+    SugorokuRoad[] roads;
+    void HideSeaRoads()
+    {
+        if (roads == null) roads = FindObjectsByType<SugorokuRoad>(FindObjectsInactive.Include, FindObjectsSortMode.None); // 隠したあとも見つけられるように Include
+        bool hide = !S.CurrentPlayer.Surf;
+        bool Sea(SugorokuSquare sq) => sq != null && board.Squares.TryGetValue(sq.id, out var b) && b.Sea;
+        foreach (var r in roads)
+            if (r != null) r.gameObject.SetActive(!(hide && (Sea(r.squareA) || Sea(r.squareB))));
     }
 
     // ---- メニュー（場面ごとのボタン）----

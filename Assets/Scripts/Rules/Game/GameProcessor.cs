@@ -262,7 +262,7 @@ namespace Sugoroku.Rules
             var move = State.Move = new MoveState { Dice = steps, Extra = JobExtraSteps(player) };
             move.Path.Add(player.Square);
             // サイクリングは 目〜目＋Extra 歩のどこで止まってもよい
-            HashSet<int> Reach(bool reverse) { var r = new HashSet<int>(); for (int k = 0; k <= move.Extra; k++) r.UnionWith(Movement.Reachable(board, player.Square, steps + k, player.Badges, reverse, State.Blocked.Keys, TopBadges)); return r; }
+            HashSet<int> Reach(bool reverse) { var r = new HashSet<int>(); for (int k = 0; k <= move.Extra; k++) r.UnionWith(Movement.Reachable(board, player.Square, steps + k, player.Badges, reverse, State.Blocked.Keys, TopBadges, player.Surf)); return r; }
             move.Reachable = Reach(false);
             if (move.Reachable.Count == 0)
             {
@@ -290,9 +290,10 @@ namespace Sugoroku.Rules
                     if (IsUndoStep(step.Square)) return null;
                     if (left <= 0) return "もう歩数が残っていません";
                     if (!board[cur].Neighbors.Contains(step.Square)) return "となりのマスではありません";
-                    if (!Movement.CanEnter(board, step.Square, player.Badges, TopBadges)) return board[step.Square].RequiredBadges > player.Badges ? "まだ入れないエリアです" : $"バッジ{board[step.Square].GateBadges}個で 通れるようになるマスです";
+                    if (!Movement.CanEnter(board, step.Square, player.Badges, TopBadges, player.Surf))
+                        return board[step.Square].RequiredBadges > player.Badges ? "まだ入れないエリアです" : !Movement.CanEnter(board, step.Square, player.Badges, TopBadges) ? $"バッジ{board[step.Square].GateBadges}個で 通れるようになるマスです" : "なみのりを 覚えていないので 海には入れません";
                     if (State.Blocked.ContainsKey(step.Square)) return "カビゴンが ねていて 通れない";
-                    return Movement.CanFinish(board, cur, step.Square, left - 1, player.Badges, move.AllowReverse, move.Reachable, State.Blocked.Keys, move.Extra, TopBadges) ? null : "その道では、ちょうど止まれるマスがありません";
+                    return Movement.CanFinish(board, cur, step.Square, left - 1, player.Badges, move.AllowReverse, move.Reachable, State.Blocked.Keys, move.Extra, TopBadges, player.Surf) ? null : "その道では、ちょうど止まれるマスがありません";
                 case StepBack _:
                     if (player.MoveMode != MoveMode.Step) return "ハイライト方式では1歩戻しはありません";
                     return move.Path.Count > 1 ? null : "出発したマスより前には戻れません";
@@ -310,7 +311,7 @@ namespace Sugoroku.Rules
             {
                 case ChooseDestination choose:
                     for (int k = 0; k <= move.Extra; k++) // 少ない歩数で行けるなら、その道
-                        if (Movement.FindPath(board, move.Path[0], move.Dice + k, player.Badges, move.AllowReverse, choose.Square, State.Blocked.Keys, TopBadges) is List<int> path) { move.Path = path; break; }
+                        if (Movement.FindPath(board, move.Path[0], move.Dice + k, player.Badges, move.AllowReverse, choose.Square, State.Blocked.Keys, TopBadges, player.Surf) is List<int> path) { move.Path = path; break; }
                     break;
                 case StepTo step:
                     if (IsUndoStep(step.Square)) move.Path.RemoveAt(move.Path.Count - 1);
@@ -326,7 +327,7 @@ namespace Sugoroku.Rules
                     State.Move = null;
                     // ワープは止まったときだけ。着いた先ではもう一度ワープしない
                     int partner = board[to].WarpPartner;
-                    if (partner >= 0 && Movement.CanEnter(board, partner, player.Badges, TopBadges))
+                    if (partner >= 0 && Movement.CanEnter(board, partner, player.Badges, TopBadges, player.Surf))
                     {
                         if (board[to].MapId == "") player.LastMainWarp = to;
                         player.Square = partner;
@@ -485,6 +486,7 @@ namespace Sugoroku.Rules
 
         bool HasRoomFor(PlayerState p, string item)
         {
+            if (item == SurfItem) return true; // 袋には入らない（覚えるだけ）
             var info = data.FindItem(item);
             var bag = ItemEffects.BagOf(info);
             return bag == Bag.Ball || (bag == Bag.Pokemon ? p.PokemonBag : p.TrainerBag).Count < BagLimit(p, bag);
@@ -509,6 +511,7 @@ namespace Sugoroku.Rules
 
         void PutItem(PlayerState p, string item)
         {
+            if (item == SurfItem) { p.Surf = true; return; }
             var bag = ItemEffects.BagOf(data.FindItem(item));
             if (bag == Bag.Ball) p.Balls[item] = (p.Balls.TryGetValue(item, out int n) ? n : 0) + 1;
             else (bag == Bag.Pokemon ? p.PokemonBag : p.TrainerBag).Add(item);

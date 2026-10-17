@@ -199,6 +199,7 @@ public partial class GameRunner
         int best = -1; float bestAngle = 80f;
         foreach (int n in board[from].Neighbors)
         {
+            if (board[n].Sea && !S.CurrentPlayer.Surf) continue; // 見えていない海への道
             float a = Vector2.Angle((Vector2)cam.WorldToScreenPoint(SquarePosition(n)) - o, dir);
             if (a < bestAngle) { bestAngle = a; best = n; }
         }

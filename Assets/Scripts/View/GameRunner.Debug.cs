@@ -112,8 +112,8 @@ public partial class GameRunner
             if (!labelBackup.ContainsKey(kv.Value)) labelBackup[kv.Value] = label.text;
             if (labelMode == 0) { label.text = labelBackup[kv.Value]; continue; }
             if (labelMode == 1 || !board.Squares.ContainsKey(kv.Key)) { label.text = kv.Key.ToString(); continue; }
-            int d = Movement.Distance(board, p.Square, kv.Key, p.Badges, game.TopBadges);
-            label.text = !Movement.CanEnter(board, kv.Key, p.Badges, game.TopBadges) ? "×" : d < 0 ? "−" : d.ToString();
+            int d = Movement.Distance(board, p.Square, kv.Key, p.Badges, game.TopBadges, p.Surf);
+            label.text = !Movement.CanEnter(board, kv.Key, p.Badges, game.TopBadges, p.Surf) ? "×" : d < 0 ? "−" : d.ToString();
         }
     }
 
@@ -121,8 +121,8 @@ public partial class GameRunner
     void ShowRoute(int goal)
     {
         var p = S.CurrentPlayer;
-        int d = Movement.Distance(board, p.Square, goal, p.Badges, game.TopBadges);
-        var path = d > 0 ? Movement.FindPath(board, p.Square, d, p.Badges, false, goal, null, game.TopBadges) : null;
+        int d = Movement.Distance(board, p.Square, goal, p.Badges, game.TopBadges, p.Surf);
+        var path = d > 0 ? Movement.FindPath(board, p.Square, d, p.Badges, false, goal, null, game.TopBadges, p.Surf) : null;
         if (path == null) return;
         foreach (int id in path) if (id != goal && squares.TryGetValue(id, out var s)) s.SetGlow(new Color(1, 0.55f, 0.1f), 0.9f);
     }

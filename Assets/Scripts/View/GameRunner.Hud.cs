@@ -73,7 +73,7 @@ public partial class GameRunner
     int RankOf(PlayerState p) => 1 + S.Players.Count(o => game.Score(o) > game.Score(p) + 1e-9);
 
     string StateText(PlayerState p) =>
-        (p.Has("1回休み") ? "　1回休み" : "") + (p.Has("さいみん") ? "　さいみん" : "") + (p.PendingBattle != null ? $"　バトルの途中（{p.PendingBattle.Sides[1].Name}）" : "") + (p.Job != "" ? $"　{p.Job}" : "");
+        (p.Has("1回休み") ? "　1回休み" : "") + (p.Has("さいみん") ? "　さいみん" : "") + (p.PendingBattle != null ? $"　バトルの途中（{p.PendingBattle.Sides[1].Name}）" : "") + (p.Job != "" ? $"　{p.Job}" : "") + (p.Surf ? "　なみのり" : "");
 
     void RefreshHud()
     {

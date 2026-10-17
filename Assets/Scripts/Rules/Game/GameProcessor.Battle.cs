@@ -759,7 +759,7 @@ namespace Sugoroku.Rules
                 var next = board[s].Neighbors.ToList();
                 if (board[s].WarpPartner >= 0) next.Add(board[s].WarpPartner);
                 foreach (int n in next)
-                    if (Movement.CanEnter(board, n, p.Badges, TopBadges) && seen.Add(n)) queue.Enqueue(n);
+                    if (Movement.CanEnter(board, n, p.Badges, TopBadges, p.Surf) && seen.Add(n)) queue.Enqueue(n);
             }
             p.Square = found;
             foreach (var m in p.Party.Concat(p.Box)) Pokemons.HealFull(data, m);
