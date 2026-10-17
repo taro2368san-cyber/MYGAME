@@ -10,7 +10,7 @@ using UnityEngine.InputSystem.Controls;
 
 // コントローラー（仕様書16.1 #4・16.5・16.9・17.4）。Input System のパッケージで動く
 // メニュー：十字キーで選ぶ、○で決定、×でもどる。バトル：攻撃 ○物理 △特殊 □必殺 L1/R1どうぐ、防御 ○まもる △特殊守り □カウンター L1/R1にげる
-// 移動：十字キー・左スティックで その向きのマスを選ぶ、○で選ぶ・決定、×で1歩もどす。ふだんはコントローラー1、プレイヤー戦は 仕掛けた側が1・相手が2（16.5 #28）
+// 移動：十字キー・左スティックで 道がつながっている向きへ（ななめの道も近い向きで進める）、○で選ぶ・決定、×で1歩もどす。ふだんはコントローラー1、プレイヤー戦は 仕掛けた側が1・相手が2（16.5 #28）
 // ボタンを並べた画面（タイトル・設定・ゲーム設定・つづきから・結果発表など）：十字キーで選ぶ、○で押す、×でもどる。エンドロールは ○で早送り、STARTで とばす
 public partial class GameRunner
 {
@@ -111,30 +111,35 @@ public partial class GameRunner
                         : Down(g, x => x.leftShoulder) || Down(g, x => x.rightShoulder) ? (attack ? KeyCode.V : KeyCode.F) : KeyCode.None;
             if (key != KeyCode.None) { PressKey(key); return true; }
         }
-        // 移動：十字キー・左スティックで その向きのマスを選ぶ、○で選ぶ（もう選んであれば決定）、×で1歩もどす
+        // 移動：十字キー・左スティックで 道がつながっている向きへ（1マスずつ方式は そのまま1歩、まとめて方式は カーソルが道をたどる）
+        // ○で決定（まとめて方式は 光っているマスを選ぶ → もう一度○で決定）、×で1歩もどす
         if (S.Phase == Phase.Moving && subMenu == null)
         {
-            var cands = PadSquares();
+            int me = S.CurrentPlayer.Id;
+            int tip = S.Move.Path[S.Move.Path.Count - 1];
             var dir = PadDirection(g);
             if (dir != Vector2.zero)
             {
-                int pick = PadPick(cands, dir);
+                if (S.CurrentPlayer.MoveMode == MoveMode.Step)
+                {
+                    int next = PadRoad(tip, dir);
+                    if (next >= 0 && Ok(new StepTo { Player = me, Square = next })) Send(new StepTo { Player = me, Square = next });
+                    return true;
+                }
+                int pick = PadRoad(padSquare >= 0 ? padSquare : tip, dir);
                 if (pick >= 0)
                 {
                     padSquare = pick;
                     if (cameraTarget != null) { var d = SquarePosition(pick) - cameraTarget.position; camPan = new Vector3(d.x, 0, d.z); } // 選んだマスが画面の真ん中に来る
+                    RefreshAll();
                 }
-                RefreshAll();
                 return true;
             }
             if (Down(g, x => x.buttonEast))
             {
-                int me = S.CurrentPlayer.Id;
-                var path = S.Move.Path;
-                if (padSquare >= 0 && path[path.Count - 1] != padSquare && cands.Contains(padSquare))
+                if (padSquare >= 0 && padSquare != tip)
                 {
-                    if (S.CurrentPlayer.MoveMode == MoveMode.Highlight) Send(new ChooseDestination { Player = me, Square = padSquare });
-                    else { Send(new StepTo { Player = me, Square = padSquare }); padSquare = -1; }
+                    if (S.Move.Reachable.Contains(padSquare)) Send(new ChooseDestination { Player = me, Square = padSquare }); // 光っていないマスでは何もしない
                 }
                 else if (Ok(new ConfirmMove { Player = me })) { padSquare = -1; Send(new ConfirmMove { Player = me }); }
                 return true;
@@ -184,36 +189,20 @@ public partial class GameRunner
     }
 #endif
 
-    // 画面で見て dir の向きにある いちばん近いマス。なければ -1
-    // まとめて方式は いま選んでいるマスから、1マスずつ方式は コマのいるマス（いまの道の先）から見る
-    int PadPick(List<int> cands, Vector2 dir)
+    // from から 道がつながっている となりのマスのうち、押した向き dir（画面で見た向き）に いちばん近い道の先。
+    // 道がななめでも、向きのずれが 80度までなら その道とみなす（十字キーの上で 右上の道に進める）。なければ -1
+    int PadRoad(int from, Vector2 dir)
     {
         var cam = Camera.main;
         if (cam == null) return -1;
-        int tip = S.Move.Path[S.Move.Path.Count - 1];
-        int from = S.CurrentPlayer.MoveMode == MoveMode.Highlight && padSquare >= 0 ? padSquare : tip;
         Vector2 o = cam.WorldToScreenPoint(SquarePosition(from));
-        int best = -1; float bestScore = float.MaxValue;
-        foreach (int c in cands)
+        int best = -1; float bestAngle = 80f;
+        foreach (int n in board[from].Neighbors)
         {
-            if (c == from) continue;
-            Vector2 d = (Vector2)cam.WorldToScreenPoint(SquarePosition(c)) - o;
-            float along = Vector2.Dot(d, dir);
-            float side = Mathf.Abs(d.x * dir.y - d.y * dir.x);
-            if (along <= side * 0.5f) continue; // 向きから 60度くらいまで
-            float score = along + side * 2; // 真っすぐ先を優先
-            if (score < bestScore) { bestScore = score; best = c; }
+            float a = Vector2.Angle((Vector2)cam.WorldToScreenPoint(SquarePosition(n)) - o, dir);
+            if (a < bestAngle) { bestAngle = a; best = n; }
         }
         return best;
-    }
-
-    // 移動でコントローラーが選べるマス：まとめて方式は止まれるマス、1マスずつ方式は 進めるとなりのマス
-    List<int> PadSquares()
-    {
-        var p = S.CurrentPlayer;
-        if (p.MoveMode == MoveMode.Highlight) return S.Move.Reachable.ToList();
-        var cur = S.Move.Path[S.Move.Path.Count - 1];
-        return board[cur].Neighbors.Where(n => game.Validate(new StepTo { Player = p.Id, Square = n }) == null).ToList();
     }
 
 #if ENABLE_INPUT_SYSTEM
