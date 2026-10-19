@@ -36,7 +36,8 @@ namespace Sugoroku.Rules
             {
                 var free = trainers.Where(s => !State.JobSquares.ContainsKey(s.Id)).ToList();
                 var places = rule.Places.Where(pl => free.Any(s => s.Place == pl)).ToList();
-                var pool = places.Count > 0 ? free.Where(s => s.Place == places[Roll(0, places.Count - 1)]).ToList() : free;
+                string place = places.Count > 0 ? places[Roll(0, places.Count - 1)] : null; // くじは1回だけ（Where の中で引くと マスごとに引き直してしまう）
+                var pool = place != null ? free.Where(s => s.Place == place).ToList() : free;
                 if (pool.Count == 0) continue;
                 State.JobSquares[pool[Roll(0, pool.Count - 1)].Id] = rule.Job;
             }
