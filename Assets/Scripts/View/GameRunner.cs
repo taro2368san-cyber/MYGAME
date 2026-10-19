@@ -339,14 +339,21 @@ public partial class GameRunner : MonoBehaviour
         battlePanel.gameObject.SetActive(false);
         var bannerPanel = Ui.Panel(canvas.transform, "Banner", new Vector2(0.1f, 0.42f), new Vector2(0.9f, 0.62f), new Color(0, 0, 0, 0.85f));
         banner = Ui.Label(bannerPanel.transform, "", 46, TextAnchor.MiddleCenter);
+        bannerIcon = Ui.Panel(bannerPanel.transform, "Mon", new Vector2(0.02f, 0.08f), new Vector2(0.14f, 0.92f), Color.white); // 捕まえた・進化した子の絵
+        bannerIcon.preserveAspect = true;
+        bannerIcon.enabled = false;
         bannerPanel.gameObject.SetActive(false);
     }
 
     Text banner;
+    Image bannerIcon;
 
-    IEnumerator Banner(string text, Color color, float seconds)
+    // species：知らせに そのポケモンの絵を出す（捕まえた・進化した）
+    IEnumerator Banner(string text, Color color, float seconds, string species = null)
     {
         if (string.IsNullOrEmpty(text)) yield break;
+        bannerIcon.sprite = species != null ? PokemonIcon(species) : null;
+        bannerIcon.enabled = bannerIcon.sprite != null;
         banner.text = text; banner.color = color;
         banner.transform.parent.gameObject.SetActive(true);
         banner.transform.parent.SetAsLastSibling();
@@ -446,8 +453,8 @@ public partial class GameRunner : MonoBehaviour
                 case SandstormDamage sd: yield return cards[sd.Side].HpTo(sd.Hp); break;
                 case PokemonFainted f: yield return cards[f.Side].HpTo(0); yield return cards[f.Side].Faint(); break; // 沈んで消える
                 // 他の人の大事な出来事は、その人の色と名前つきで大きく（17.5）。長さは17.6
-                case Caught c: yield return Banner(text, PlayerColor(S.Players[c.Player]), 2); continue;
-                case Evolved ev: yield return Banner(text, PlayerColor(S.Players[ev.Player]), 5); continue;
+                case Caught c: yield return Banner(text, PlayerColor(S.Players[c.Player]), 2, c.Pokemon); continue;
+                case Evolved ev: yield return Banner(text, PlayerColor(S.Players[ev.Player]), 5, ev.To); continue;
                 case BadgeEarned be: yield return Banner(text, PlayerColor(S.Players[be.Player]), 3); continue;
                 case LevelCaughtUp lc: yield return Banner(text, PlayerColor(S.Players[lc.Player]), 2); continue;
             }
@@ -1006,12 +1013,21 @@ public partial class GameRunner : MonoBehaviour
 
     public Sprite PokemonSprite(string species) => Resources.Load<Sprite>($"{pokemonSpriteFolder}/{species}");
 
-    // 一覧に並べる小さい絵：まわりの透明な余白を切ったもの（96pxの絵は余白が大きく、小さく出すと見えないため）。絵がなければ null
+    // 歩く絵（HGSS の連れ歩きの正面2コマ。Resources/PokemonIcons/<名前>_1・_2）。図鑑の493番までの245体。なければ null
+    readonly Dictionary<string, Sprite> walkSprites = new Dictionary<string, Sprite>();
+    public Sprite WalkSprite(string species, int frame)
+    {
+        string key = species + "_" + frame;
+        if (!walkSprites.TryGetValue(key, out var s)) walkSprites[key] = s = Resources.Load<Sprite>("PokemonIcons/" + key);
+        return s;
+    }
+
+    // 一覧に並べる小さい絵：歩く絵の1コマ目（なければ バトル用の絵）の、まわりの透明な余白を切ったもの。絵がなければ null
     readonly Dictionary<string, Sprite> icons = new Dictionary<string, Sprite>();
     public Sprite PokemonIcon(string species)
     {
         if (icons.TryGetValue(species, out var icon)) return icon;
-        var full = PokemonSprite(species);
+        var full = WalkSprite(species, 1) ?? PokemonSprite(species);
         if (full == null || !full.texture.isReadable) return icons[species] = full;
         var tex = full.texture;
         var px = tex.GetPixels32();

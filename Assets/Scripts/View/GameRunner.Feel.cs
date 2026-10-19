@@ -55,6 +55,7 @@ public partial class GameRunner
     IEnumerator ShowBig(string text, Color color)
     {
         banner.text = text; banner.color = color;
+        bannerIcon.enabled = false; // サイコロ・カードには ポケモンの絵を出さない
         banner.transform.parent.gameObject.SetActive(true);
         banner.transform.parent.SetAsLastSibling();
         yield return null;

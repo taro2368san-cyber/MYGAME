@@ -41,6 +41,7 @@ public partial class GameRunner
     RectTransform othersCol;
     GameObject messagePanel;
     readonly List<Transform> buddies = new List<Transform>();
+    readonly List<string> buddyWalk = new List<string>(); // 歩く絵で出している子の名前（2コマを交互に出す）。バトル用の絵や玉なら null
 
     void BuildHud()
     {
@@ -155,9 +156,16 @@ public partial class GameRunner
             var b = buddies[i];
             b.gameObject.SetActive(lead != null);
             if (lead == null) continue;
-            var sprite = PokemonSprite(lead.Species);
+            // 歩く絵（Resources/PokemonIcons）があれば それを2コマで。なければ バトル用の絵、それもなければ玉
+            var walk = WalkSprite(lead.Species, 1);
+            var sprite = walk ?? PokemonSprite(lead.Species);
             var sr = b.Find("Art").GetComponent<SpriteRenderer>();
             sr.sprite = sprite;
+            sr.transform.localPosition = walk != null ? new Vector3(0, -0.2f, 0) : new Vector3(0, 0.6f, 0); // 歩く絵は 足もと（下の中央）を盤面に
+            sr.transform.localScale = Vector3.one * (walk != null ? 1.1f : 1.5f);
+            b.GetComponentInChildren<TextMesh>().transform.localPosition = new Vector3(0, walk != null ? (walk.rect.height > 40 ? 1.95f : 1.0f) : 1.1f, 0);
+            while (buddyWalk.Count <= i) buddyWalk.Add(null);
+            buddyWalk[i] = walk != null ? lead.Species : null;
             var ballGo = b.Find("Ball").gameObject;
             ballGo.SetActive(sprite == null);
             ballGo.GetComponent<Renderer>().material.color = TypeColor(Pokemons.Of(data, lead).Type);
@@ -175,6 +183,9 @@ public partial class GameRunner
             var art = pieces[i].Find("Sprite");
             if (art != null && cam != null) art.rotation = cam.transform.rotation; // キャラクターの絵は いつもこちらを向く
             if (cam != null) buddies[i].rotation = cam.transform.rotation; // ポケモンの絵と名前は いつもこちらを向く
+            // 歩く絵は 2コマを交互に（1秒に3回）
+            if (i < buddyWalk.Count && buddyWalk[i] != null && WalkSprite(buddyWalk[i], 1 + (int)(Time.time * 3) % 2) is Sprite frame)
+                buddies[i].Find("Art").GetComponent<SpriteRenderer>().sprite = frame;
         }
     }
 }
