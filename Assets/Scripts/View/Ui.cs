@@ -29,6 +29,27 @@ public static class Ui
         }
     }
 
+    // モンスターボールの絵（上が top の色、下が白、まんなかに黒い帯とボタン）。色ごとに1回だけ作る
+    static readonly System.Collections.Generic.Dictionary<Color, Sprite> balls = new System.Collections.Generic.Dictionary<Color, Sprite>();
+    public static Sprite Ball(Color top)
+    {
+        if (balls.TryGetValue(top, out var s)) return s;
+        const int n = 64; float c = n / 2f, r = n / 2f - 1;
+        var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                float dx = x + 0.5f - c, dy = y + 0.5f - c, d = Mathf.Sqrt(dx * dx + dy * dy);
+                Color col = d > r ? Color.clear
+                    : d > r - 3 || Mathf.Abs(dy) < 3 && d > 10 ? Color.black      // ふち・帯
+                    : d < 6 ? Color.white : d <= 10 ? Color.black                   // まんなかのボタン
+                    : dy > 0 ? top : Color.white;
+                tex.SetPixel(x, y, col);
+            }
+        tex.Apply();
+        return balls[top] = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f));
+    }
+
     public static Canvas Canvas(string name)
     {
         var go = new GameObject(name, typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));

@@ -395,7 +395,12 @@ public partial class GameRunner : MonoBehaviour
                     camPan = Vector3.zero;
                     yield return ShowNotices(t.Player); // 17.5
                     break;
-                case BallThrown bt: yield return Banner($"{bt.Ball}を なげた！\n…ゆら… …ゆら…", Color.white, shortBattle ? 1 : 2); break; // ボールが揺れる（17.6）
+                case BallThrown bt: // ボールが揺れる（17.6）：野生のカードで ボールの絵を動かす
+                    yield return cards[cards[1].Player < 0 ? 1 : 0].Catch(Ui.Ball(BallColor(bt.Ball)), bt.Caught);
+                    break;
+                case ExpGained xg when battlePanel.gameObject.activeSelf && cards.FirstOrDefault(c => c.Owns(xg.Player, xg.Pokemon)) is BattleCard xc:
+                    yield return xc.ExpTo(xg.Total - xg.Exp, xg.Total, (int)data.Required("level_max")); // 経験値バーが ゆっくり伸びる
+                    break;
                 case WeekEventHappened we: yield return Banner(text, new Color(0.7f, 0.9f, 1f), 2); continue;            // 週イベントの告知（17.6）
                 case DiceRolled dr: yield return DiceAnim(dr); continue;          // 17.6
                 case InitiativeDrawn idr: yield return CardAnim(idr); continue;
@@ -410,19 +415,19 @@ public partial class GameRunner : MonoBehaviour
                     if ((b.Kind == BattleKind.Player || b.Kind == BattleKind.Tournament) && !S.Players[b.Players[0]].IsCpu && !S.Players[b.Players[1]].IsCpu) yield return Banner($"{S.Players[b.Players[0]].Name}さんは コントローラー1、{S.Players[b.Players[1]].Name}さんは 2を 持ってください", Color.white, 2);
                     battlePanel.gameObject.SetActive(true);
                     cards[0].Clear(); cards[1].Clear();
-                    cards[0].SetOwner(b.Players[0] >= 0 ? S.Players[b.Players[0]].Name : "");
-                    cards[1].SetOwner(b.Players[1] >= 0 ? S.Players[b.Players[1]].Name : b.Opponent);
+                    cards[0].SetOwner(b.Players[0] >= 0 ? S.Players[b.Players[0]].Name : "", b.Players[0]);
+                    cards[1].SetOwner(b.Players[1] >= 0 ? S.Players[b.Players[1]].Name : b.Opponent, b.Players[1]);
                     break;
                 case BattleResumed br:
                     hudRoot.SetActive(false);
                     battlePanel.gameObject.SetActive(true);
                     cards[0].Clear(); cards[1].Clear();
-                    cards[0].SetOwner(S.Players[br.Players[0]].Name);
-                    cards[1].SetOwner(br.Players[1] >= 0 ? S.Players[br.Players[1]].Name : br.Opponent);
+                    cards[0].SetOwner(S.Players[br.Players[0]].Name, br.Players[0]);
+                    cards[1].SetOwner(br.Players[1] >= 0 ? S.Players[br.Players[1]].Name : br.Opponent, br.Players[1]);
                     break;
                 case BattleSuspended bs: battlePanel.gameObject.SetActive(false); yield return Banner(text, PlayerColor(S.Players[bs.Player]), 1.5f); continue;
                 case SentOut s:
-                    cards[s.Side].Show(s.Pokemon, s.Level, s.Hp, s.MaxHp, s.Type, s.Weakness); cards[s.Side].SetStatus(Pokemons.StatusName(s.Status));
+                    cards[s.Side].Show(s.Pokemon, s.Level, s.Hp, s.MaxHp, s.Type, s.Weakness, s.Exp); cards[s.Side].SetStatus(Pokemons.StatusName(s.Status));
                     yield return cards[s.Side].Appear(); // ポンと出てくる
                     break;
                 case StatusInflicted si: cards[si.Side].SetStatus(Pokemons.StatusName(si.Status)); break;
@@ -987,6 +992,8 @@ public partial class GameRunner : MonoBehaviour
 
     void LateUpdate()
     {
+        // HPが赤いあいだ ピコピコ（バトル画面が出ていて、プレイヤーのポケモンのHPが2割以下）
+        if (sound != null) sound.SetAlarm(battlePanel != null && battlePanel.gameObject.activeInHierarchy && cards[0] != null && cards.Any(c => c.Danger));
         var cam = Camera.main;
         if (cam == null || cameraTarget == null) return;
         Vector3 want = cameraTarget.position + camPan + cameraOffset * zoom;
@@ -1026,6 +1033,11 @@ public partial class GameRunner : MonoBehaviour
         return img;
     }
 
+    // ボールの上半分の色（モンスターボール 赤・スーパー 青・ハイパー 黄・マスター 紫）
+    static Color BallColor(string ball) =>
+        ball.Contains("スーパー") ? new Color(0.2f, 0.45f, 0.95f) : ball.Contains("ハイパー") ? new Color(0.95f, 0.8f, 0.15f)
+        : ball.Contains("マスター") ? new Color(0.55f, 0.25f, 0.75f) : new Color(0.9f, 0.15f, 0.15f);
+
     public static Color TypeColor(string type)
     {
         switch (type)
@@ -1047,11 +1059,15 @@ public partial class GameRunner : MonoBehaviour
     sealed class BattleCard
     {
         readonly Text owner, title, hpText, flash;
-        readonly Image circle, hpBar;
+        readonly Image circle, hpBar, expBack, expBar, ball;
         readonly GameRunner runner;
         int maxHp = 1, hp;
         float shownHp;     // バーに出しているHP（ゆっくり近づける）
         string status = "";
+        public int Player = -1;      // このカードのプレイヤー（野生・NPC なら -1。経験値バーと警告音は プレイヤーのポケモンだけ）
+        string species = "", type = "", weakness = "";
+        int level;
+        float shownExp;    // 経験値バーに出している経験値の合計
 
         public BattleCard(RectTransform root, GameRunner runner)
         {
@@ -1060,28 +1076,120 @@ public partial class GameRunner : MonoBehaviour
             circle = Ui.Panel(root, "Circle", new Vector2(0.3f, 0.38f), new Vector2(0.7f, 0.86f), Color.gray);
             circle.preserveAspect = true;
             circle.sprite = Ui.Circle;
+            ball = Ui.Panel(root, "Ball", new Vector2(0.44f, 0.4f), new Vector2(0.56f, 0.56f), Color.white); // 投げたボール
+            ball.preserveAspect = true; ball.enabled = false;
             title = Ui.Label(Ui.Rect(root, "Title", new Vector2(0, 0.2f), new Vector2(1, 0.36f)), "", 26, TextAnchor.MiddleCenter);
             Ui.Panel(root, "HpBack", new Vector2(0.1f, 0.12f), new Vector2(0.9f, 0.18f), new Color(0.2f, 0.2f, 0.2f));
             hpBar = Ui.Panel(root, "Hp", new Vector2(0.1f, 0.12f), new Vector2(0.9f, 0.18f), new Color(0.3f, 0.9f, 0.4f));
-            hpText = Ui.Label(Ui.Rect(root, "HpText", new Vector2(0, 0), new Vector2(1, 0.11f)), "", 22, TextAnchor.MiddleCenter);
+            expBack = Ui.Panel(root, "ExpBack", new Vector2(0.1f, 0.095f), new Vector2(0.9f, 0.112f), new Color(0.15f, 0.15f, 0.2f)); // 経験値バー（HPバーの下の細い青）
+            expBar = Ui.Panel(expBack.transform, "Exp", Vector2.zero, new Vector2(0, 1), new Color(0.3f, 0.65f, 1f));
+            hpText = Ui.Label(Ui.Rect(root, "HpText", new Vector2(0, 0), new Vector2(1, 0.095f)), "", 22, TextAnchor.MiddleCenter);
             flash = Ui.Label(Ui.Rect(root, "Flash", new Vector2(0, 0.38f), new Vector2(0.3f, 0.6f)), "", 22, TextAnchor.MiddleCenter, new Color(1, 0.9f, 0.4f));
         }
 
-        public void SetOwner(string name) => owner.text = name;
+        public void SetOwner(string name, int player) { owner.text = name; Player = player; }
         public void SetStatus(string s) { status = s; Draw(); }
-        public void Clear() { status = ""; title.text = hpText.text = flash.text = ""; circle.color = Color.clear; hpBar.rectTransform.anchorMax = new Vector2(0.9f, 0.18f); }
+        public void Clear() { status = ""; title.text = hpText.text = flash.text = ""; circle.color = Color.clear; ball.enabled = false; species = ""; hp = 0; shownHp = 0; expBack.gameObject.SetActive(false); hpBar.rectTransform.anchorMax = new Vector2(0.9f, 0.18f); }
 
-        public void Show(string species, int level, int hp, int max, string type, string weakness)
+        public void Show(string species, int level, int hp, int max, string type, string weakness, int exp)
         {
             maxHp = Math.Max(1, max);
+            this.species = species; this.level = level; this.type = type; this.weakness = weakness;
             var sprite = runner.PokemonSprite(species);
             circle.sprite = sprite != null ? sprite : Ui.Circle;
             circle.color = sprite != null ? Color.white : TypeColor(type);
             circle.enabled = true;
+            ball.enabled = false;
             circle.rectTransform.anchoredPosition = Vector2.zero; circle.rectTransform.localScale = Vector3.one; // たおれた・出てくる演出のあと
-            title.text = $"{species}　Lv{level}\nタイプ {type}　弱点 {weakness}";
+            DrawTitle();
             flash.text = "";
             SetHp(hp);
+            expBack.gameObject.SetActive(Player >= 0);
+            shownExp = exp; DrawExp();
+        }
+
+        void DrawTitle() => title.text = $"{species}　Lv{level}\nタイプ {type}　弱点 {weakness}";
+
+        // 経験値バー：今のレベルの はじめ〜次のレベルまでの どこにいるか
+        void DrawExp()
+        {
+            float from = Pokemons.ExpForLevel(level), to = Pokemons.ExpForLevel(level + 1);
+            expBar.rectTransform.anchorMax = new Vector2(Mathf.Clamp01((shownExp - from) / Mathf.Max(1, to - from)), 1);
+        }
+
+        public bool Owns(int player, string mon) => Player >= 0 && player == Player && mon == species;
+
+        // 経験値バーが ゆっくり伸びる。いっぱいになったら レベルアップして、0から また伸びる
+        public IEnumerator ExpTo(int from, int to, int maxLevel)
+        {
+            shownExp = from; DrawExp();
+            float seconds = runner.shortBattle ? 0.5f : 1f; // バー1本ぶんの時間
+            while (shownExp < to && !SkipHeld())
+            {
+                float next = Mathf.Min(to, level < maxLevel ? Pokemons.ExpForLevel(level + 1) : to);
+                float speed = (Pokemons.ExpForLevel(level + 1) - Pokemons.ExpForLevel(level)) / seconds;
+                shownExp = Mathf.MoveTowards(shownExp, next, speed * Time.deltaTime);
+                if (level < maxLevel && shownExp >= Pokemons.ExpForLevel(level + 1)) { level++; DrawTitle(); Flash("レベルアップ！"); }
+                DrawExp();
+                yield return null;
+            }
+            shownExp = to;
+            while (level < maxLevel && to >= Pokemons.ExpForLevel(level + 1)) { level++; DrawTitle(); } // 早送りしたとき
+            DrawExp();
+        }
+
+        // HPが赤い（2割以下）。プレイヤーのポケモンだけ（警告音）
+        public bool Danger => Player >= 0 && species != "" && shownHp > 0 && shownHp <= maxHp * 0.2f;
+
+        // ボールを投げる：ボールが飛んできて ポケモンが吸いこまれ、ゆれる。捕まえたら そのまま、逃げられたら ポケモンが出てくる
+        public IEnumerator Catch(Sprite ballSprite, bool caught)
+        {
+            float s = runner.shortBattle ? 0.5f : 1f;
+            Color baseColor = circle.color;
+            ball.sprite = ballSprite; ball.color = Color.white; ball.enabled = true;
+            ball.rectTransform.localRotation = Quaternion.identity;
+            for (float t = 0; t < 0.35f * s && !SkipHeld(); t += Time.deltaTime) // 左下から 弧をえがいて飛んでくる
+            {
+                float k = t / (0.35f * s);
+                ball.rectTransform.anchoredPosition = new Vector2(Mathf.Lerp(-260, 0, k), Mathf.Sin(k * Mathf.PI) * 120 + Mathf.Lerp(-80, 0, k));
+                ball.rectTransform.localRotation = Quaternion.Euler(0, 0, -720 * k);
+                yield return null;
+            }
+            ball.rectTransform.anchoredPosition = Vector2.zero; ball.rectTransform.localRotation = Quaternion.identity;
+            for (float t = 0; t < 0.3f * s && !SkipHeld(); t += Time.deltaTime) // 白く光って 吸いこまれる
+            {
+                float k = t / (0.3f * s);
+                circle.rectTransform.localScale = Vector3.one * (1 - k);
+                circle.color = Color.Lerp(baseColor, new Color(1, 1, 1, 0.6f), k);
+                yield return null;
+            }
+            circle.enabled = false;
+            int wobbles = caught ? 3 : UnityEngine.Random.Range(1, 3); // 逃げられるときは 1〜2回で
+            for (int w = 0; w < wobbles; w++)
+            {
+                yield return runner.Wait(0.35f * s);
+                for (float t = 0; t < 0.4f * s && !SkipHeld(); t += Time.deltaTime) // 左右に ゆらっ
+                {
+                    ball.rectTransform.localRotation = Quaternion.Euler(0, 0, Mathf.Sin(t / (0.4f * s) * Mathf.PI * 2) * 25);
+                    yield return null;
+                }
+                ball.rectTransform.localRotation = Quaternion.identity;
+            }
+            yield return runner.Wait(0.3f * s);
+            circle.rectTransform.localScale = Vector3.one; circle.color = baseColor;
+            if (caught)
+            {
+                ball.color = new Color(0.75f, 0.75f, 0.75f); // カチッ：少し暗くなって 止まる
+                Flash("つかまえた！");
+                yield return runner.Wait(0.5f * s);
+            }
+            else
+            {
+                ball.enabled = false;
+                circle.enabled = true;
+                Flash("あっ！ でてきた");
+                yield return Appear();
+            }
         }
 
         // すぐに変える（出したとき）

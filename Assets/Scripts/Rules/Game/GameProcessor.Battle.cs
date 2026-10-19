@@ -96,7 +96,7 @@ namespace Sugoroku.Rules
                 var m = s.Current;
                 if (s.Player >= 0) s.Participated.Add(s.Active);
                 var sp = Pokemons.Of(data, m);
-                events.Add(new SentOut { Side = i, Pokemon = m.Species, Level = m.Level, Hp = m.Hp, MaxHp = Pokemons.MaxHp(data, m), Type = sp.Type, Weakness = sp.Weakness, Status = m.Status });
+                events.Add(new SentOut { Side = i, Pokemon = m.Species, Level = m.Level, Hp = m.Hp, MaxHp = Pokemons.MaxHp(data, m), Type = sp.Type, Weakness = sp.Weakness, Status = m.Status, Exp = m.Exp });
             }
             for (int i = 0; i < 2; i++)
                 if (Transforms(B.Sides[i])) events.Add(new Transformed { Side = i, Pokemon = B.Sides[i].Current.Species, Into = B.Sides[1 - i].Current.Species });
@@ -345,7 +345,7 @@ namespace Sugoroku.Rules
             {
                 var m = b.Sides[i].Current;
                 var sp = Pokemons.Of(data, m);
-                events.Add(new SentOut { Side = i, Pokemon = m.Species, Level = m.Level, Hp = m.Hp, MaxHp = Pokemons.MaxHp(data, m), Type = sp.Type, Weakness = sp.Weakness, Status = m.Status });
+                events.Add(new SentOut { Side = i, Pokemon = m.Species, Level = m.Level, Hp = m.Hp, MaxHp = Pokemons.MaxHp(data, m), Type = sp.Type, Weakness = sp.Weakness, Status = m.Status, Exp = m.Exp });
             }
             BeginCommands(events);
         }
@@ -670,7 +670,7 @@ namespace Sugoroku.Rules
                     if (total <= 0) continue; // 手持ち全員に入る（戦闘不能でも、6.6）
                     int exp = (int)(total * Tune(win.Participated.Contains(i) ? "exp_selected" : "exp_bench"));
                     int up = Pokemons.GainExp(data, m, exp);
-                    events.Add(new ExpGained { Player = p.Id, Pokemon = m.Species, Exp = exp, Levels = up, Level = m.Level });
+                    events.Add(new ExpGained { Player = p.Id, Pokemon = m.Species, Exp = exp, Levels = up, Level = m.Level, Total = m.Exp });
                 }
             }
 

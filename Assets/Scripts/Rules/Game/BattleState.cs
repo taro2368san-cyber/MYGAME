@@ -60,7 +60,7 @@ namespace Sugoroku.Rules
     public sealed class SelectRequested : GameEvent { public int Side, Player; }
     public sealed class BattleSuspended : GameEvent { public int Player; public string Opponent; }   // 1往復したので、続きは次の自分の番
     public sealed class BattleResumed : GameEvent { public int Player; public BattleKind Kind; public bool Full; public string Opponent; public int[] Players; }
-    public sealed class SentOut : GameEvent { public int Side; public string Pokemon; public int Level, Hp, MaxHp; public string Type, Weakness; public Status Status; }
+    public sealed class SentOut : GameEvent { public int Side; public string Pokemon; public int Level, Hp, MaxHp; public string Type, Weakness; public Status Status; public int Exp; } // Exp：経験値の合計（経験値バー）
     public sealed class InitiativeDrawn : GameEvent { public List<int> Cards; public int Picked, First; public string FirstPokemon; } // Cards: 各カードで先攻になる側
     public sealed class CommandsRequested : GameEvent { public int Attacker; public int AttackPlayer, DefensePlayer; public bool SuperLocked; }
     public sealed class RoundResolved : GameEvent
@@ -91,7 +91,7 @@ namespace Sugoroku.Rules
     public sealed class BallThrown : GameEvent { public int Player; public string Ball; public bool Caught; public string Pokemon; }
     public sealed class Fled : GameEvent { public int Side; public bool Surrender; }
     public sealed class BattleEnded : GameEvent { public int Winner; public bool Draw, Judged; public string WinnerName; } // Winner は勝った側（0/1）、引き分けなら -1
-    public sealed class ExpGained : GameEvent { public int Player; public string Pokemon; public int Exp, Levels, Level; }
+    public sealed class ExpGained : GameEvent { public int Player; public string Pokemon; public int Exp, Levels, Level, Total; } // Total：もらったあとの経験値の合計
     public sealed class LevelCaughtUp : GameEvent { public int Player; public string Pokemon; public int Level; }
     public sealed class Evolved : GameEvent { public int Player; public string From, To; }
     public sealed class BadgeEarned : GameEvent { public int Player; public string Gym; public int Badges; }
