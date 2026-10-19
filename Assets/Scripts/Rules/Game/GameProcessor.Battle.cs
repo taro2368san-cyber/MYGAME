@@ -605,6 +605,7 @@ namespace Sugoroku.Rules
             events.Add(new BallThrown { Player = p.Id, Ball = ball, Caught = caught, Pokemon = wild.Species });
             if (!caught) { BeginCommands(events); return; }
             if (B.Legend) p.IslandLegend = ""; // チケットの伝説を捕まえた
+            if (B.Symbol) SymbolBeaten(p.Id, wild.Species, true, events); // 盤面の伝説を捕まえた
 
             wild.MetHow = "捕獲"; wild.MetPlace = board[B.Square].Place; wild.MetWeek = State.Week; wild.MetSpecies = wild.Species;
             wild.Status = Status.None;
@@ -645,6 +646,7 @@ namespace Sugoroku.Rules
             var win = b.Sides[winner];
             var lose = b.Sides[1 - winner];
             if (b.Legend && winner == 0) State.Players[win.Player].IslandLegend = ""; // チケットの伝説を倒した
+            if (b.Symbol && winner == 0) SymbolBeaten(win.Player, lose.Current.Species, false, events); // 盤面の伝説を倒した
             if (win.Player >= 0) WinnerRewards(win, lose, events);
             if (lose.Player >= 0) LoserPenalty(lose, win, events);
             AfterBattle(events);

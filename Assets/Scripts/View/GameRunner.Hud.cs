@@ -125,6 +125,29 @@ public partial class GameRunner
         // G メッセージ：出すものがあるときだけ
         if (messagePanel != null) messagePanel.SetActive(logLines.Count > 0);
         SyncBuddies();
+        SyncSymbols();
+    }
+
+    // ---- 盤面の伝説のシンボル：マスの上に その伝説の絵を立てる（だれかが倒すか捕まえたら消す）----
+    readonly Dictionary<int, SpriteRenderer> symbolArt = new Dictionary<int, SpriteRenderer>();
+
+    void SyncSymbols()
+    {
+        foreach (var sq in board.Squares.Values.Where(s => s.Type == "シンボル"))
+        {
+            string legend = game.SymbolHere(sq.Id);
+            if (!symbolArt.TryGetValue(sq.Id, out var sr))
+            {
+                if (legend == null || !squares.ContainsKey(sq.Id)) continue;
+                sr = symbolArt[sq.Id] = new GameObject("Legend", typeof(SpriteRenderer)).GetComponent<SpriteRenderer>();
+                sr.transform.localScale = Vector3.one * 1.6f;
+            }
+            sr.gameObject.SetActive(legend != null);
+            if (legend == null) continue;
+            sr.sprite = WalkSprite(legend, 1) ?? PokemonSprite(legend);
+            float foot = sr.sprite != null ? -sr.sprite.bounds.min.y * sr.transform.localScale.y : 0; // 絵の下の端を マスの上に
+            sr.transform.position = squares[sq.Id].transform.position + Vector3.up * (foot + 0.05f);
+        }
     }
 
     // ---- F：コマの横についてくる先頭のポケモン（絵と名前。絵がなければタイプの色の玉） ----
@@ -186,6 +209,13 @@ public partial class GameRunner
             // 歩く絵は 2コマを交互に（1秒に3回）
             if (i < buddyWalk.Count && buddyWalk[i] != null && WalkSprite(buddyWalk[i], 1 + (int)(Time.time * 3) % 2) is Sprite frame)
                 buddies[i].Find("Art").GetComponent<SpriteRenderer>().sprite = frame;
+        }
+        // 伝説のシンボルも こちらを向いて、歩く絵なら 2コマを交互に（ゆっくり）
+        foreach (var kv in symbolArt)
+        {
+            if (!kv.Value.gameObject.activeSelf) continue;
+            if (cam != null) kv.Value.transform.rotation = cam.transform.rotation;
+            if (game.SymbolHere(kv.Key) is string legend && WalkSprite(legend, 1 + (int)(Time.time * 1.5f) % 2) is Sprite f) kv.Value.sprite = f;
         }
     }
 }

@@ -103,6 +103,7 @@ namespace Sugoroku.Rules
         public TournamentState Tournament;                                     // 突発バトルイベントのミニトーナメント（進行中なら）   // 三竜のふえの天候（週イベントより優先、7.13）
         public readonly Dictionary<int, int> Traps = new Dictionary<int, int>(); // ワナ：マス → 仕掛けた人
         public readonly Dictionary<int, int> Blocked = new Dictionary<int, int>();
+        public readonly HashSet<int> SymbolsGone = new HashSet<int>(); // 伝説のシンボルが いなくなったマス（だれかが倒すか捕まえた。早い者勝ち）
         public readonly Dictionary<int, string> JobSquares = new Dictionary<int, string>(); // 職業マス：トレーナーマス → 職業（ゲーム開始時に決まる、9.2）
         public readonly HashSet<int> RocketCleared = new HashSet<int>();      // 一度でも倒されたロケット団マス（トレーナーマスの報酬は初回だけ、11.3）
         public List<string> RocketShelf = new List<string>();                 // どろぼうの家に今並んでいる品（行の id） // カビゴン（アマイ三ツ）：マス → 残り週数。だれも通れない
@@ -157,6 +158,7 @@ namespace Sugoroku.Rules
     public sealed class Fished : GameEvent { public int Player; }
     public sealed class SnorlaxPlaced : GameEvent { public int Player, Square, Weeks; }
     public sealed class SnorlaxRemoved : GameEvent { public int Square, Player; } // Player は ふえを吹いた人（週がたって去ったときは -1）
+    public sealed class SymbolGone : GameEvent { public int Square, Player; public string Pokemon; public bool Caught; } // 伝説のシンボルが盤面から消えた
     public sealed class TrapSet : GameEvent { public int Player, Square; }
     public sealed class TrapSprung : GameEvent { public int Player, Owner, Square; }
     public sealed class FluteStarted : GameEvent { public int Player, Weeks; public string Weather; }

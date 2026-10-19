@@ -34,6 +34,9 @@ public class SugorokuSquare : MonoBehaviour
     [Tooltip("草むらマスのとき：草むら／海上（海や川の上。出現表の「水上」から出て、となりのマスで つりができる）／洞窟（草むらと同じ。見た目の区別）")]
     public GrassKind grassKind;
 
+    [Tooltip("シンボルのマスのとき：ここにいる伝説のポケモンの名前（例：ミュウツー）。空なら その場所の出現シートの「シンボル」。だれかが倒すか捕まえると消える（早い者勝ち）")]
+    public string symbolPokemon = "";
+
     [Tooltip("通行条件：このマスを通る（止まる）のに必要なバッジの数。0 なら条件なし。場所の解放条件（エリアシート）とあわせて見る")]
     [Min(0)] public int gateBadges;
 
@@ -67,6 +70,7 @@ public class SugorokuSquare : MonoBehaviour
             SquareType.鍵付きモンスターボール => "鍵付き\nモンスター\nボール",
             SquareType.ポイント交換NPC => "ポイント\n交換NPC",
             SquareType.ワープ when warpId > 0 => $"ワープ\n{warpId}",
+            SquareType.シンボル when !string.IsNullOrEmpty(symbolPokemon) => $"シンボル\n{symbolPokemon}",
             SquareType.草むら when grassKind != GrassKind.草むら => grassKind.ToString(),
             _ => type.ToString(),
         };

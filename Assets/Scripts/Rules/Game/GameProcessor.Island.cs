@@ -73,14 +73,49 @@ namespace Sugoroku.Rules
             if (p.IslandTurns > TuneInt("ticket_island_turns") && p.PendingBattle == null) ReturnFromIsland(p, "島に いられる 時間が すぎた", events);
         }
 
-        // シンボルのマス：自分の伝説がいればバトル（クイック、ボールを投げられる）
+        // シンボルのマス：島なら自分の伝説（チケット）、それ以外は盤面の伝説のシンボル。いればバトル（クイック、ボールを投げられる）
         bool LandSymbol(List<GameEvent> events)
         {
             var p = Current;
+            var sq = board[p.Square];
+            if (!data.IsIslandMap(sq.MapId))
+            {
+                // 盤面の伝説（仕様書の シンボルエンカウント）：早い者勝ち。倒すか捕まえると消え、逃げたり負けたりしたら残る
+                string legend = SymbolHere(sq.Id);
+                if (legend == null) return Nothing("ここには もう 何も いない", events);
+                StartBattle(BattleKind.Wild, false, Npc($"野生の{legend}", new[] { (legend, SymbolLevel(sq, legend)) }), events);
+                if (State.Battle != null) State.Battle.Symbol = true;
+                return true;
+            }
             if (!OnIsland(p) || p.IslandLegend == "") return Nothing("ここには 何も いない", events);
             StartBattle(BattleKind.Wild, false, Npc($"野生の{p.IslandLegend}", new[] { (p.IslandLegend, p.IslandLegendLevel) }), events);
             if (State.Battle != null) State.Battle.Legend = true;
             return true;
+        }
+
+        // そのマスに いまいる盤面の伝説（マスに書いたポケモン、なければ その場所の出現表「シンボル」）。いなければ null
+        public string SymbolHere(int square)
+        {
+            var sq = board[square];
+            if (sq.Type != "シンボル" || data.IsIslandMap(sq.MapId) || State.SymbolsGone.Contains(square)) return null;
+            string species = sq.Symbol != "" ? sq.Symbol : data.Encounters.FirstOrDefault(e => e.Place == sq.Place && e.Method == "シンボル")?.Pokemon;
+            return string.IsNullOrEmpty(species) ? null : species;
+        }
+
+        // 伝説のLv：出現表に その場所の シンボルの行があれば そのLv、なければ その場所の野生の最高Lv＋5
+        int SymbolLevel(BoardSquare sq, string species)
+        {
+            var row = data.Encounters.FirstOrDefault(e => e.Place == sq.Place && e.Method == "シンボル" && e.Pokemon == species);
+            if (row != null) return Roll(row.MinLevel, row.MaxLevel);
+            int wild = data.Encounters.Where(e => e.Place == sq.Place && e.Method != "シンボル" && e.Method != "固定").Select(e => e.MaxLevel).DefaultIfEmpty(30).Max();
+            return System.Math.Min(wild + 5, TuneInt("level_max"));
+        }
+
+        // 伝説のシンボルを倒した・捕まえた：盤面から消す
+        void SymbolBeaten(int player, string species, bool caught, List<GameEvent> events)
+        {
+            State.SymbolsGone.Add(B.Square);
+            events.Add(new SymbolGone { Square = B.Square, Player = player, Pokemon = species, Caught = caught });
         }
 
         // 謎のチケットが袋に入った：不思議なチケットに変わるまでの週数を決める

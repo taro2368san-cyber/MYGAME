@@ -141,7 +141,7 @@ namespace Sugoroku.Rules
                 case "ショップ": return p.Money >= 1000 ? 15 : 3;
                 case "ポイント交換NPC": return !g.ExchangeClosed && p.Money >= 3000 ? 22 : 1;
                 case "草むら": return 10;
-                case "シンボル": return p.IslandLegend != "" ? 60 : 0; // チケットの伝説
+                case "シンボル": return p.IslandLegend != "" ? 60 : g.SymbolHere(id) != null ? 12 : 0; // チケットの伝説、盤面の伝説（早い者勝ち）
                 case "船着場": return d.IsIslandMap(sq.MapId) ? (p.IslandLegend != "" ? -20 : 5) : (p.TrainerBag.Contains(GameProcessor.MysteryTicket) || p.TrainerBag.Contains(GameProcessor.WonderTicket) ? 30 : 0);
                 case "ワープ": return 8;
                 default: return 5;

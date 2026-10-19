@@ -15,6 +15,7 @@ namespace Sugoroku.Rules
         public string GrassKind = "";       // 草むらマスの中の種類：草むら／海上／洞窟
         public bool Sea => GrassKind == "海上"; // 海上（出現表は「水上」、2マス以内で つり。4.1.2）           // メインマップ以外の板（洞窟・建物・島）の id。メインマップは ""
         public int WarpId;
+        public string Symbol = "";       // シンボルのマスにいる伝説（空なら その場所の出現表「シンボル」）。島のシンボルは チケットで決まる
         public float X, Z;               // 表示用の座標（ルールでは使わない）
         public int RequiredBadges;       // この場所に入るのに必要なバッジの数
         public int GateBadges;           // このマスを通るのに必要なバッジの数（マスの通行条件。0 なら条件なし）
@@ -44,7 +45,7 @@ namespace Sugoroku.Rules
                 {
                     Id = int.Parse(sq.Get(r, "ID")), Name = sq.Get(r, "名前"), Type = sq.Get(r, "種類"), Place = sq.Get(r, "場所"),
                     WarpId = int.TryParse(sq.Get(r, "ワープ番号"), out int w) ? w : 0, ShopId = sq.Get(r, "ショップ"), MapId = sq.Get(r, "マップID"), GrassKind = sq.Get(r, "種類") == "草むら" ? sq.Get(r, "草むらの種類") : "",
-                    GateBadges = int.TryParse(sq.Get(r, "通行バッジ"), out int gate) ? gate : 0, GateShared = sq.Get(r, "通行は全員") == "はい",
+                    GateBadges = int.TryParse(sq.Get(r, "通行バッジ"), out int gate) ? gate : 0, GateShared = sq.Get(r, "通行は全員") == "はい", Symbol = sq.Get(r, "シンボル"),
                     X = float.Parse(sq.Get(r, "X"), CultureInfo.InvariantCulture), Z = float.Parse(sq.Get(r, "Z"), CultureInfo.InvariantCulture),
                 };
                 if (place == null) problems.Add($"[エラー] 盤面: マス「{s.Name}」の場所「{s.Place}」が xlsx のエリアシートにありません");
@@ -84,6 +85,12 @@ namespace Sugoroku.Rules
                 problems.Add($"[警告] 盤面: {g}にジムトレーナーがいません（トレーナー.csv の種類「ジムトレーナー」）。ジムにはすぐ挑めます");
             foreach (var t in data.Trainers.Where(t => board.Squares.Values.FirstOrDefault(s => s.Name == t.Square) is BoardSquare s && (s.Type != "トレーナー" || s.Place != t.Place)))
                 problems.Add($"[警告] トレーナー.csv: {t.Id} のマス「{t.Square}」は盤面では {board.Squares.Values.First(s => s.Name == t.Square).Place}の{board.Squares.Values.First(s => s.Name == t.Square).Type}です");
+            // 伝説のシンボル（4.x）：島の外のシンボルのマスには、マスに書いたポケモンか、その場所の出現表「シンボル」が要る
+            foreach (var s in all.Where(s => s.Type == "シンボル" && !data.IsIslandMap(s.MapId)))
+            {
+                if (s.Symbol != "" && data.FindSpecies(s.Symbol) == null) problems.Add($"[エラー] 盤面: シンボルのマス「{s.Name}」のポケモン「{s.Symbol}」がポケモンシートにありません");
+                else if (s.Symbol == "" && !data.Encounters.Any(e => e.Place == s.Place && e.Method == "シンボル")) problems.Add($"[警告] 盤面: シンボルのマス「{s.Name}」（{s.Place}）に ポケモンの名前がなく、出現シートにも {s.Place}の シンボルがありません（何も出ません）");
+            }
             // 島マップ（3.4）：港（船着場）、伝説の島ならシンボル。島があるのに本マップの船着場がなければ渡れない
             foreach (var i in data.IslandMaps)
             {

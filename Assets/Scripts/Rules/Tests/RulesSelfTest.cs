@@ -642,6 +642,21 @@ namespace Sugoroku.Rules
                 Check(log, "海上マス：なみのりを覚えた人だけ行き先に選べる（ひでんマシンは袋に入らない）、止まると水上の野生、2マス以内なら だれでも つりができる", closed && learned && reach.Contains(seaId) && fished && waterTable && FishAt(2) && FishAt(3) && !FishAt(4));
             }
             {
+                // 伝説のシンボル（4.x）：空マスを一時的に「ミュウツーのシンボル」にして試す。止まるとバトル、倒すと消えて 次はもういない
+                var sq = board.Squares.Values.First(x => x.Type == "空マス" && x.Neighbors.Count > 0 && !data.IsIslandMap(x.MapId));
+                var keep = (sq.Type, sq.Symbol);
+                sq.Type = "シンボル"; sq.Symbol = "ミュウツー";
+                var (sg, sev) = LandEvents(sq, "ヒトカゲ");
+                bool fought = sev.OfType<BattleStarted>().Any(b => b.Kind == BattleKind.Wild && b.Opponent == "野生のミュウツー") && sg.State.Battle?.Symbol == true;
+                sg.DebugEnabled = true;
+                var wev = fought ? sg.Apply(new DebugCommand { Player = 0, Action = DebugAction.WinBattle }, out _) : new List<GameEvent>();
+                bool gone = wev.OfType<SymbolGone>().Any(x => x.Square == sq.Id && x.Pokemon == "ミュウツー") && sg.State.SymbolsGone.Contains(sq.Id) && sg.SymbolHere(sq.Id) == null;
+                var (_, sev2) = LandEvents(sq, "ヒトカゲ", s => s.SymbolsGone.Add(sq.Id));
+                bool empty = !sev2.OfType<BattleStarted>().Any();
+                (sq.Type, sq.Symbol) = keep;
+                Check(log, "伝説のシンボル：止まるとバトル、倒すと盤面から消えて、次に止まっても もういない", fought && gone && empty);
+            }
+            {
                 // 換金所（2.1・2.3）：1,000円で1p。最後の10週は閉まる。勝利ポイントには換えたポイントだけが入り、お金は入らない
                 var sq = board.Squares.Values.First(x => x.Type == "空マス" && x.Neighbors.Count > 0);
                 string keep = sq.Type;

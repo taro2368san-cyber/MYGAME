@@ -456,6 +456,7 @@ public partial class GameRunner : MonoBehaviour
                 case Caught c: yield return Banner(text, PlayerColor(S.Players[c.Player]), 2, c.Pokemon); continue;
                 case Evolved ev: yield return Banner(text, PlayerColor(S.Players[ev.Player]), 5, ev.To); continue;
                 case BadgeEarned be: yield return Banner(text, PlayerColor(S.Players[be.Player]), 3); continue;
+                case SymbolGone sg: SyncSymbols(); yield return Banner(text, PlayerColor(S.Players[sg.Player]), 2, sg.Pokemon); continue; // 伝説が盤面から消えた（全員に大きく）
                 case LevelCaughtUp lc: yield return Banner(text, PlayerColor(S.Players[lc.Player]), 2); continue;
             }
             // バトル演出の短縮。絆による回避・進化・バッジは思い出の場面なので短くしない（17.6）

@@ -37,7 +37,8 @@ namespace Sugoroku.Rules
         public readonly BattleSide[] Sides = new BattleSide[2];   // 0 が仕掛けた側（手番のプレイヤー）
         public int Attacker, Rounds;
         public int TurnRounds;
-        public bool Legend;     // チケットの島の伝説（勝つか捕まえると いなくなる）  // この番に戦ったラウンド数（2で1往復。1往復したら番を終える）
+        public bool Legend;     // チケットの島の伝説（勝つか捕まえると いなくなる）
+        public bool Symbol;     // 盤面の伝説のシンボル（勝つか捕まえると Square から消える。早い者勝ち）  // この番に戦ったラウンド数（2で1往復。1往復したら番を終える）
         public int First;                          // 先攻・後攻のカードで先攻になった側
         public int ForcedSwitch = -1;              // ラウンドの終わりに交代する側（脱出ボタン・レッドカード）
         public bool ForcedRandom;                  // レッドカード：交代先はランダム

@@ -21,8 +21,7 @@ public static class SpecialMapBuilder
         public string Nodes, Edges, Floor;
     }
 
-    // マスの書き方「番号:列,段:種類」。種類 空=空マス 草=草むら 海=海上 ト=トレーナー ボ=モンスターボール ラ=ライバル ロ=ロケット団 イ=イベントマス ワN=ワープN番
-    // 伝説が立つ場所は、島の外のシンボルのしくみがまだないので 空マス（名前の番号を 伝説の名前にしておく）
+    // マスの書き方「番号:列,段:種類」。種類 空=空マス 草=草むら 海=海上 ト=トレーナー ボ=モンスターボール ラ=ライバル ロ=ロケット団 イ=イベントマス ワN=ワープN番 シ=伝説のシンボル（番号のところに ポケモンの名前）
     static readonly MapDef[] Maps =
     {
         // ポケモンタワー：シオンタウンのワープ8から入る行き止まり。4階（絵は 1・3・5・7 を使う）
@@ -66,25 +65,25 @@ public static class SpecialMapBuilder
             Nodes = "01:38,3:空 02:42,10:草 03:40,15:空 04:33,13:ト 05:24,12:草 06:16,13:空 07:8,12:草 08:3,19:ボ 09:9,28:草 10:22,29:空 11:35,29:草 12:40,36:空 13:22,37:草 14:38,28:空",
             Edges = "01-02 02-03 03-04 04-05 05-06 06-07 07-08 08-09 09-10 10-11 11-14 11-12 12-13 13-10" },
 
-        // ハナダの洞窟：ハナダシティから入る（ワープ103）。地下1階の奥に ミュウツーが立つ場所（今は空マス）
+        // ハナダの洞窟：ハナダシティから入る（ワープ103）。地下1階の奥に ミュウツーのシンボル
         new MapDef { Key = "CC1", Name = "Cerulean Cave 1F", Image = "Assets/maps/Cerulean Cave/1.png", Place = "ハナダの洞窟", MapId = "ceruleancave", Parent = "CeruleanCave", Prefix = "CC_1F_", Scale = 0.06f, Origin = new Vector2(146, 612), Floor = "6,9;20,18",
             Nodes = "01:33,21:ワ103 02:33,16:空 03:28,13:草 04:24,17:空 05:18,19:草 06:8,19:空 07:5,14:草 08:3,8:ト 09:10,6:草 10:11,2:空 11:22,7:草",
             Edges = "01-02 02-03 03-04 04-05 05-06 06-07 07-08 08-09 09-10 03-11" },
         new MapDef { Key = "CC2", Name = "Cerulean Cave B1F", Image = "Assets/maps/Cerulean Cave/3.png", Place = "ハナダの洞窟", MapId = "ceruleancave", Parent = "CeruleanCave", Prefix = "CC_B1F_", Scale = 0.06f, Origin = new Vector2(188, 612), Floor = "6,4;20,12",
-            Nodes = "01:6,6:空 02:12,6:草 03:17,8:空 04:22,10:草 05:28,8:ト 06:34,6:草 07:34,14:空 08:29,13:草 09:23,17:草 ミュウツー:4,2:空",
+            Nodes = "01:6,6:空 02:12,6:草 03:17,8:空 04:22,10:草 05:28,8:ト 06:34,6:草 07:34,14:空 08:29,13:草 09:23,17:草 ミュウツー:4,2:シ",
             Edges = "01-02 02-03 03-04 04-05 05-06 06-07 07-08 08-09 01-ミュウツー" },
 
-        // むじんはつでんしょ：10番道路から入る（ワープ104）。奥に サンダーが立つ場所（今は空マス）
+        // むじんはつでんしょ：10番道路から入る（ワープ104）。奥に サンダーのシンボル
         new MapDef { Key = "PP", Name = "Power Plant", Image = "Assets/maps/Power Plant/1.png", Place = "むじんはつでんしょ", MapId = "powerplant", Parent = "PowerPlant", Prefix = "PP_", Scale = 0.05f, Origin = new Vector2(230, 620), Floor = "10,12;25,20;40,33",
-            Nodes = "01:5,37:ワ104 02:5,33:空 03:4,27:草 04:4,19:空 05:8,14:草 06:5,6:ボ 07:15,5:草 08:16,13:空 09:26,13:草 10:24,6:ト 11:37,13:空 12:44,15:草 13:44,26:空 14:35,28:草 15:22,28:ト 16:14,22:草 17:12,34:ボ サンダー:29,35:空 19:40,35:草",
+            Nodes = "01:5,37:ワ104 02:5,33:空 03:4,27:草 04:4,19:空 05:8,14:草 06:5,6:ボ 07:15,5:草 08:16,13:空 09:26,13:草 10:24,6:ト 11:37,13:空 12:44,15:草 13:44,26:空 14:35,28:草 15:22,28:ト 16:14,22:草 17:12,34:ボ サンダー:29,35:シ 19:40,35:草",
             Edges = "01-02 02-03 03-04 04-05 05-06 06-07 07-08 08-05 08-09 09-10 09-11 11-12 12-13 13-14 14-15 15-16 16-04 15-17 17-02 14-サンダー サンダー-19 19-13" },
 
-        // ふたご島：20番水道の西（ワープ105）と東（ワープ106）から入る。1階と、いちばん下の階（フリーザーが立つ場所は今は空マス。海上マスは つり用）
+        // ふたご島：20番水道の西（ワープ105）と東（ワープ106）から入る。1階と、いちばん下の階（フリーザーのシンボル。海上マスは つり用）
         new MapDef { Key = "SF1", Name = "Seafoam Islands 1F", Image = "Assets/maps/Seafoam Islands/1.png", Place = "ふたご島", MapId = "seafoam", Parent = "SeafoamIslands", Prefix = "SF_1F_", Scale = 0.06f, Origin = new Vector2(0, 690), Floor = "8,16;8,8;20,10",
             Nodes = "01:6,22:ワ105 02:6,18:空 03:8,11:草 04:5,5:ボ 05:13,4:空 06:22,4:空 07:20,9:空 08:17,15:草 09:13,18:草 10:30,4:空 11:33,10:草 12:28,16:ト 13:32,19:空 14:32,22:ワ106",
             Edges = "01-02 02-03 03-04 04-05 05-06 06-10 10-11 11-12 12-13 13-14 02-09 09-08 08-07 07-06" },
         new MapDef { Key = "SF2", Name = "Seafoam Islands B4F", Image = "Assets/maps/Seafoam Islands/5.png", Place = "ふたご島", MapId = "seafoam", Parent = "SeafoamIslands", Prefix = "SF_B4F_", Scale = 0.06f, Origin = new Vector2(42, 690), Floor = "20,8;25,3",
-            Nodes = "01:17,9:空 02:19,4:空 03:25,3:草 04:31,2:空 05:12,11:草 06:19,14:空 07:15,18:草 08:22,19:草 フリーザー:10,2:空 10:5,10:海 11:28,10:海 12:31,19:空",
+            Nodes = "01:17,9:空 02:19,4:空 03:25,3:草 04:31,2:空 05:12,11:草 06:19,14:空 07:15,18:草 08:22,19:草 フリーザー:10,2:シ 10:5,10:海 11:28,10:海 12:31,19:空",
             Edges = "01-02 02-03 03-04 01-05 05-06 06-07 07-08 08-12 01-フリーザー 05-10 03-11 08-11" },
     };
 
@@ -171,6 +170,7 @@ public static class SpecialMapBuilder
                 sq.type = TypeOf(kind, out int warp);
                 sq.warpId = warp;
                 sq.grassKind = sea ? GrassKind.海上 : GrassKind.草むら;
+                if (kind == "シ") sq.symbolPokemon = parts[0]; // 伝説のシンボル：番号のところが ポケモンの名前
                 typeof(SugorokuSquare).GetMethod("OnValidate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(sq, null); // マスの上の名前
                 PrefabUtility.RecordPrefabInstancePropertyModifications(sq);
                 PrefabUtility.RecordPrefabInstancePropertyModifications(sq.transform);
@@ -239,6 +239,7 @@ public static class SpecialMapBuilder
             case "ラ": return SquareType.ライバル;
             case "ロ": return SquareType.ロケット団;
             case "イ": return SquareType.イベントマス;
+            case "シ": return SquareType.シンボル;
             default: return SquareType.空マス;
         }
     }
