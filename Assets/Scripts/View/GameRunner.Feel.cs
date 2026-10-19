@@ -75,6 +75,7 @@ public partial class GameRunner
 
     // 技の演出（17.6）：1.5秒（短縮で0.5秒）。攻撃側が前に出て、当たれば受けた側が揺れて光る
     // ガードは青く光るだけ、はずれは よける、カウンターは攻撃側が揺れる。急所・弱点は大きく揺れる。光の色は 物理 白・特殊 紫・必殺 オレンジ
+    // ダメージを受けた側は点滅する。このあと HPバーが ゆっくり減る（PlayQueue の RoundResolved）
     // ponytail: ポケモンの絵を動かすだけ。技ごとのエフェクトは素材ができたら足す
     IEnumerator AttackAnim(RoundResolved r)
     {
@@ -96,10 +97,12 @@ public partial class GameRunner
             if (r.Reflected) a += shake; else d += shake;
             atk.rectTransform.anchoredPosition = a; def.rectTransform.anchoredPosition = d;
             hurt.color = during && !r.Missed ? Color.Lerp(baseColor, glow, Mathf.PingPong(hit * 4, 1)) : baseColor;
+            hurt.enabled = !(during && !blocked && Mathf.FloorToInt(hit * 8) % 2 == 1); // ダメージを受けたら チカチカ点滅（本家と同じ）
             yield return null;
         }
         atk.rectTransform.anchoredPosition = def.rectTransform.anchoredPosition = Vector2.zero;
         hurt.color = baseColor;
+        hurt.enabled = true;
     }
 
     IEnumerator CardAnim(InitiativeDrawn x)

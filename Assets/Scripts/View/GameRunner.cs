@@ -421,22 +421,25 @@ public partial class GameRunner : MonoBehaviour
                     cards[1].SetOwner(br.Players[1] >= 0 ? S.Players[br.Players[1]].Name : br.Opponent);
                     break;
                 case BattleSuspended bs: battlePanel.gameObject.SetActive(false); yield return Banner(text, PlayerColor(S.Players[bs.Player]), 1.5f); continue;
-                case SentOut s: cards[s.Side].Show(s.Pokemon, s.Level, s.Hp, s.MaxHp, s.Type, s.Weakness); cards[s.Side].SetStatus(Pokemons.StatusName(s.Status)); break;
+                case SentOut s:
+                    cards[s.Side].Show(s.Pokemon, s.Level, s.Hp, s.MaxHp, s.Type, s.Weakness); cards[s.Side].SetStatus(Pokemons.StatusName(s.Status));
+                    yield return cards[s.Side].Appear(); // ポンと出てくる
+                    break;
                 case StatusInflicted si: cards[si.Side].SetStatus(Pokemons.StatusName(si.Status)); break;
                 case CantMove cm when cm.Woke: cards[cm.Side].SetStatus(""); break;
-                case StatusDamage sdm: cards[sdm.Side].SetHp(sdm.Hp); break;
-                case AbilityHealed ah: cards[ah.Side].SetHp(ah.Hp); break;
-                case HeldItemDamage hd: cards[hd.Side].SetHp(hd.Hp); break;
+                case StatusDamage sdm: yield return cards[sdm.Side].HpTo(sdm.Hp); break;
+                case AbilityHealed ah: yield return cards[ah.Side].HpTo(ah.Hp); break;
+                case HeldItemDamage hd: yield return cards[hd.Side].HpTo(hd.Hp); break;
                 case StatusCured sc: cards[sc.Side].SetStatus(""); break;
                 case RankChanged rc: cards[rc.Side].Flash($"{rc.Stat}{(rc.Delta > 0 ? "↑" : "↓")}"); break;
                 case RoundResolved rb when rb.Bond: yield return Banner(text.Split('\n').Last(), Color.white, 2); continue; // 絆による回避（7.18）
                 case RoundResolved r:
                     if (r.Item == null) yield return AttackAnim(r); // 技の演出（17.6）
-                    cards[r.Attacker].SetHp(r.AttackerHp); cards[1 - r.Attacker].SetHp(r.DefenderHp);
                     cards[r.Attacker].Flash($"攻撃ダイス {r.Dice}");
+                    yield return Together(cards[r.Attacker].HpTo(r.AttackerHp), cards[1 - r.Attacker].HpTo(r.DefenderHp)); // HPが ゆっくり減る（回復なら増える）
                     break;
-                case SandstormDamage sd: cards[sd.Side].SetHp(sd.Hp); break;
-                case PokemonFainted f: cards[f.Side].SetHp(0); break;
+                case SandstormDamage sd: yield return cards[sd.Side].HpTo(sd.Hp); break;
+                case PokemonFainted f: yield return cards[f.Side].HpTo(0); yield return cards[f.Side].Faint(); break; // 沈んで消える
                 // 他の人の大事な出来事は、その人の色と名前つきで大きく（17.5）。長さは17.6
                 case Caught c: yield return Banner(text, PlayerColor(S.Players[c.Player]), 2); continue;
                 case Evolved ev: yield return Banner(text, PlayerColor(S.Players[ev.Player]), 5); continue;
@@ -456,6 +459,15 @@ public partial class GameRunner : MonoBehaviour
     IEnumerator Wait(float seconds)
     {
         for (float t = 0; t < seconds && !SkipHeld(); t += Time.deltaTime) yield return null;
+    }
+
+    // いくつかの演出を同時に動かして、全部終わるまで待つ（両方のHPバーを いっしょに減らす など）
+    IEnumerator Together(params IEnumerator[] parts)
+    {
+        int left = parts.Length;
+        IEnumerator Run(IEnumerator part) { yield return part; left--; }
+        foreach (var part in parts) StartCoroutine(Run(part));
+        while (left > 0) yield return null;
     }
 
     IEnumerator MovePiece(int player, List<int> path)
@@ -573,7 +585,7 @@ public partial class GameRunner : MonoBehaviour
     SugorokuRoad[] roads;
     void HideSeaRoads()
     {
-        if (roads == null) roads = FindObjectsByType<SugorokuRoad>(FindObjectsInactive.Include, FindObjectsSortMode.None); // 隠したあとも見つけられるように Include
+        if (roads == null) roads = FindObjectsByType<SugorokuRoad>(FindObjectsInactive.Include); // 隠したあとも見つけられるように Include
         bool hide = !S.CurrentPlayer.Surf;
         bool Sea(SugorokuSquare sq) => sq != null && board.Squares.TryGetValue(sq.id, out var b) && b.Sea;
         foreach (var r in roads)
@@ -1038,6 +1050,7 @@ public partial class GameRunner : MonoBehaviour
         readonly Image circle, hpBar;
         readonly GameRunner runner;
         int maxHp = 1, hp;
+        float shownHp;     // バーに出しているHP（ゆっくり近づける）
         string status = "";
 
         public BattleCard(RectTransform root, GameRunner runner)
@@ -1055,7 +1068,7 @@ public partial class GameRunner : MonoBehaviour
         }
 
         public void SetOwner(string name) => owner.text = name;
-        public void SetStatus(string s) { status = s; SetHp(hp); }
+        public void SetStatus(string s) { status = s; Draw(); }
         public void Clear() { status = ""; title.text = hpText.text = flash.text = ""; circle.color = Color.clear; hpBar.rectTransform.anchorMax = new Vector2(0.9f, 0.18f); }
 
         public void Show(string species, int level, int hp, int max, string type, string weakness)
@@ -1064,18 +1077,64 @@ public partial class GameRunner : MonoBehaviour
             var sprite = runner.PokemonSprite(species);
             circle.sprite = sprite != null ? sprite : Ui.Circle;
             circle.color = sprite != null ? Color.white : TypeColor(type);
+            circle.enabled = true;
+            circle.rectTransform.anchoredPosition = Vector2.zero; circle.rectTransform.localScale = Vector3.one; // たおれた・出てくる演出のあと
             title.text = $"{species}　Lv{level}\nタイプ {type}　弱点 {weakness}";
             flash.text = "";
             SetHp(hp);
         }
 
-        public void SetHp(int hp)
+        // すぐに変える（出したとき）
+        public void SetHp(int hp) { this.hp = hp; shownHp = hp; Draw(); }
+
+        // HPを ゆっくり変える（本家のように、満タンから0まで およそ1.5秒。早送りなら すぐ）
+        public IEnumerator HpTo(int hp)
         {
             this.hp = hp;
-            float r = Mathf.Clamp01((float)hp / maxHp);
+            float speed = maxHp / (runner.shortBattle ? 0.8f : 1.5f);
+            while (!Mathf.Approximately(shownHp, hp))
+            {
+                shownHp = SkipHeld() ? hp : Mathf.MoveTowards(shownHp, hp, speed * Time.deltaTime);
+                Draw();
+                yield return null;
+            }
+        }
+
+        void Draw()
+        {
+            float r = Mathf.Clamp01(shownHp / maxHp);
             hpBar.rectTransform.anchorMax = new Vector2(0.1f + 0.8f * r, 0.18f);
             hpBar.color = r > 0.5f ? new Color(0.3f, 0.9f, 0.4f) : r > 0.2f ? new Color(0.95f, 0.8f, 0.2f) : new Color(0.95f, 0.3f, 0.25f);
-            hpText.text = $"HP {hp} / {maxHp}" + (status != "" ? $"　【{status}】" : "");
+            hpText.text = $"HP {Mathf.CeilToInt(shownHp)} / {maxHp}" + (status != "" ? $"　【{status}】" : "");
+        }
+
+        // 出てくる：小さい所から ポンと大きくなる
+        public IEnumerator Appear()
+        {
+            float total = runner.shortBattle ? 0.2f : 0.35f;
+            for (float t = 0; t < total && !SkipHeld(); t += Time.deltaTime)
+            {
+                float k = t / total;
+                circle.rectTransform.localScale = Vector3.one * (k < 0.8f ? Mathf.Lerp(0.1f, 1.1f, k / 0.8f) : Mathf.Lerp(1.1f, 1f, (k - 0.8f) / 0.2f));
+                yield return null;
+            }
+            circle.rectTransform.localScale = Vector3.one;
+        }
+
+        // たおれる：下に沈みながら 消える
+        public IEnumerator Faint()
+        {
+            float total = runner.shortBattle ? 0.35f : 0.7f;
+            Color c = circle.color;
+            for (float t = 0; t < total && !SkipHeld(); t += Time.deltaTime)
+            {
+                float k = t / total;
+                circle.rectTransform.anchoredPosition = new Vector2(0, -140 * k * k);
+                circle.color = new Color(c.r, c.g, c.b, 1 - k);
+                yield return null;
+            }
+            circle.rectTransform.anchoredPosition = Vector2.zero;
+            circle.color = new Color(c.r, c.g, c.b, 0);
         }
 
         public void Flash(string text) => flash.text = text;
