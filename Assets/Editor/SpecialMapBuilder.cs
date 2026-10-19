@@ -78,11 +78,19 @@ public static class SpecialMapBuilder
         new MapDef { Key = "PP", Name = "Power Plant", Image = "Assets/maps/Power Plant/1.png", Place = "むじんはつでんしょ", MapId = "powerplant", Parent = "PowerPlant", Prefix = "PP_", Scale = 0.05f, Origin = new Vector2(230, 620), Floor = "10,12;25,20;40,33",
             Nodes = "01:5,37:ワ104 02:5,33:空 03:4,27:草 04:4,19:空 05:8,14:草 06:5,6:ボ 07:15,5:草 08:16,13:空 09:26,13:草 10:24,6:ト 11:37,13:空 12:44,15:草 13:44,26:空 14:35,28:草 15:22,28:ト 16:14,22:草 17:12,34:ボ サンダー:29,35:空 19:40,35:草",
             Edges = "01-02 02-03 03-04 04-05 05-06 06-07 07-08 08-05 08-09 09-10 09-11 11-12 12-13 13-14 14-15 15-16 16-04 15-17 17-02 14-サンダー サンダー-19 19-13" },
+
+        // ふたご島：20番水道の西（ワープ105）と東（ワープ106）から入る。1階と、いちばん下の階（フリーザーが立つ場所は今は空マス。海上マスは つり用）
+        new MapDef { Key = "SF1", Name = "Seafoam Islands 1F", Image = "Assets/maps/Seafoam Islands/1.png", Place = "ふたご島", MapId = "seafoam", Parent = "SeafoamIslands", Prefix = "SF_1F_", Scale = 0.06f, Origin = new Vector2(0, 690), Floor = "8,16;8,8;20,10",
+            Nodes = "01:6,22:ワ105 02:6,18:空 03:8,11:草 04:5,5:ボ 05:13,4:空 06:22,4:空 07:20,9:空 08:17,15:草 09:13,18:草 10:30,4:空 11:33,10:草 12:28,16:ト 13:32,19:空 14:32,22:ワ106",
+            Edges = "01-02 02-03 03-04 04-05 05-06 06-10 10-11 11-12 12-13 13-14 02-09 09-08 08-07 07-06" },
+        new MapDef { Key = "SF2", Name = "Seafoam Islands B4F", Image = "Assets/maps/Seafoam Islands/5.png", Place = "ふたご島", MapId = "seafoam", Parent = "SeafoamIslands", Prefix = "SF_B4F_", Scale = 0.06f, Origin = new Vector2(42, 690), Floor = "20,8;25,3",
+            Nodes = "01:17,9:空 02:19,4:空 03:25,3:草 04:31,2:空 05:12,11:草 06:19,14:空 07:15,18:草 08:22,19:草 フリーザー:10,2:空 10:5,10:海 11:28,10:海 12:31,19:空",
+            Edges = "01-02 02-03 03-04 01-05 05-06 06-07 07-08 08-12 01-フリーザー 05-10 03-11 08-11" },
     };
 
     // 板と板をまたぐ道（階段・エリアの出入口）
     static readonly string[] Links = { "T1.08-T2.01", "T2.07-T3.01", "T3.06-T4.01", "C.07-W.01", "C.13-N.01", "C.18-E.17", "N.06-E.01", "N.20-W.07",
-        "RT1.05-RT2.01", "RT2.14-RT1.12", "CC1.10-CC2.01" };
+        "RT1.05-RT2.01", "RT2.14-RT1.12", "CC1.10-CC2.01", "SF1.07-SF2.01" };
 
     // 別マップごとのメニュー（そのマップだけ作り直す）
     [MenuItem("Tools/すごろく/別マップを作る/ポケモンタワー")] static void MenuTower() => BuildMenu("PokemonTower");
@@ -91,6 +99,7 @@ public static class SpecialMapBuilder
     [MenuItem("Tools/すごろく/別マップを作る/イワヤマトンネル")] static void MenuRockTunnel() => BuildMenu("RockTunnel");
     [MenuItem("Tools/すごろく/別マップを作る/ハナダの洞窟")] static void MenuCeruleanCave() => BuildMenu("CeruleanCave");
     [MenuItem("Tools/すごろく/別マップを作る/むじんはつでんしょ")] static void MenuPowerPlant() => BuildMenu("PowerPlant");
+    [MenuItem("Tools/すごろく/別マップを作る/ふたご島")] static void MenuSeafoam() => BuildMenu("SeafoamIslands");
 
     static void BuildMenu(string group)
     {
