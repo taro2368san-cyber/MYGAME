@@ -66,7 +66,7 @@ public class Sound : MonoBehaviour
             alarm.clip = Load("Audio/SE/lowhp");
             if (alarm.clip == null) alarm.clip = Beep();
         }
-        alarm.volume = Se * 0.35f;
+        alarm.volume = Se * 0.18f; // 強すぎたので半分に（0.35 → 0.18）
         if (on && !alarm.isPlaying) alarm.Play();
         else if (!on && alarm.isPlaying) alarm.Stop();
     }
