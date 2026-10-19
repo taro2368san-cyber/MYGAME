@@ -146,9 +146,17 @@ namespace Sugoroku.Rules
             var a = b.Sides[b.Attacker];
             var d = b.Sides[1 - b.Attacker];
             // ponytail: NPC はランダムに選ぶ。強くするなら CPU（1.4）と同じ考え方でここを差し替える
-            if (a.Player < 0) b.AttackCmd = (Attack)Roll(0, a.LastWasSuper || Transforms(a) ? 1 : 2);
+            if (a.Player < 0) b.AttackCmd = b.Kind == BattleKind.Wild ? WildAttack(a) : (Attack)Roll(0, a.LastWasSuper || Transforms(a) ? 1 : 2);
             if (d.Player < 0) b.DefenseCmd = (Defense)Roll(0, 2);
             events.Add(new CommandsRequested { Attacker = b.Attacker, AttackPlayer = a.Player, DefensePlayer = d.Player, SuperLocked = a.LastWasSuper || Transforms(a) });
+        }
+
+        // 野生の攻撃：必殺技は 調整値 wild_super_rate の確率（必殺が使えないときは出さない）。のこりは 物理・特殊を半分ずつ
+        Attack WildAttack(BattleSide a)
+        {
+            double x = Rng.Next(ref State.Rng);
+            double super = a.LastWasSuper || Transforms(a) ? 0 : Tune("wild_super_rate");
+            return x < super ? Attack.Super : x < super + (1 - super) / 2 ? Attack.Physical : Attack.Special;
         }
 
         // ---- 命令の確認 ----
@@ -484,7 +492,8 @@ namespace Sugoroku.Rules
             double random = Tune("damage_random_min") + (Tune("damage_random_max") - Tune("damage_random_min")) * (dice - 1) / 9;
             double damage = baseDamage * mult * (ev.Weakness ? Tune("weakness_mult") : 1) * (ev.Critical ? Tune("crit_mult") : 1) * random * (atk == Attack.Super ? ja.super : 1) * (physical && ap.Status == Status.Burn ? 0.5 : 1)
                 * (fx != null && fx.LateMult > 0 && B.First != B.Attacker ? fx.LateMult : 1) * AbilityDamageMult(A, D, physical, guarded, ev)
-                * (HeldOf(A) == "いのちのたま" ? Tune("life_orb_mult") : 1);
+                * (HeldOf(A) == "いのちのたま" ? Tune("life_orb_mult") : 1)
+                * (B.Kind == BattleKind.Wild && A.Player < 0 ? Tune("wild_damage_mult") : 1); // 野生が与えるダメージ
             ev.Damage = Math.Max(TuneInt("damage_min"), (int)damage);
             ev.Guarded = guarded;
             if (atk == Attack.Super && guarded)
