@@ -85,11 +85,42 @@ public static class SpecialMapBuilder
         new MapDef { Key = "SF2", Name = "Seafoam Islands B4F", Image = "Assets/maps/Seafoam Islands/5.png", Place = "ふたご島", MapId = "seafoam", Parent = "SeafoamIslands", Prefix = "SF_B4F_", Scale = 0.06f, Origin = new Vector2(42, 690), Floor = "20,8;25,3",
             Nodes = "01:17,9:空 02:19,4:空 03:25,3:草 04:31,2:空 05:12,11:草 06:19,14:空 07:15,18:草 08:22,19:草 フリーザー:10,2:シ 10:5,10:海 11:28,10:海 12:31,19:空",
             Edges = "01-02 02-03 03-04 01-05 05-06 06-07 07-08 08-12 01-フリーザー 05-10 03-11 08-11" },
+
+        // サントアンヌ号：クチバシティから入る（ワープ107）。1階・2階（奥にライバル）・甲板
+        new MapDef { Key = "SS1", Name = "S.S. Anne 1F", Image = "Assets/maps/S.S. Anne/2.png", Place = "サントアンヌ号", MapId = "ssanne", Parent = "SSAnne", Prefix = "SS_1F_", Scale = 0.05f, Origin = new Vector2(0, 780), Floor = "15,9;2,13;19,3",
+            Nodes = "01:3,18:ワ107 02:3,14:空 03:3,10:ト 04:8,9:空 05:13,10:ボ 06:18,9:ト 07:20,5:空 08:24,9:空 09:29,10:ト 10:29,14:空 11:29,17:空",
+            Edges = "01-02 02-03 03-04 04-05 05-06 06-07 06-08 08-09 09-10 10-11" },
+        new MapDef { Key = "SS2", Name = "S.S. Anne 2F", Image = "Assets/maps/S.S. Anne/3.png", Place = "サントアンヌ号", MapId = "ssanne", Parent = "SSAnne", Prefix = "SS_2F_", Scale = 0.05f, Origin = new Vector2(28, 780), Floor = "15,13;2,5",
+            Nodes = "01:30,5:空 02:30,9:空 03:28,12:ト 04:23,13:空 05:18,12:ト 06:13,13:ボ 07:8,12:ト 08:4,13:空 09:3,9:空 10:2,5:ラ",
+            Edges = "01-02 02-03 03-04 04-05 05-06 06-07 07-08 08-09 09-10" },
+        new MapDef { Key = "SS3", Name = "S.S. Anne Deck", Image = "Assets/maps/S.S. Anne/4.png", Place = "サントアンヌ号", MapId = "ssanne", Parent = "SSAnne", Prefix = "SS_Deck_", Scale = 0.05f, Origin = new Vector2(4, 800), Floor = "8,9",
+            Nodes = "01:14,7:空 02:10,6:ト 03:5,8:空 04:3,9:ボ 05:11,11:ト 06:12,13:イ",
+            Edges = "01-02 02-03 03-04 01-05 05-06" },
+
+        // ポケモン屋敷：グレンタウンから入る（ワープ108）。1階と地下
+        new MapDef { Key = "PM1", Name = "Pokemon Mansion 1F", Image = "Assets/maps/Pokemon Mansion/1.png", Place = "ポケモン屋敷", MapId = "mansion", Parent = "PokemonMansion", Prefix = "PM_1F_", Scale = 0.05f, Origin = new Vector2(82, 780), Floor = "3,12;20,20;3,9",
+            Nodes = "01:8,32:ワ108 02:8,26:草 03:8,19:空 04:8,13:草 05:3,9:ト 06:3,5:ボ 07:10,7:草 08:15,10:空 09:22,7:草 10:27,12:ト 11:26,16:草 12:20,19:空 13:16,23:草 14:22,26:空",
+            Edges = "01-02 02-03 03-04 04-05 05-06 06-07 07-08 08-09 09-10 10-11 11-12 12-13 13-14 03-12" },
+        new MapDef { Key = "PM2", Name = "Pokemon Mansion B1F", Image = "Assets/maps/Pokemon Mansion/4.png", Place = "ポケモン屋敷", MapId = "mansion", Parent = "PokemonMansion", Prefix = "PM_B1F_", Scale = 0.05f, Origin = new Vector2(116, 780), Floor = "3,8;20,18;30,12",
+            Nodes = "01:35,28:空 02:32,24:草 03:35,17:草 04:34,12:空 05:33,8:ト 06:30,4:草 07:20,11:草 08:18,5:ボ 09:8,12:空 10:4,5:草 11:7,19:草 12:3,22:ボ 13:15,27:草 14:8,29:イ 15:22,25:ト",
+            Edges = "01-02 02-03 03-04 04-05 05-06 04-07 07-08 07-09 09-10 09-11 11-12 11-13 13-14 13-15 15-02" },
+
+        // チャンピオンロード：23番道路（ワープ109）から入り、セキエイ高原（ワープ110）へ抜ける。3階に ファイヤーのシンボル
+        new MapDef { Key = "VR1", Name = "Victory Road 1F", Image = "Assets/maps/Victory Road/1.png", Place = "チャンピオンロード", MapId = "victoryroad", Parent = "VictoryRoad", Prefix = "VR_1F_", Scale = 0.05f, Origin = new Vector2(150, 780), Floor = "8,4;3,19;12,18",
+            Nodes = "01:11,20:ワ109 02:6,19:草 03:3,15:空 04:3,10:草 05:4,5:ト 06:9,3:草 07:15,2:空 08:21,5:草 09:21,11:空 10:20,16:ボ 11:16,18:ト 12:3,2:空",
+            Edges = "01-02 02-03 03-04 04-05 05-12 05-06 06-07 07-08 08-09 09-10 10-11 11-01" },
+        new MapDef { Key = "VR2", Name = "Victory Road 2F", Image = "Assets/maps/Victory Road/2.png", Place = "チャンピオンロード", MapId = "victoryroad", Parent = "VictoryRoad", Prefix = "VR_2F_", Scale = 0.05f, Origin = new Vector2(192, 780), Floor = "8,4;3,19;34,2",
+            Nodes = "01:3,3:空 02:3,8:草 03:3,14:ト 04:2,19:ボ 05:8,17:草 06:14,19:草 07:18,8:空 08:12,5:草 09:26,6:ト 10:33,3:草 11:40,8:空 12:45,11:草 13:48,13:ワ110 14:30,16:ラ 15:36,15:空",
+            Edges = "01-02 02-08 08-07 07-09 09-10 10-11 11-12 12-13 02-03 03-04 04-05 05-06 06-14 14-15 15-12" },
+        new MapDef { Key = "VR3", Name = "Victory Road 3F", Image = "Assets/maps/Victory Road/3.png", Place = "チャンピオンロード", MapId = "victoryroad", Parent = "VictoryRoad", Prefix = "VR_3F_", Scale = 0.05f, Origin = new Vector2(236, 780), Floor = "8,3;20,15;5,10",
+            Nodes = "01:37,12:空 02:32,14:草 03:24,16:ト 04:13,16:草 05:4,13:空 06:7,7:ボ 07:12,4:草 08:30,4:草 ファイヤー:39,4:シ",
+            Edges = "01-02 02-03 03-04 04-05 05-06 06-07 07-08 08-ファイヤー ファイヤー-01" },
     };
 
     // 板と板をまたぐ道（階段・エリアの出入口）
     static readonly string[] Links = { "T1.08-T2.01", "T2.07-T3.01", "T3.06-T4.01", "C.07-W.01", "C.13-N.01", "C.18-E.17", "N.06-E.01", "N.20-W.07",
-        "RT1.05-RT2.01", "RT2.14-RT1.12", "CC1.10-CC2.01", "SF1.07-SF2.01" };
+        "RT1.05-RT2.01", "RT2.14-RT1.12", "CC1.10-CC2.01", "SF1.07-SF2.01",
+        "SS1.11-SS2.01", "SS1.07-SS3.01", "PM1.14-PM2.01", "VR1.12-VR2.01", "VR2.15-VR3.01" };
 
     // 別マップごとのメニュー（そのマップだけ作り直す）
     [MenuItem("Tools/すごろく/別マップを作る/ポケモンタワー")] static void MenuTower() => BuildMenu("PokemonTower");
@@ -99,6 +130,9 @@ public static class SpecialMapBuilder
     [MenuItem("Tools/すごろく/別マップを作る/ハナダの洞窟")] static void MenuCeruleanCave() => BuildMenu("CeruleanCave");
     [MenuItem("Tools/すごろく/別マップを作る/むじんはつでんしょ")] static void MenuPowerPlant() => BuildMenu("PowerPlant");
     [MenuItem("Tools/すごろく/別マップを作る/ふたご島")] static void MenuSeafoam() => BuildMenu("SeafoamIslands");
+    [MenuItem("Tools/すごろく/別マップを作る/サントアンヌ号")] static void MenuSSAnne() => BuildMenu("SSAnne");
+    [MenuItem("Tools/すごろく/別マップを作る/ポケモン屋敷")] static void MenuMansion() => BuildMenu("PokemonMansion");
+    [MenuItem("Tools/すごろく/別マップを作る/チャンピオンロード")] static void MenuVictoryRoad() => BuildMenu("VictoryRoad");
 
     static void BuildMenu(string group)
     {

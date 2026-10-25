@@ -84,6 +84,7 @@ MonoBehaviour:
   warpId: 0
   shopId: 
   grassKind: 0
+  symbolPokemon: 
   gateBadges: 0
   gateShared: 0
 --- !u!65 &5122558334080447420
