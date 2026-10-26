@@ -24,6 +24,7 @@ namespace Sugoroku.Rules
         public readonly List<string> TrainerBag = new List<string>();        // トレーナーの道具
         public readonly Dictionary<string, int> Balls = new Dictionary<string, int>();
         public readonly HashSet<string> Dex = new HashSet<string>();         // 図鑑（倒した・捕まえた種族）
+        public readonly Dictionary<string, JournalEntry> DexFirst = new Dictionary<string, JournalEntry>(); // 図鑑にはじめて登録した週・場所・どうやって（Kind）。UI仕様書 6.2 の旅の記録
         public readonly HashSet<string> BeatenTrainers = new HashSet<string>(); // 倒したトレーナーの id（ジムトレーナーの判定に使う）
         public readonly List<string> UnlockedJobs = new List<string>();      // 解放した職業（イベントで）
         public int LastPlaceWeeks;                                           // 何週連続で最下位か（8.8.1 の救済）

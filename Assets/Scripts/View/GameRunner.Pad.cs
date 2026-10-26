@@ -95,6 +95,7 @@ public partial class GameRunner
         if (playing) return false;
         var g = ActingPad();
         if (g == null) return false;
+        if (DexOpen) return PadDex(g);
         if (overlay != null) return PadScreen(g);
         if (exploring)
         {
@@ -285,6 +286,18 @@ public partial class GameRunner
             return true;
         }
         return false;
+    }
+
+    // 図鑑：十字キー上下 1体・左右 10体、○ くわしく、× もどる、L1/R1 ほかの人の図鑑（UI仕様書 6.4）
+    bool PadDex(Gamepad g)
+    {
+        int dy = Down(g, x => x.dpad.down) ? 1 : Down(g, x => x.dpad.up) ? -1 : 0;
+        int dx = Down(g, x => x.dpad.right) ? 1 : Down(g, x => x.dpad.left) ? -1 : 0;
+        int sw = Down(g, x => x.rightShoulder) ? 1 : Down(g, x => x.leftShoulder) ? -1 : 0;
+        bool ok = Down(g, x => x.buttonEast), back = Down(g, x => x.buttonSouth);
+        if (dy == 0 && dx == 0 && sw == 0 && !ok && !back) return false;
+        DexInput(dy, dx, ok, back, sw);
+        return true;
     }
 
     void ScreenSelect(Button b, List<Button> list)

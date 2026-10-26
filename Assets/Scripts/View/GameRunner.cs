@@ -979,6 +979,7 @@ public partial class GameRunner : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.F1) && game.DebugEnabled) ToggleDebug();
         PanCamera();
         if (playing) return;
+        if (DexOpen) { DexKeys(); return; } // 図鑑（GameRunner.Info.cs）
         // 入力欄に文字を打っている間は、数字キーなどのショートカットを使わない
         var selected = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
         if (selected != null && selected.GetComponent<InputField>() is InputField input && input.isFocused) return;

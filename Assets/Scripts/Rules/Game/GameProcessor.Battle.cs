@@ -529,7 +529,7 @@ namespace Sugoroku.Rules
                 OnKnockOut(1 - i, events);
                 if (winner.Player < 0 || winner.Current.Fainted) continue;
                 var me = State.Players[winner.Player];
-                me.Dex.Add(m.Species);
+                Register(me, m.Species, "たおした");
                 if (i == 1) b.DefeatedLevels.Add(m.Level);
                 // レベル追いつき（7.8）：低いレベルで倒したら差分だけ上がる。そのバトルの経験値はなし
                 if (m.Level > winner.Current.Level)
@@ -751,7 +751,7 @@ namespace Sugoroku.Rules
                 foreach (var m in p.Party)
                 {
                     string from = m.Species, to = Pokemons.TryEvolve(data, m);
-                    if (to != null) { p.Dex.Add(to); events.Add(new Evolved { Player = p.Id, From = from, To = to }); }
+                    if (to != null) { Register(p, to, "しんかさせた"); events.Add(new Evolved { Player = p.Id, From = from, To = to }); }
                 }
             }
         }
@@ -818,7 +818,7 @@ namespace Sugoroku.Rules
                 // 交換で来た子は「〇〇さんから受け取った」と記録する（1.5）
                 taken.MetHow = $"{loser.Name}から受け取った"; taken.MetPlace = board[winner.Square].Place; taken.MetWeek = State.Week; taken.MetSpecies = taken.Species; taken.LeadTurns = 0;
                 given.MetHow = $"{winner.Name}から受け取った"; given.MetPlace = board[loser.Square].Place; given.MetWeek = State.Week; given.MetSpecies = given.Species; given.LeadTurns = 0;
-                winner.Dex.Add(taken.Species); loser.Dex.Add(given.Species);
+                Register(winner, taken.Species, "うけとった"); Register(loser, given.Species, "うけとった");
                 ApplyJobHp(winner); ApplyJobHp(loser);
                 events.Add(new PokemonTraded { Winner = winner.Id, Loser = loser.Id, Taken = taken.Species, Given = given.Species });
             }

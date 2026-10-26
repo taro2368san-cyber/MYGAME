@@ -51,6 +51,13 @@ namespace Sugoroku.Rules
 
         string Opponent(BattleStarted b, int me) => State.Players[b.Players[0] == me ? b.Players[1] : b.Players[0]].Name;
 
+        // 図鑑に登録する。はじめてなら 週・場所・どうやって（「つかまえた」など）を残す（UI仕様書 6.2 旅の記録）
+        void Register(PlayerState p, string species, string how)
+        {
+            p.Dex.Add(species);
+            if (!p.DexFirst.ContainsKey(species)) p.DexFirst[species] = new JournalEntry { Week = System.Math.Max(1, State.Week), Place = board[p.Square].Place, Kind = how };
+        }
+
         void Log(int player, string kind, string text) =>
             State.Players[player].Journal.Add(new JournalEntry { Week = State.Week, Place = board[State.Players[player].Square].Place, Kind = kind, Text = text });
     }

@@ -36,7 +36,7 @@ namespace Sugoroku.Rules
                 if (!string.IsNullOrEmpty(players[i].starter))
                 {
                     p.Party.Add(Pokemons.Create(data, players[i].starter, game.TuneInt("start_level"), "最初のポケモン", board[board.StartSquare].Place, 1));
-                    p.Dex.Add(players[i].starter);
+                    game.Register(p, players[i].starter, "さいしょの パートナーに した");
                 }
                 state.Players.Add(p);
             }
@@ -199,7 +199,7 @@ namespace Sugoroku.Rules
                 var m = p.Party[u.Target];
                 string from = m.Species, to = ItemEvolution(m, u.Item).Target;
                 Pokemons.EvolveTo(data, m, to);
-                p.Dex.Add(to);
+                Register(p, to, "しんかさせた");
                 RemoveItem(p, u.Item);
                 p.UsedItem = true;
                 events.Add(new ItemUsed { Player = p.Id, Item = u.Item, Pokemon = from });

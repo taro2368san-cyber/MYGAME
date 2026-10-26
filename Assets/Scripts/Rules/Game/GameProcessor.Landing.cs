@@ -209,7 +209,7 @@ namespace Sugoroku.Rules
         // 手持ち → 控えの順に入れる。どちらもいっぱいなら、控えから1体逃がすか、来たポケモンを逃がすかを選ぶ（6.1）。選択を待つなら true
         bool AddPokemon(PlayerState p, PokemonState mon, List<GameEvent> events)
         {
-            p.Dex.Add(mon.Species);
+            Register(p, mon.Species, mon.MetHow == "捕獲" ? "つかまえた" : "てにいれた");
             if (p.Party.Count < TuneInt("party_size")) { p.Party.Add(mon); ApplyJobHp(p); return false; }
             if (p.Box.Count < BoxLimit(p)) { p.Box.Add(mon); ApplyJobHp(p); return false; }
             var f = new FacilityState { Kind = FacilityKind.BoxFull, Player = p.Id, Square = p.Square, PendingPokemon = mon, Prompt = $"控えが いっぱい。{mon.Species}を 入れるなら、どの子を 逃がす？" };
@@ -546,7 +546,7 @@ namespace Sugoroku.Rules
                     string before = mon.Species;
                     if (!ActsAsOwner(f, p)) { RemoveItem(p, "通信ケーブル"); events.Add(new ItemUsed { Player = p.Id, Item = "通信ケーブル", Pokemon = before }); }
                     Pokemons.EvolveTo(data, mon, rv.Target);
-                    p.Dex.Add(rv.Target);
+                    Register(p, rv.Target, "しんかさせた");
                     events.Add(new Evolved { Player = p.Id, From = before, To = rv.Target });
                     return;
                 }
@@ -555,7 +555,7 @@ namespace Sugoroku.Rules
                     string from = m.Species;
                     AddMoney(p, -LabPrice(p), "進化サービス", events);
                     Pokemons.EvolveTo(data, m, l.Target);
-                    p.Dex.Add(l.Target);
+                    Register(p, l.Target, "しんかさせた");
                     events.Add(new Evolved { Player = p.Id, From = from, To = l.Target });
                     return;
                 case ChooseOption o:

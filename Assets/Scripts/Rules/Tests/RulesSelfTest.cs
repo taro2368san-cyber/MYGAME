@@ -1050,6 +1050,8 @@ namespace Sugoroku.Rules
             foreach (var p in s.Players)
             {
                 Must(p.Money >= 0, $"{p.Name}の所持金がマイナス");
+                Must(p.Dex.SetEquals(p.DexFirst.Keys), $"{p.Name}の図鑑に、はじめて登録した記録のない種族がある（{string.Join("、", p.Dex.Except(p.DexFirst.Keys))}）");
+                Must(p.CaughtSpecies.All(p.DexFirst.ContainsKey), $"{p.Name}の捕まえた種族が 図鑑の記録にない");
                 Must(p.Party.Count >= 1 && p.Party.Count <= (int)data.Required("party_size"), $"{p.Name}の手持ちが{p.Party.Count}体");
                 Must(p.Box.Count <= Math.Max((int)data.Required("box_max"), p.BoxMax), $"{p.Name}の控えが多すぎる");
                 int extra = data.JobBonuses.FirstOrDefault(b => b.Job == p.Job && b.Type == "")?.Bag ?? 0; // ロケット団は袋が大きい
