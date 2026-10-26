@@ -4,10 +4,10 @@ using Sugoroku.Rules;
 using UnityEngine;
 using UnityEngine.UI;
 
-// メイン画面の部品（設計メモ/新設定追加項目/UI仕様書_メイン画面.md）
+// メイン画面の部品（設計メモ/新設定追加項目/UI仕様書.md）
 // A 週と天気（左上）、B 場所名（上の中央）、C 手番のプレイヤー（右上）、D ほかのプレイヤー（右側）、E メニュー（左下）、G メッセージ（下の中央）
 // F 盤面：プレイヤーのコマの横に、先頭のポケモンがついて歩く
-// ponytail: 角丸・アイコン・C/Dの入れ替わりのアニメーションはまだ。中身（C・D）は仕様書の候補から仮に選んだ
+// ponytail: 角丸・C/Dの入れ替わりのアニメーションはまだ。メニューの絵・バッジ・メダルは Ui で描いた仮の絵
 public partial class GameRunner
 {
     static readonly Color HudColor = new Color(0.05f, 0.28f, 0.32f, 0.85f); // 濃い青緑、半透明（4. 見た目）
@@ -26,8 +26,6 @@ public partial class GameRunner
         if (!characterSprites.TryGetValue(c.Art, out var s)) characterSprites[c.Art] = s = Resources.Load<Sprite>("Characters/" + c.Art);
         return s;
     }
-
-    Sprite SpriteOf(PlayerState p) => CharacterSprite(data.Characters.FirstOrDefault(c => c.Id == p.Character));
 
     // 並べる箱の中に置く キャラクターの絵
     static Image IconIn(Transform parent, Sprite sprite, float height)
@@ -57,24 +55,41 @@ public partial class GameRunner
         var b = Ui.Panel(root, "B_Place", new Vector2(0.36f, 0.93f), new Vector2(0.64f, 0.99f), HudColor);
         placeText = Ui.Label(b.transform, "", 34, TextAnchor.MiddleCenter);
 
-        currentFrame = Ui.Panel(root, "C_Current", new Vector2(0.7f, 0.80f), new Vector2(0.995f, 0.99f), Color.white);
+        // C：名前とお金（お金は手番の人だけ）・先頭のポケモン・バッジ8個
+        currentFrame = Ui.Panel(root, "C_Current", new Vector2(0.62f, 0.85f), new Vector2(0.995f, 0.99f), Color.white);
         var inner = Ui.Panel(currentFrame.transform, "Inner", Vector2.zero, Vector2.one, HudColor);
         inner.rectTransform.offsetMin = new Vector2(6, 6); inner.rectTransform.offsetMax = new Vector2(-6, -6);
-        currentIcon = Ui.Panel(inner.transform, "Icon", new Vector2(0.01f, 0.08f), new Vector2(0.17f, 0.92f), Color.white);
-        currentIcon.preserveAspect = true;
         currentText = Ui.Label(inner.transform, "", 26, TextAnchor.MiddleLeft);
-        currentText.rectTransform.anchorMin = new Vector2(0.18f, 0);
-        currentText.rectTransform.offsetMin = new Vector2(6, 6); currentText.rectTransform.offsetMax = new Vector2(-10, -6);
+        currentText.rectTransform.anchorMax = new Vector2(0.34f, 1);
+        currentText.rectTransform.offsetMin = new Vector2(14, 4); currentText.rectTransform.offsetMax = new Vector2(0, -4);
+        currentIcon = Ui.Panel(inner.transform, "Lead", new Vector2(0.34f, 0.06f), new Vector2(0.47f, 0.94f), Color.white);
+        currentIcon.preserveAspect = true;
+        var row = Ui.Stack(inner.transform, "Badges", new Vector2(0.48f, 0.15f), new Vector2(0.99f, 0.85f), false, 4, 0);
+        row.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
+        for (int i = 0; i < 8; i++)
+        {
+            var img = new GameObject("Badge", typeof(RectTransform), typeof(Image), typeof(LayoutElement)).GetComponent<Image>();
+            img.transform.SetParent(row, false);
+            img.preserveAspect = true; img.raycastTarget = false;
+            badgeIcons[i] = img;
+        }
 
-        othersCol = Ui.Stack(root, "D_Others", new Vector2(0.76f, 0.44f), new Vector2(0.995f, 0.79f), true, 8, 0);
+        othersCol = Ui.Stack(root, "D_Others", new Vector2(0.80f, 0.52f), new Vector2(0.995f, 0.84f), true, 8, 0);
         othersCol.GetComponent<VerticalLayoutGroup>().childForceExpandHeight = false;
     }
 
-    // 順位用ポイント（12章）の順位
-    int RankOf(PlayerState p) => 1 + S.Players.Count(o => game.Score(o) > game.Score(p) + 1e-9);
+    readonly Image[] badgeIcons = new Image[8];
 
-    string StateText(PlayerState p) =>
-        (p.Has("1回休み") ? "　1回休み" : "") + (p.Has("さいみん") ? "　さいみん" : "") + (p.PendingBattle != null ? $"　バトルの途中（{p.PendingBattle.Sides[1].Name}）" : "") + (p.Job != "" ? $"　{p.Job}" : "") + (p.Surf ? "　なみのり" : "");
+    // 一覧の小さい絵（歩く絵）。なければ、そのタイプの色の玉
+    void SetLead(Image img, PlayerState p)
+    {
+        var lead = p.Party.FirstOrDefault();
+        img.enabled = lead != null;
+        img.preserveAspect = true;
+        if (lead == null) return;
+        img.sprite = PokemonIcon(lead.Species) ?? Ui.Circle;
+        img.color = img.sprite == Ui.Circle ? TypeColor(Pokemons.Of(data, lead).Type) : Color.white;
+    }
 
     void RefreshHud()
     {
@@ -93,39 +108,67 @@ public partial class GameRunner
         int placeSquare = exploring && exploreSquare >= 0 ? exploreSquare : cur.Square;
         placeText.text = board[placeSquare].Place;
 
-        // C 手番のプレイヤー（枠はその人の色）
+        // C 手番のプレイヤー（枠はその人の色）：名前・お金、先頭のポケモン、バッジ8個（取っていないものは影）
         currentFrame.color = PlayerColor(cur);
-        currentIcon.sprite = SpriteOf(cur);
-        currentIcon.enabled = currentIcon.sprite != null;
-        var lead = cur.Party.FirstOrDefault();
-        currentText.text = $"<size=34>{cur.Name}</size>{CharacterLabel(cur)}　{RankOf(cur)}位\n{cur.Money:#,0}円　バッジ{cur.Badges}　ボール{cur.BallCount}" +
-            (lead != null ? $"\n先頭：{lead.Species} Lv{lead.Level}　HP {lead.Hp}/{Pokemons.MaxHp(data, lead)}" : "") + (StateText(cur) != "" ? $"\n<size=22>{StateText(cur).Trim()}</size>" : "");
+        currentText.text = $"<size=34>{cur.Name}</size>\n{cur.Money:#,0}円";
+        SetLead(currentIcon, cur);
+        for (int i = 0; i < 8; i++) badgeIcons[i].sprite = Ui.Badge(i, cur.Gyms.Contains(Ui.BadgeGyms[i]));
 
-        // D ほかのプレイヤー：次の番の人から順に
+        // D ほかのプレイヤー：次の番の人から順に。名前・先頭のポケモン・メダルにバッジの数
         Ui.Clear(othersCol);
         int n = S.TurnOrder.Count;
         for (int k = 1; k < n; k++)
         {
             var p = S.Players[S.TurnOrder[(S.TurnIndex + k) % n]];
             var frame = Ui.Panel(othersCol, "Other", Vector2.zero, Vector2.one, PlayerColor(p));
-            frame.gameObject.AddComponent<LayoutElement>().preferredHeight = 92;
+            frame.gameObject.AddComponent<LayoutElement>().preferredHeight = 80;
             var box = Ui.Panel(frame.transform, "Inner", Vector2.zero, Vector2.one, HudColor);
             box.rectTransform.offsetMin = new Vector2(5, 5); box.rectTransform.offsetMax = new Vector2(-5, -5);
-            var icon = SpriteOf(p);
-            if (icon != null)
-            {
-                var img = Ui.Panel(box.transform, "Icon", new Vector2(0.02f, 0.08f), new Vector2(0.14f, 0.92f), Color.white);
-                img.sprite = icon; img.preserveAspect = true;
-            }
-            var t = Ui.Label(box.transform, $"{p.Name}　{RankOf(p)}位\n{p.Money:#,0}円　バッジ{p.Badges}" + (StateText(p) != "" ? $"\n<size=18>{StateText(p).Trim()}</size>" : ""), 22, TextAnchor.MiddleLeft);
-            if (icon != null) t.rectTransform.anchorMin = new Vector2(0.15f, 0);
-            t.rectTransform.offsetMin = new Vector2(12, 2); t.rectTransform.offsetMax = new Vector2(-6, -2);
+            var t = Ui.Label(box.transform, p.Name, 26, TextAnchor.MiddleLeft);
+            t.rectTransform.anchorMax = new Vector2(0.5f, 1);
+            t.rectTransform.offsetMin = new Vector2(12, 0);
+            SetLead(Ui.Panel(box.transform, "Lead", new Vector2(0.5f, 0.06f), new Vector2(0.72f, 0.94f), Color.white), p);
+            var medal = Ui.Panel(box.transform, "Medal", new Vector2(0.76f, 0.1f), new Vector2(0.97f, 0.9f), Color.white);
+            medal.sprite = Ui.Medal; medal.preserveAspect = true;
+            Ui.Label(medal.transform, p.Badges.ToString(), 26, TextAnchor.MiddleCenter, new Color(0.35f, 0.2f, 0f));
         }
 
-        // G メッセージ：出すものがあるときだけ
-        if (messagePanel != null) messagePanel.SetActive(logLines.Count > 0);
         SyncBuddies();
         SyncSymbols();
+    }
+
+    // ---- G セリフ欄：出すときは下からスライド、読み終わったら下へ引っこむ。新しい文は1文字ずつ（○・スペースで全文）----
+    const float TypeSpeed = 60f;   // 1秒に出す文字数（仕様書1.3：速さは固定）
+    const float MessageHold = 4f;  // 最後の文から この秒数は出しておく
+    string typingText = "";
+    float typed, lastLogTime, messageShown; // messageShown：0 引っこんでいる 〜 1 出ている
+    bool Typing => typed < typingText.Length;
+
+    void RenderLog()
+    {
+        int fresh = typingText.Split('\n').Length, old = Mathf.Max(0, logLines.Count - fresh);
+        string shown = typingText.Substring(0, Mathf.Min((int)typed, typingText.Length));
+        log.text = string.Join("\n", logLines.Take(old)) + (old > 0 ? "\n" : "") + shown;
+    }
+
+    // 場面ごとの表示（UI仕様書 3）：移動中・見渡し中は隠す。準備フェーズは 新しい文があるときだけ
+    bool MessageWanted()
+    {
+        if (logLines.Count == 0 || exploring) return false;
+        if (Typing || Time.time - lastLogTime < MessageHold) return true;
+        return S.Phase != Phase.Moving && (playing || S.Battle != null || S.Phase == Phase.Facility);
+    }
+
+    // LateUpdate から
+    void SlideMessage()
+    {
+        if (messagePanel == null || game == null) return;
+        if (Typing) { typed = SkipHeld() ? typingText.Length : typed + TypeSpeed * Time.deltaTime; RenderLog(); }
+        bool want = MessageWanted();
+        messageShown = Mathf.MoveTowards(messageShown, want ? 1 : 0, Time.deltaTime * 5);
+        var rt = (RectTransform)messagePanel.transform;
+        rt.anchoredPosition = new Vector2(0, -(1 - Mathf.SmoothStep(0, 1, messageShown)) * (rt.rect.height + 30));
+        if (!want && messageShown <= 0 && logLines.Count > 0) { logLines.Clear(); typingText = ""; log.text = ""; } // 引っこんだら 次は新しい文から
     }
 
     // ---- 盤面の伝説のシンボル：マスの上に その伝説の絵を立てる（だれかが倒すか捕まえたら消す）----

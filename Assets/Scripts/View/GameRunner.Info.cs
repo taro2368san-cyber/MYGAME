@@ -2,13 +2,12 @@ using System.Linq;
 using Sugoroku.Rules;
 using UnityEngine;
 
-// 「システム」メニュー（16.6、UI仕様書_メイン画面 E）：図鑑・職業・順位・イベントルール・あそびかた・設定・セーブ
+// 「せってい」メニュー（16.6、UI仕様書 E）：職業・順位・イベントルール・あそびかた・設定・セーブ。図鑑は メニューの「ずかん」
 public partial class GameRunner
 {
     void SystemMenu()
     {
         var p = S.CurrentPlayer;
-        Add("図鑑", () => ShowDex(p));
         Add("職業", () => ShowJobs(p));
         Add("順位", ShowRanking);
         Add("イベントルール", ShowRule);
@@ -16,7 +15,7 @@ public partial class GameRunner
         Add("設定", ShowGameSettings);
         Add("セーブ", () => { CloseOverlay(); subMenu = SaveMenu; RefreshAll(); });
         Add("もどる", () => { CloseOverlay(); subMenu = null; RefreshAll(); }, KeyCode.Escape);
-        DrawMenu("システム");
+        DrawMenu("せってい");
     }
 
     // 手持ちの詳細（16.6 #41）：6ステータス、特性、技3つ、状態、レベル、コスト、弱点、出会い

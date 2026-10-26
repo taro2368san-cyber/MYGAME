@@ -317,13 +317,16 @@ public partial class GameRunner : MonoBehaviour
     {
         Ui.Clear(canvas.transform);
         BuildHud(); // A 週と天気・B 場所名・C 手番の人・D ほかの人（GameRunner.Hud.cs）
-        // G メッセージ（下の中央）
-        var bottom = Ui.Panel(canvas.transform, "G_Message", new Vector2(0.32f, 0.01f), new Vector2(0.75f, 0.25f), HudColor);
-        messagePanel = bottom.gameObject;
+        // G セリフ欄（下の中央）：濃い緑の箱に白い文字、細い金色のふち。出すときは下からスライド（GameRunner.Hud.cs の SlideMessage）
+        var gold = Ui.Panel(canvas.transform, "G_Message", new Vector2(0.32f, 0.01f), new Vector2(0.75f, 0.25f), new Color(0.85f, 0.7f, 0.3f));
+        messagePanel = gold.gameObject;
+        var bottom = Ui.Panel(gold.transform, "Inner", Vector2.zero, Vector2.one, new Color(0.04f, 0.25f, 0.14f, 0.95f));
+        bottom.rectTransform.offsetMin = new Vector2(3, 3); bottom.rectTransform.offsetMax = new Vector2(-3, -3);
+        messageShown = 0;
         log = Ui.Label(bottom.transform, "", 24);
         log.rectTransform.offsetMin = new Vector2(16, 8); log.rectTransform.offsetMax = new Vector2(-16, -8);
         log.verticalOverflow = VerticalWrapMode.Truncate;
-        // E メニュー（左下）。準備フェーズは 移動／どうぐ／マップ／ポケモン／システム。ほかの場面の選択肢もここに出す
+        // E メニュー（左下）。準備フェーズは いどう／どうぐ／マップ／ポケモン／ずかん／せってい。ほかの場面の選択肢もここに出す
         var right = Ui.Panel(canvas.transform, "E_Menu", new Vector2(0.005f, 0.01f), new Vector2(0.31f, 0.52f), HudColor);
         var promptRect = Ui.Rect(right.transform, "Prompt", new Vector2(0, 0.86f), Vector2.one);
         prompt = Ui.Label(promptRect, "", 24, TextAnchor.MiddleLeft, new Color(1, 0.9f, 0.5f));
@@ -361,11 +364,14 @@ public partial class GameRunner : MonoBehaviour
         banner.transform.parent.gameObject.SetActive(false);
     }
 
+    // セリフ欄に足す。新しい文は 1文字ずつ出す（SlideMessage）
     void AddLog(string text)
     {
         foreach (var line in text.Split('\n')) logLines.Add(line);
         while (logLines.Count > 9) logLines.RemoveAt(0);
-        log.text = string.Join("\n", logLines);
+        typingText = text.Split('\n').Length > logLines.Count ? string.Join("\n", logLines) : text; // 9行より長い文は 最後の9行だけ
+        typed = 0; lastLogTime = Time.time;
+        RenderLog();
     }
 
     // ---- 命令を出して、起きたことを見せる ----
@@ -461,7 +467,7 @@ public partial class GameRunner : MonoBehaviour
             }
             // バトル演出の短縮。絆による回避・進化・バッジは思い出の場面なので短くしない（17.6）
             bool keep = e is Evolved || e is BadgeEarned || (e is RoundResolved rr && rr.Bond);
-            if (text != null) yield return Wait(shortBattle && battlePanel.gameObject.activeSelf && !keep ? messageSeconds / 2 : messageSeconds);
+            if (text != null) yield return WaitMessage(shortBattle && battlePanel.gameObject.activeSelf && !keep ? messageSeconds / 2 : messageSeconds);
             if (HintFor(e) is string hint) yield return ShowHint(hint);
         }
         playing = false;
@@ -472,6 +478,14 @@ public partial class GameRunner : MonoBehaviour
     IEnumerator Wait(float seconds)
     {
         for (float t = 0; t < seconds && !SkipHeld(); t += Time.deltaTime) yield return null;
+    }
+
+    // 文が出きるまで待ち、出てから seconds たつまで見せる（長い文でも 出し始めから seconds は待つ）
+    IEnumerator WaitMessage(float seconds)
+    {
+        float start = Time.time;
+        while (Typing) yield return null;
+        yield return Wait(seconds - (Time.time - start));
     }
 
     // いくつかの演出を同時に動かして、全部終わるまで待つ（両方のHPバーを いっしょに減らす など）
@@ -608,9 +622,10 @@ public partial class GameRunner : MonoBehaviour
     // ---- メニュー（場面ごとのボタン）----
 
     void Add(string label, Action action, KeyCode key = KeyCode.None, bool enabled = true) => menu.Add((label, action, key, enabled));
-    // ポケモンの行：ボタンの左に そのポケモンの絵を出す
-    readonly Dictionary<int, string> menuArt = new Dictionary<int, string>(); // 行の番号 → 種族
-    void AddMon(string species, string label, Action action, KeyCode key = KeyCode.None, bool enabled = true) { menuArt[menu.Count] = species; Add(label, action, key, enabled); }
+    // 絵つきの行：ボタンの左に絵を出す（ポケモンの行は そのポケモンの絵）
+    readonly Dictionary<int, Sprite> menuArt = new Dictionary<int, Sprite>(); // 行の番号 → 絵
+    void AddArt(Sprite art, string label, Action action, KeyCode key = KeyCode.None, bool enabled = true) { if (art != null) menuArt[menu.Count] = art; Add(label, action, key, enabled); }
+    void AddMon(string species, string label, Action action, KeyCode key = KeyCode.None, bool enabled = true) => AddArt(PokemonIcon(species), label, action, key, enabled);
     bool Ok(Command c) => game.Validate(c) == null;
 
     void BuildMenu()
@@ -633,12 +648,13 @@ public partial class GameRunner : MonoBehaviour
         {
             case Phase.Prepare:
                 title = $"{p.Name}の ばん：サイコロを振る前";
-                // E メニュー（UI仕様書_メイン画面）：移動／どうぐ／マップ／ポケモン／システム
-                Add("移動", () => { subMenu = () => DiceMenu(me); RefreshAll(); }, KeyCode.Return);
-                Add("どうぐ", () => { subMenu = () => ItemMenu(me); RefreshAll(); }, KeyCode.None, !p.UsedItem && p.PokemonBag.Concat(p.TrainerBag).Any());
-                Add("マップ", StartExplore);
-                Add("ポケモン", () => { subMenu = () => PokemonMenu(me); RefreshAll(); });
-                Add("システム", () => { subMenu = SystemMenu; RefreshAll(); });
+                // E メニュー（UI仕様書 E）：いどう／どうぐ／マップ／ポケモン／ずかん／せってい。左に その行動の絵
+                AddArt(Ui.Icon("くつ"), "いどう", () => { subMenu = () => DiceMenu(me); RefreshAll(); }, KeyCode.Return);
+                AddArt(Ui.Icon("つりざお"), "どうぐ", () => { subMenu = () => ItemMenu(me); RefreshAll(); }, KeyCode.None, !p.UsedItem && p.PokemonBag.Concat(p.TrainerBag).Any());
+                AddArt(Ui.Icon("地図"), "マップ", StartExplore);
+                AddArt(Ui.Ball(new Color(0.9f, 0.2f, 0.2f)), "ポケモン", () => { subMenu = () => PokemonMenu(me); RefreshAll(); });
+                AddArt(Ui.Icon("本"), "ずかん", () => ShowDex(p));
+                AddArt(Ui.Icon("スパナ"), "せってい", () => { subMenu = SystemMenu; RefreshAll(); });
                 break;
             case Phase.Moving:
                 int left = S.Move.Dice + S.Move.Extra - (S.Move.Path.Count - 1);
@@ -937,10 +953,12 @@ public partial class GameRunner : MonoBehaviour
             var (label, action, _, enabled) = menu[i];
             var b = Ui.Button(buttons, i < 9 ? $"{i + 1}. {label}" : label, action);
             b.interactable = enabled;
-            if (menuArt.TryGetValue(i, out var species) && PokemonIcon(species) is Sprite art)
+            var faded = new Color(1, 1, 1, enabled ? 1 : 0.35f); // 使えないときは 絵も文字も薄く
+            b.GetComponentInChildren<Text>().color = faded;
+            if (menuArt.TryGetValue(i, out var art))
             {
                 float h = grid.cellSize.y - 4;
-                var icon = Ui.Panel(b.transform, "Mon", new Vector2(0, 0.5f), new Vector2(0, 0.5f), Color.white);
+                var icon = Ui.Panel(b.transform, "Mon", new Vector2(0, 0.5f), new Vector2(0, 0.5f), faded);
                 icon.sprite = art; icon.preserveAspect = true; icon.raycastTarget = false;
                 icon.rectTransform.sizeDelta = new Vector2(h, h); icon.rectTransform.anchoredPosition = new Vector2(6 + h / 2, 0);
                 b.GetComponentInChildren<Text>().rectTransform.offsetMin = new Vector2(h + 10, 0); // 文字は絵の右から
@@ -1002,6 +1020,7 @@ public partial class GameRunner : MonoBehaviour
     {
         // HPが赤いあいだ ピコピコ（バトル画面が出ていて、プレイヤーのポケモンのHPが2割以下）
         if (sound != null) sound.SetAlarm(battlePanel != null && battlePanel.gameObject.activeInHierarchy && cards[0] != null && cards.Any(c => c.Danger));
+        SlideMessage(); // G セリフ欄
         var cam = Camera.main;
         if (cam == null || cameraTarget == null) return;
         Vector3 want = cameraTarget.position + camPan + cameraOffset * zoom;

@@ -50,6 +50,103 @@ public static class Ui
         return balls[top] = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f));
     }
 
+    // ドット絵を文字の表から作る（1文字＝1ドット、上の行が絵の上）。表にない文字・足りない所は透明
+    public static Sprite Pixels(string[] rows, System.Collections.Generic.Dictionary<char, Color> palette)
+    {
+        int h = rows.Length, w = 0;
+        foreach (var r in rows) w = Mathf.Max(w, r.Length);
+        var tex = new Texture2D(w, h, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                tex.SetPixel(x, h - 1 - y, x < rows[y].Length && palette.TryGetValue(rows[y][x], out var c) ? c : Color.clear);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f));
+    }
+
+    // メニューの絵（UI仕様書 E）：いどう くつ／どうぐ つりざお／マップ 地図／ずかん 本／せってい スパナ。ポケモンは Ball。仮の絵
+    static readonly System.Collections.Generic.Dictionary<char, Color> IconColors = new System.Collections.Generic.Dictionary<char, Color>
+    {
+        ['k'] = new Color(0.12f, 0.1f, 0.1f), ['b'] = new Color(0.6f, 0.36f, 0.16f), ['w'] = Color.white, ['s'] = new Color(0.85f, 0.85f, 0.85f),
+        ['r'] = new Color(0.85f, 0.2f, 0.2f), ['R'] = new Color(0.55f, 0.1f, 0.1f), ['y'] = new Color(0.96f, 0.88f, 0.6f), ['Y'] = new Color(0.7f, 0.5f, 0.25f),
+        ['u'] = new Color(0.35f, 0.6f, 0.95f), ['g'] = new Color(0.4f, 0.75f, 0.35f), ['m'] = new Color(0.75f, 0.78f, 0.82f), ['M'] = new Color(0.45f, 0.48f, 0.52f),
+    };
+    static readonly System.Collections.Generic.Dictionary<string, string[]> IconArt = new System.Collections.Generic.Dictionary<string, string[]>
+    {
+        ["くつ"] = new[] { "", "", "", "....kkkkk", "....kbbbk", "....kbbbk", "....kbbbk", "....kbbbbkk", "....kbbbbbbkk", "...kbbbbbbbbbk", "..kbbbbbbbbbbbk", "..kbbbbbbbbbbbk", "..kkkkkkkkkkkkk", "..kwwwwwwwwwwwk", "..kkkkkkkkkkkkk" },
+        ["つりざお"] = new[] { "..............kk", ".............kbk", "............kbks", "...........kbk.s", "..........kbk..s", ".........kbk...s", "........kbk....s", ".......kbk.....s", "......kbk......s", ".....kbk.......s", "....kbk........s", "...kRk......s..s", "..kRRk......ssss", ".kRRk", ".kkk" },
+        ["地図"] = new[] { "", ".kkkkkkkkkkkkkk", ".kyyyyyyyyyyyyk", ".kyuuyyyyyyyyyk", ".kyuuuyyyygggyk", ".kyyuuyyyygggyk", ".kyyyyyyyyyggyk", ".kyyYYYYYyyyyyk", ".kyyyyyyYyyyyyk", ".kyyyyyyyYryryk", ".kyggyyyyyYrryk", ".kgggyyyyyyryrk", ".kyyyyyyyyyyyyk", ".kkkkkkkkkkkkkk" },
+        ["本"] = new[] { "", "...kkkkkkkkkkk", "...kRrrrrrrrrk", "...kRrrrrrrrrk", "...kRrwwwwwrrk", "...kRrwkkkwrrk", "...kRrwwwwwrrk", "...kRrrrrrrrrk", "...kRrrrrrrrrk", "...kRrrrrrrrrk", "...kRrrrrrrrrk", "...kRrrrrrrrrk", "...kRwwwwwwwwk", "...kkkkkkkkkkk" },
+        ["スパナ"] = new[] { "...........mm.m", "..........mm..mm", "..........mm..mm", "..........mmmmmM", "...........mmmM", "..........mmM", ".........mmM", "........mmM", ".......mmM", "......mmM", ".....mmM", "....mmM", "...mmM", "..mmM", "..mM" },
+    };
+    static readonly System.Collections.Generic.Dictionary<string, Sprite> icons = new System.Collections.Generic.Dictionary<string, Sprite>();
+    public static Sprite Icon(string name)
+    {
+        if (!icons.TryGetValue(name, out var s)) icons[name] = s = IconArt.TryGetValue(name, out var art) ? Pixels(art, IconColors) : null;
+        return s;
+    }
+
+    // バッジ（仮の絵）：ジムごとの形と色。取っていなければ黒い影（UI仕様書 C）
+    public static readonly string[] BadgeGyms = { "ニビジム", "ハナダジム", "クチバジム", "タマムシジム", "セキチクジム", "ヤマブキジム", "グレンジム", "トキワジム" };
+    static readonly Color[] BadgeColors =
+    {
+        new Color(0.62f, 0.62f, 0.66f), new Color(0.3f, 0.55f, 0.95f), new Color(1f, 0.6f, 0.15f), new Color(0.5f, 0.85f, 0.4f),
+        new Color(0.95f, 0.45f, 0.7f), new Color(0.95f, 0.8f, 0.25f), new Color(0.9f, 0.25f, 0.2f), new Color(0.3f, 0.7f, 0.35f),
+    };
+    static readonly System.Collections.Generic.Dictionary<int, Sprite> badges = new System.Collections.Generic.Dictionary<int, Sprite>();
+    public static Sprite Badge(int index, bool owned)
+    {
+        int key = index * 2 + (owned ? 1 : 0);
+        if (badges.TryGetValue(key, out var s)) return s;
+        const int n = 32; const float r = 14f;
+        bool Inside(int px, int py)
+        {
+            float x = px + 0.5f - n / 2f, y = py + 0.5f - n / 2f, d = Mathf.Sqrt(x * x + y * y), a = Mathf.Atan2(y, x);
+            switch (index)
+            {
+                case 0: return Mathf.Abs(x) <= r * 0.9f && Mathf.Abs(y) <= r * 0.9f && Mathf.Abs(x) + Mathf.Abs(y) <= r * 1.3f;   // 八角形
+                case 1: return Vector2.Distance(new Vector2(x, y), new Vector2(0, -4)) <= r * 0.65f || (y >= -4 && Mathf.Abs(x) <= r * 0.65f * (1 - (y + 4) / 17f)); // しずく
+                case 2: return d <= r * (0.55f + 0.45f * Mathf.Pow(Mathf.Abs(Mathf.Cos(4 * a)), 3));                           // 8本のとげ
+                case 3: return d <= r * (0.7f + 0.3f * Mathf.Cos(5 * a));                                                       // 花
+                case 4: { float u = x / r * 1.25f, v = y / r * 1.25f + 0.2f; float q = u * u + v * v - 1; return q * q * q - u * u * v * v * v <= 0; } // ハート
+                case 5: return d <= r && d >= r * 0.45f;                                                                        // 輪
+                case 6: return y >= -r && y <= r * 0.8f && Mathf.Abs(x) <= (r * 0.8f - y) * 0.6f;                               // 三角（火山）
+                default: { float c = 0.7071f, u = (x + y) * c, v = (y - x) * c; return Vector2.Distance(new Vector2(u, v), new Vector2(-r * 0.55f, 0)) <= r && Vector2.Distance(new Vector2(u, v), new Vector2(r * 0.55f, 0)) <= r; } // 葉
+            }
+        }
+        var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        var col = BadgeColors[index];
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                if (!Inside(x, y)) { tex.SetPixel(x, y, Color.clear); continue; }
+                bool edge = !Inside(x - 1, y) || !Inside(x + 1, y) || !Inside(x, y - 1) || !Inside(x, y + 1);
+                var c = index == 3 && !edge ? Color.HSVToRGB(Mathf.Repeat(Mathf.Atan2(y - n / 2f, x - n / 2f) / (2 * Mathf.PI), 1), 0.55f, 1f) : col; // レインボーは虹色
+                tex.SetPixel(x, y, !owned ? new Color(0.05f, 0.05f, 0.08f, 0.85f) : edge ? c * 0.55f + new Color(0, 0, 0, 0.45f) : c);
+            }
+        tex.Apply();
+        return badges[key] = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f));
+    }
+
+    // メダル（D のバッジの数の下地）：金の丸に こい金のふち
+    static Sprite medal;
+    public static Sprite Medal
+    {
+        get
+        {
+            if (medal != null) return medal;
+            const int n = 32; float c = n / 2f;
+            var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(c, c));
+                    tex.SetPixel(x, y, d > 15 ? Color.clear : d > 13 ? new Color(0.6f, 0.42f, 0.08f) : new Color(0.98f, 0.8f, 0.25f));
+                }
+            tex.Apply();
+            return medal = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f));
+        }
+    }
+
     public static Canvas Canvas(string name)
     {
         var go = new GameObject(name, typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
