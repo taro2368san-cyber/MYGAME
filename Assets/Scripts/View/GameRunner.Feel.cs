@@ -106,20 +106,6 @@ public partial class GameRunner
         hurt.enabled = true;
     }
 
-    IEnumerator CardAnim(InitiativeDrawn x)
-    {
-        float total = shortBattle ? 1f : 2f;
-        string Row(System.Func<int, string> card) => string.Join(" ", Enumerable.Range(0, x.Cards.Count).Select(card));
-        yield return ShowBig($"カード {x.Cards.Count}枚\n{Row(_ => "［？］")}", Color.white);
-        yield return Wait(total * 0.35f);
-        yield return ShowBig($"1枚 ひく…\n{Row(i => i == x.Picked ? "【？】" : "［？］")}", new Color(1f, 0.95f, 0.6f));
-        yield return Wait(total * 0.3f);
-        // めくると、引いたカードの先攻が決まる。ほかのカードも表にする（同じ側の先攻なら「先」）
-        yield return ShowBig($"{x.FirstPokemon}の 先攻！\n{Row(i => i == x.Picked ? "【先】" : x.Cards[i] == x.First ? "［先］" : "［後］")}", new Color(1f, 0.85f, 0.4f));
-        yield return Wait(total * 0.35f);
-        banner.transform.parent.gameObject.SetActive(false);
-    }
-
     // ---- 自分に起きたことは、自分の番の最初にまとめて伝える（17.5）----
     readonly System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<string>> notices = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<string>>();
 
@@ -163,7 +149,7 @@ public partial class GameRunner
         {
             case Landed l when board[l.Square].Type == "草むら": h = ("hint_grass", "草むらに止まると、野生のポケモンが出ることがあります。弱らせてから ボールを投げると 捕まえやすくなります", l.Player); break;
             case Landed l when board[l.Square].Type == "ジム": h = ("hint_gym", "ジムはフルバトルです。町のジムトレーナーが みんな倒されてからでないと 挑めません", l.Player); break;
-            case BattleStarted b when b.Players[0] >= 0: h = ("hint_battle", "バトルは 攻撃側と防御側が 同時にコマンドを選びます。物理攻撃は「まもる」、特殊攻撃は「特殊守り」、必殺技は「カウンター」で防げます", b.Players[0]); break;
+            case BattleStarted b when b.Players[0] >= 0: h = ("hint_battle", "バトルは 攻撃側と防御側が 同時にコマンドを選びます。相手と 同じ記号（□・○・△）を押せば 守れます", b.Players[0]); break;
             case BallPrompt bp: h = ("hint_ball", "攻撃と防御が1往復するたびに ボールを投げられます。相手のHPが少ないほど 捕まえやすくなります", bp.Player); break;
             case FacilityOpened f when f.Kind == FacilityKind.Center: h = ("hint_center", "ポケモンセンターでは、回復・手持ちと控えの入れ替え・もちものの着けはずし・職業の変更が できます", f.Player); break;
             case FacilityOpened f when f.Kind == FacilityKind.Shop: h = ("hint_shop", "ショップでは道具を買ったり売ったりできます。町ごとに 品ぞろえが ちがいます", f.Player); break;
@@ -183,7 +169,7 @@ public partial class GameRunner
     static readonly (string key, string title, string text)[] HelpTopics =
     {
         ("help_move", "移動", "サイコロは{dice}。0なら その場に もう一度 止まります。まとめて方式は止まれるマスが光り、1マスずつ方式は となりへ1歩ずつ進みます。直前のマスには戻れません（止まれるマスがないときだけ、折り返しも数えます）。自転車でサイコロが増え、くつで出目を決められます。WASD・矢印キー（コントローラーは右スティック）で 画面を動かせます"),
-        ("help_battle", "バトル", "攻撃側と防御側が同時にコマンドを選びます。物理攻撃は「まもる」、特殊攻撃は「特殊守り」、必殺技は「カウンター」が当たりで、ガードできるとダメージが1/3、カウンターは2倍を はね返します。弱点を突くと1.5倍。必殺技は続けて打てません。攻撃と防御が1往復すると その人の番は終わり、次の自分の番に 続きから戦います（プレイヤーどうしは 最後まで）。先頭1体どうしの クイックバトルと、手持ち全員の フルバトルがあります"),
+        ("help_battle", "バトル", "攻撃側と防御側が同時にコマンドを選びます。□こうげきは □ぼうぎょ、○とくこうは ○とくぼう、△必殺は △カウンターが当たりで（同じ記号どうしで守れる）、ガードできるとダメージが1/3、カウンターは2倍を はね返します。どうぐ・にげるは R1 です。弱点を突くと1.5倍。必殺技は続けて打てません。攻撃と防御が1往復すると その人の番は終わり、次の自分の番に 続きから戦います（プレイヤーどうしは 最後まで）。先頭1体どうしの クイックバトルと、手持ち全員の フルバトルがあります"),
         ("help_catch", "捕獲", "野生とのバトルでは、攻撃と防御が1往復するたびに ボールを投げられます。相手のHPが少ないほど、ボールが良いほど、バッジが多いほど 捕まえやすくなります。手持ちは3体まで、あふれた子は控えに入ります"),
         ("help_fan", "ファン", "トレーナーに勝つと そのトレーナーが ファンになります。7週ごとに年貢が入り、自分のファンのマスでは回復と道具、ほかの人のファンのマスでは回復代を払います。プレイヤーどうしのバトルの勝利報酬や バトルサーチャーで 奪い合えます"),
         ("help_job", "職業", "条件を満たすと職業が解放され、ポケモンセンターで就いたり変えたりできます。タイプの職業は そのタイプのポケモンが強くなるなど、職業ごとに得意なことがあります"),

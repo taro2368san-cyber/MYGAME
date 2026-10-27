@@ -147,6 +147,7 @@ namespace Sugoroku.Rules
     public sealed class ChooseAttack : Command { public Attack Attack; public string Item; }
     public sealed class ChooseDefense : Command { public Defense Defense; }
     public sealed class ThrowBall : Command { public string Ball; }      // Ball が null なら投げない
+    public sealed class PickCard : Command { public int Card; }          // 先攻・後攻のカードを1枚選ぶ（何枚目か、7.1.2）
     public sealed class ChooseReward : Command { public Reward Reward; public string Item; public int Take = -1, Give = -1; public bool GiveFromBox; } // Trade：相手の手持ちの Take 番を、自分の Give 番（GiveFromBox なら控え）と交換
 
     // 結果（仕様書15.5）。表示はこれを順に受け取って演出にする

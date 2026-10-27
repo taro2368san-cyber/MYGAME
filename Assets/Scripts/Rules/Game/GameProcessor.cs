@@ -70,6 +70,7 @@ namespace Sugoroku.Rules
                 game.DebugEnabled = true; // デバッグ命令も記録に入っているので、流し直すあいだは受け付ける
                 for (int i = 0; i < commands.Count; i++)
                 {
+                    if (game.State.Battle?.Step == BattleStep.Initiative && !(commands[i] is PickCard)) game.AutoPickCard(); // 前の版のセーブ
                     events = game.Apply(commands[i], out string e);
                     if (e != null) { error = $"{i + 1}番目の命令（{commands[i].GetType().Name}）が受け付けられません：{e}"; return null; }
                 }
@@ -90,7 +91,7 @@ namespace Sugoroku.Rules
                 case Phase.Battle:
                     var b = s.Battle;
                     if (b.Step == BattleStep.Select) return b.Sides.Where(x => x.NeedsSelect && x.Player >= 0).Select(x => x.Player).ToList();
-                    if (b.Step == BattleStep.Ball) return new List<int> { b.Sides[0].Player };
+                    if (b.Step == BattleStep.Ball || b.Step == BattleStep.Initiative) return new List<int> { b.Sides[0].Player };
                     if (b.Step == BattleStep.Reward) return new List<int> { b.Sides[b.Winner].Player };
                     var list = new List<int>();
                     if (b.AttackCmd == null && b.Sides[b.Attacker].Player >= 0) list.Add(b.Sides[b.Attacker].Player);

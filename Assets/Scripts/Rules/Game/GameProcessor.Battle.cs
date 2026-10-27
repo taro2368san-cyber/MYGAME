@@ -101,25 +101,25 @@ namespace Sugoroku.Rules
             for (int i = 0; i < 2; i++)
                 if (Transforms(B.Sides[i])) events.Add(new Transformed { Side = i, Pokemon = B.Sides[i].Current.Species, Into = B.Sides[1 - i].Current.Species });
             OnEnter(events);
-            DrawInitiative(events);
-            BeginCommands(events);
+            if (DrawInitiative(events)) BeginCommands(events);
         }
 
-        // 先攻・後攻のカード（7.1.2）。すばやさの比で、速い側の先攻カードが1〜3枚になる。仕掛けた側が1枚引く
-        void DrawInitiative(List<GameEvent> events)
+        // 先攻・後攻のカード（7.1.2）。すばやさの比で、速い側の先攻カードが1〜3枚になる。表で見せて混ぜたあと、仕掛けた側が1枚選ぶ（PickCard）
+        // へんしん・せんせいのツメで すぐ決まったら true（選ぶのを待つなら false）
+        bool DrawInitiative(List<GameEvent> events)
         {
             if (Transforms(B.Sides[0]) != Transforms(B.Sides[1]))
             {
                 B.First = B.Attacker = Transforms(B.Sides[0]) ? 0 : 1;
                 events.Add(new InitiativeDrawn { Cards = new List<int> { B.Attacker }, Picked = 0, First = B.Attacker, FirstPokemon = B.Sides[B.Attacker].Current.Species });
-                return;
+                return true;
             }
             int claw = HeldFirst(events); // せんせいのツメ
             if (claw >= 0)
             {
                 B.First = B.Attacker = claw;
                 events.Add(new InitiativeDrawn { Cards = new List<int> { claw }, Picked = 0, First = claw, FirstPokemon = B.Sides[claw].Current.Species });
-                return;
+                return true;
             }
             int s0 = BattleSpeed(B.Sides[0]), s1 = BattleSpeed(B.Sides[1]);
             int fast = s0 >= s1 ? 0 : 1;
@@ -130,9 +130,28 @@ namespace Sugoroku.Rules
             if (tail0 != tail1) { fast = tail0 ? 1 : 0; fastCards = 3; }
             var cards = Enumerable.Repeat(fast, fastCards).Append(1 - fast).ToList();
             for (int i = cards.Count - 1; i > 0; i--) { int j = Roll(0, i); (cards[i], cards[j]) = (cards[j], cards[i]); }
-            int picked = Roll(0, cards.Count - 1);
+            B.Cards = cards;
+            B.Step = BattleStep.Initiative;
+            events.Add(new CardsDealt { Cards = cards, Player = B.Sides[0].Player });
+            return false;
+        }
+
+        // 選んだカードをめくる。そのカードの側が先攻
+        void PickInitiative(int picked, List<GameEvent> events)
+        {
+            var cards = B.Cards;
+            B.Cards = null;
             B.First = B.Attacker = cards[picked];
             events.Add(new InitiativeDrawn { Cards = cards, Picked = picked, First = B.Attacker, FirstPokemon = B.Sides[B.Attacker].Current.Species });
+            BeginCommands(events);
+        }
+
+        // 前の版のセーブ（カードを選ぶ命令がない）を読むとき：前と同じく乱数で1枚引く。命令の記録には残さない
+        internal void AutoPickCard()
+        {
+            var events = new List<GameEvent>();
+            PickInitiative(Roll(0, B.Cards.Count - 1), events);
+            Record(events);
         }
 
         // 攻撃側・防御側のコマンドを待つ。NPC はここで決めてしまう（見せない）
@@ -196,6 +215,10 @@ namespace Sugoroku.Rules
                     if (b.DefenseCmd != null) return "もう選んでいます";
                     return d.Defense == Defense.Flee && b.Kind == BattleKind.Gym ? "ジム戦からは にげられません" : null;
                 }
+                case PickCard pc:
+                    if (b.Step != BattleStep.Initiative) return "今はカードを選ぶときではありません";
+                    if (b.Sides[0].Player != c.Player) return "カードを選ぶのはあなたではありません";
+                    return pc.Card >= 0 && pc.Card < b.Cards.Count ? null : "そのカードはありません";
                 case ThrowBall t:
                 {
                     if (b.Step != BattleStep.Ball) return "今はボールを投げられません";
@@ -249,6 +272,9 @@ namespace Sugoroku.Rules
                 case ChooseDefense d:
                     b.DefenseCmd = d.Defense;
                     break;
+                case PickCard pc:
+                    PickInitiative(pc.Card, events);
+                    return;
                 case ThrowBall t:
                     if (t.Ball == null) BeginCommands(events);
                     else Throw(t.Ball, events);

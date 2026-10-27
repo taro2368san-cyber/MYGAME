@@ -238,6 +238,9 @@ namespace Sugoroku.Rules
                         yield return new ChooseDefense { Player = p.Id, Defense = guess };
                     }
                     break;
+                case BattleStep.Initiative: // 裏返して混ぜたカードなので、どれを選んでも同じ
+                    yield return new PickCard { Player = p.Id, Card = r.Next(b.Cards.Count) };
+                    break;
                 case BattleStep.Ball:
                 {
                     var wild = other.Current;

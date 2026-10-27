@@ -9,7 +9,7 @@ using UnityEngine.InputSystem.Controls;
 #endif
 
 // コントローラー（仕様書16.1 #4・16.5・16.9・17.4）。Input System のパッケージで動く
-// メニュー：十字キーで選ぶ、○で決定、×でもどる。バトル：攻撃 ○物理 △特殊 □必殺 L1/R1どうぐ、防御 ○まもる △特殊守り □カウンター L1/R1にげる
+// メニュー：十字キーで選ぶ、○で決定、×でもどる。バトル（UI仕様書 7.2）：攻撃 □こうげき ○とくこう △必殺 R1どうぐ、防御 □ぼうぎょ ○とくぼう △カウンター R1にげる。カードは 十字キー左右と ○
 // 移動：十字キー・左スティックで 道がつながっている向きへ（ななめの道も近い向きで進める）、○で選ぶ・決定、×で1歩もどす。ふだんはコントローラー1、プレイヤー戦は 仕掛けた側が1・相手が2（16.5 #28）
 // ボタンを並べた画面（タイトル・設定・ゲーム設定・つづきから・結果発表など）：十字キーで選ぶ、○で押す、×でもどる。エンドロールは ○で早送り、STARTで とばす
 public partial class GameRunner
@@ -102,14 +102,17 @@ public partial class GameRunner
             var stick = g.leftStick.ReadValue() + g.dpad.ReadValue();
             if (stick.sqrMagnitude > 0.04f) exploreFocus.position += new Vector3(stick.x, 0, stick.y).normalized * 15f * zoom * Time.deltaTime;
         }
-        // バトルのコマンド：○△□ と L1/R1 を、そのコマンドのキーとして押す
+        // バトルのコマンド（UI仕様書 7.2）：□ ○ △ R1 を、そのコマンドのキー（A S D F）として押す。攻撃も防御も同じ記号は同じボタン
         if (S.Phase == Phase.Battle && S.Battle.Step == BattleStep.Commands && subMenu == null)
         {
-            bool attack = S.Battle.AttackCmd == null;
-            KeyCode key = Down(g, x => x.buttonEast) ? (attack ? KeyCode.Z : KeyCode.A)
-                        : Down(g, x => x.buttonNorth) ? (attack ? KeyCode.X : KeyCode.S)
-                        : Down(g, x => x.buttonWest) ? (attack ? KeyCode.C : KeyCode.D)
-                        : Down(g, x => x.leftShoulder) || Down(g, x => x.rightShoulder) ? (attack ? KeyCode.V : KeyCode.F) : KeyCode.None;
+            KeyCode key = Down(g, x => x.buttonWest) ? KeyCode.A : Down(g, x => x.buttonEast) ? KeyCode.S
+                        : Down(g, x => x.buttonNorth) ? KeyCode.D : Down(g, x => x.rightShoulder) ? KeyCode.F : KeyCode.None;
+            if (key != KeyCode.None) { PressKey(key); return true; }
+        }
+        // 先攻・後攻のカード：十字キー左右で選んで ○
+        if (S.Phase == Phase.Battle && S.Battle.Step == BattleStep.Initiative && subMenu == null)
+        {
+            KeyCode key = Down(g, x => x.dpad.left) ? KeyCode.LeftArrow : Down(g, x => x.dpad.right) ? KeyCode.RightArrow : Down(g, x => x.buttonEast) ? KeyCode.Return : KeyCode.None;
             if (key != KeyCode.None) { PressKey(key); return true; }
         }
         // 移動：十字キー・左スティックで 道がつながっている向きへ（1マスずつ方式は そのまま1歩、まとめて方式は カーソルが道をたどる）

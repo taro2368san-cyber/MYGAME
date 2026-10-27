@@ -148,7 +148,9 @@ public partial class GameRunner
     {
         int fresh = typingText.Split('\n').Length, old = Mathf.Max(0, logLines.Count - fresh);
         string shown = typingText.Substring(0, Mathf.Min((int)typed, typingText.Length));
-        log.text = string.Join("\n", logLines.Take(old)) + (old > 0 ? "\n" : "") + shown;
+        var lines = (string.Join("\n", logLines.Take(old)) + (old > 0 ? "\n" : "") + shown).Split('\n');
+        int fit = Mathf.Max(1, Mathf.FloorToInt(log.rectTransform.rect.height / (log.fontSize * 1.2f))); // 欄に入る行数（新しい行が下にはみ出さないように 古い行から消す）
+        log.text = string.Join("\n", lines.Skip(Mathf.Max(0, lines.Length - fit)));
     }
 
     // 場面ごとの表示（UI仕様書 3）：移動中・見渡し中は隠す。準備フェーズは 新しい文があるときだけ

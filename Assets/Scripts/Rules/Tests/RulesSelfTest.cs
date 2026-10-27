@@ -779,13 +779,32 @@ namespace Sugoroku.Rules
                 for (int i = 0; i < 40 && bg.State.Battle != null && !switched; i++)
                 {
                     var b = bg.State.Battle;
-                    if (b.Step == BattleStep.Select && i == 0) { bg.Apply(new SelectPokemon { Player = 0, Slot = 0 }, out _); continue; } // フルバトルの最初の選出
+                    if (b.Step == BattleStep.Select && i == 0) { PickFirstCard(bg, bg.Apply(new SelectPokemon { Player = 0, Slot = 0 }, out _)); continue; } // フルバトルの最初の選出
                     if (b.Step != BattleStep.Commands) break; // 先に倒れた（選び直し）など
-                    var ev = b.Sides[b.Attacker].Player == 0 ? bg.Apply(new ChooseAttack { Player = 0, Attack = Attack.Special }, out _) : bg.Apply(new ChooseDefense { Player = 0, Defense = Defense.Counter }, out _);
+                    var ev = PickFirstCard(bg, b.Sides[b.Attacker].Player == 0 ? bg.Apply(new ChooseAttack { Player = 0, Attack = Attack.Special }, out _) : bg.Apply(new ChooseDefense { Player = 0, Defense = Defense.Counter }, out _));
                     switched = ev.OfType<SwitchedOut>().Any(x => x.Side == 0);
                 }
                 }
                 Check(log, "脱出ボタン：ダメージを受けたら交代、いまの子は選べない、なくならない", switched && bg.State.Players[0].Party[0].HeldItem == "脱出ボタン" && bg.State.Battle?.Step == BattleStep.Select && bg.Validate(new SelectPokemon { Player = 0, Slot = 0 }) != null && bg.Validate(new SelectPokemon { Player = 0, Slot = 1 }) == null);
+            }
+
+            // 先攻・後攻のカード（7.1.2、UI仕様書 7.3 ②）：仕掛けた側が選んだカードの側が先攻。前の版のセーブ（カードを選ぶ命令がない）も読める
+            {
+                var cg = GameProcessor.NewGame(board, data, new List<(string, MoveMode, string)> { ("A", MoveMode.Highlight, "ヒトカゲ"), ("B", MoveMode.Highlight, "ゼニガメ") }, 10, 7, out _);
+                var pol = new Random(7);
+                for (int i = 0; i < 20000 && cg.State.Battle?.Step != BattleStep.Initiative && cg.State.Phase != Phase.GameOver; i++) cg.Apply(RandomCommand(cg.State, board, pol), out _);
+                var cb = cg.State.Battle;
+                bool ok = cb?.Step == BattleStep.Initiative;
+                if (ok)
+                {
+                    int picker = cb.Sides[0].Player, k = cb.Cards.Count - 1, want = cb.Cards[k];
+                    ok = cg.WaitingFor().SequenceEqual(new[] { picker }) && cg.Validate(new PickCard { Player = 1 - picker, Card = 0 }) != null && cg.Validate(new ChooseAttack { Player = picker, Attack = Attack.Physical }) != null;
+                    var drawn = cg.Apply(new PickCard { Player = picker, Card = k }, out _).OfType<InitiativeDrawn>().FirstOrDefault();
+                    ok &= drawn != null && drawn.First == want && cb.Attacker == want && cb.Step == BattleStep.Commands;
+                    string old = string.Join("\n", SaveFile.Write(cg.State).Split('\n').Where(l => !l.StartsWith("cmd PickCard")));
+                    ok &= GameProcessor.Load(board, data, old, out _, out string loadError) != null && loadError == null;
+                }
+                Check(log, "先攻・後攻のカード：仕掛けた側が選び、そのカードの側が先攻。前の版のセーブも読める", ok);
             }
             if (gymTrainerSq != null && gymTrainerSq.Neighbors.Count > 0)
             {
@@ -1029,6 +1048,8 @@ namespace Sugoroku.Rules
                                 return new ChooseAttack { Player = a.Player, Attack = atk, Item = atk == Attack.Item && bagA.Count > 0 ? Any(bagA) : null };
                             }
                             return new ChooseDefense { Player = d.Player, Defense = r.Next(20) == 0 ? Defense.Flee : (Defense)r.Next(3) };
+                        case BattleStep.Initiative:
+                            return new PickCard { Player = b.Sides[0].Player, Card = r.Next(b.Cards.Count) };
                         case BattleStep.Ball:
                             var balls = s.Players[b.Sides[0].Player].Balls.Where(x => x.Value > 0).Select(x => x.Key).ToList();
                             return new ThrowBall { Player = b.Sides[0].Player, Ball = balls.Count > 0 && r.Next(2) == 0 ? Any(balls) : null };
@@ -1136,6 +1157,14 @@ namespace Sugoroku.Rules
             if (c.Player == 0 && game.State.Players.Count == 1) c.Player = game.State.CurrentPlayer.Id;
             var events = game.Apply(c, out string error);
             if (error != null) throw new Exception($"命令 {c.GetType().Name} が受け付けられませんでした: {error}");
+            return PickFirstCard(game, events);
+        }
+
+        // 先攻・後攻のカードを待っていたら 1枚目を選び、その出来事もつなげる（カード選びを試すテスト以外は 気にしなくてよいように）
+        static List<GameEvent> PickFirstCard(GameProcessor game, List<GameEvent> events)
+        {
+            if (game.State.Battle?.Step == BattleStep.Initiative)
+                events.AddRange(game.Apply(new PickCard { Player = game.State.Battle.Sides[0].Player, Card = 0 }, out _));
             return events;
         }
 

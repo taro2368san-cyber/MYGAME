@@ -317,8 +317,9 @@ public partial class GameRunner : MonoBehaviour
     {
         Ui.Clear(canvas.transform);
         BuildHud(); // A 週と天気・B 場所名・C 手番の人・D ほかの人（GameRunner.Hud.cs）
+        BuildBattleScene(); // バトル画面（GameRunner.Battle.cs）。セリフ欄とメニューは この上に出す
         // G セリフ欄（下の中央）：濃い緑の箱に白い文字、細い金色のふち。出すときは下からスライド（GameRunner.Hud.cs の SlideMessage）
-        var gold = Ui.Panel(canvas.transform, "G_Message", new Vector2(0.32f, 0.01f), new Vector2(0.75f, 0.25f), new Color(0.85f, 0.7f, 0.3f));
+        var gold = messageGold = Ui.Panel(canvas.transform, "G_Message", new Vector2(0.32f, 0.01f), new Vector2(0.75f, 0.25f), new Color(0.85f, 0.7f, 0.3f));
         messagePanel = gold.gameObject;
         var bottom = Ui.Panel(gold.transform, "Inner", Vector2.zero, Vector2.one, new Color(0.04f, 0.25f, 0.14f, 0.95f));
         bottom.rectTransform.offsetMin = new Vector2(3, 3); bottom.rectTransform.offsetMax = new Vector2(-3, -3);
@@ -327,7 +328,7 @@ public partial class GameRunner : MonoBehaviour
         log.rectTransform.offsetMin = new Vector2(16, 8); log.rectTransform.offsetMax = new Vector2(-16, -8);
         log.verticalOverflow = VerticalWrapMode.Truncate;
         // E メニュー（左下）。準備フェーズは いどう／どうぐ／マップ／ポケモン／ずかん／せってい。ほかの場面の選択肢もここに出す
-        var right = Ui.Panel(canvas.transform, "E_Menu", new Vector2(0.005f, 0.01f), new Vector2(0.31f, 0.52f), HudColor);
+        var right = menuPanel = Ui.Panel(canvas.transform, "E_Menu", new Vector2(0.005f, 0.01f), new Vector2(0.31f, 0.52f), HudColor);
         var promptRect = Ui.Rect(right.transform, "Prompt", new Vector2(0, 0.86f), Vector2.one);
         prompt = Ui.Label(promptRect, "", 24, TextAnchor.MiddleLeft, new Color(1, 0.9f, 0.5f));
         prompt.rectTransform.offsetMin = new Vector2(14, 0); prompt.rectTransform.offsetMax = new Vector2(-10, 0);
@@ -336,10 +337,6 @@ public partial class GameRunner : MonoBehaviour
         grid.cellSize = new Vector2(560, 50); grid.spacing = new Vector2(8, 6); grid.padding = new RectOffset(12, 12, 6, 6);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount; grid.constraintCount = 1;
 
-        battlePanel = Ui.Panel(canvas.transform, "Battle", new Vector2(0.27f, 0.36f), new Vector2(0.97f, 0.9f), new Color(0.05f, 0.05f, 0.1f, 0.85f)).rectTransform;
-        cards[0] = new BattleCard(Ui.Rect(battlePanel, "Side0", new Vector2(0.03f, 0.08f), new Vector2(0.47f, 0.92f)), this);
-        cards[1] = new BattleCard(Ui.Rect(battlePanel, "Side1", new Vector2(0.53f, 0.08f), new Vector2(0.97f, 0.92f)), this);
-        battlePanel.gameObject.SetActive(false);
         var bannerPanel = Ui.Panel(canvas.transform, "Banner", new Vector2(0.1f, 0.42f), new Vector2(0.9f, 0.62f), new Color(0, 0, 0, 0.85f));
         banner = Ui.Label(bannerPanel.transform, "", 46, TextAnchor.MiddleCenter);
         bannerIcon = Ui.Panel(bannerPanel.transform, "Mon", new Vector2(0.02f, 0.08f), new Vector2(0.14f, 0.92f), Color.white); // 捕まえた・進化した子の絵
@@ -416,7 +413,9 @@ public partial class GameRunner : MonoBehaviour
                     break;
                 case WeekEventHappened we: yield return Banner(text, new Color(0.7f, 0.9f, 1f), 2); continue;            // 週イベントの告知（17.6）
                 case DiceRolled dr: yield return DiceAnim(dr); continue;          // 17.6
-                case InitiativeDrawn idr: yield return CardAnim(idr); continue;
+                case CardsDealt cd: yield return DealCards(cd); continue;           // 先攻・後攻のカード（UI仕様書 7.3 ②）
+                case InitiativeDrawn idr: yield return RevealCard(idr); continue;
+                case CommandsRequested cr: yield return SwapSides(cr.Attacker); break; // 攻守の交代（⑥）
                 case Moved m: camPan = Vector3.zero; yield return MovePiece(m.Player, m.Path); continue;
                 case Warped w: pieces[w.Player].position = PiecePosition(w.Player, w.To); break;
                 case SailedToIsland si: pieces[si.Player].position = PiecePosition(si.Player, si.To); cameraTarget = pieces[si.Player]; camPan = Vector3.zero; yield return Banner(text, PlayerColor(S.Players[si.Player]), 2); continue;
@@ -424,24 +423,20 @@ public partial class GameRunner : MonoBehaviour
                 case TicketChanged tc: yield return Banner(text, PlayerColor(S.Players[tc.Player]), 2); continue;
                 case SentToCenter c: pieces[c.Player].position = PiecePosition(c.Player, c.Square); break;
                 case BattleStarted b:
-                    hudRoot.SetActive(false); // バトル中は A〜D を隠す
                     if ((b.Kind == BattleKind.Player || b.Kind == BattleKind.Tournament) && !S.Players[b.Players[0]].IsCpu && !S.Players[b.Players[1]].IsCpu) yield return Banner($"{S.Players[b.Players[0]].Name}さんは コントローラー1、{S.Players[b.Players[1]].Name}さんは 2を 持ってください", Color.white, 2);
-                    battlePanel.gameObject.SetActive(true);
-                    cards[0].Clear(); cards[1].Clear();
+                    StartBattleScene(b.Kind); // バトル画面（A〜D は隠す）
                     cards[0].SetOwner(b.Players[0] >= 0 ? S.Players[b.Players[0]].Name : "", b.Players[0]);
                     cards[1].SetOwner(b.Players[1] >= 0 ? S.Players[b.Players[1]].Name : b.Opponent, b.Players[1]);
                     break;
-                case BattleResumed br:
-                    hudRoot.SetActive(false);
-                    battlePanel.gameObject.SetActive(true);
-                    cards[0].Clear(); cards[1].Clear();
+                case BattleResumed br: // NPC戦の続き：登場から見せる
+                    StartBattleScene(br.Kind);
                     cards[0].SetOwner(S.Players[br.Players[0]].Name, br.Players[0]);
                     cards[1].SetOwner(br.Players[1] >= 0 ? S.Players[br.Players[1]].Name : br.Opponent, br.Players[1]);
                     break;
-                case BattleSuspended bs: battlePanel.gameObject.SetActive(false); yield return Banner(text, PlayerColor(S.Players[bs.Player]), 1.5f); continue;
+                case BattleSuspended bs: ShowBattle(false); yield return Banner(text, PlayerColor(S.Players[bs.Player]), 1.5f); continue;
                 case SentOut s:
                     cards[s.Side].Show(s.Pokemon, s.Level, s.Hp, s.MaxHp, s.Type, s.Weakness, s.Exp); cards[s.Side].SetStatus(Pokemons.StatusName(s.Status));
-                    yield return cards[s.Side].Appear(); // ポンと出てくる
+                    yield return Enter(s.Side); // 野生は横から、ほかはボールから
                     break;
                 case StatusInflicted si: cards[si.Side].SetStatus(Pokemons.StatusName(si.Status)); break;
                 case CantMove cm when cm.Woke: cards[cm.Side].SetStatus(""); break;
@@ -452,9 +447,12 @@ public partial class GameRunner : MonoBehaviour
                 case RankChanged rc: cards[rc.Side].Flash($"{rc.Stat}{(rc.Delta > 0 ? "↑" : "↓")}"); break;
                 case RoundResolved rb when rb.Bond: yield return Banner(text.Split('\n').Last(), Color.white, 2); continue; // 絆による回避（7.18）
                 case RoundResolved r:
+                    yield return RevealCommands(r); // 結果発表：選んだコマンドだけ残して、オーラ（UI仕様書 7.3 ④）
                     if (r.Item == null) yield return AttackAnim(r); // 技の演出（17.6）
                     cards[r.Attacker].Flash($"攻撃ダイス {r.Dice}");
                     yield return Together(cards[r.Attacker].HpTo(r.AttackerHp), cards[1 - r.Attacker].HpTo(r.DefenderHp)); // HPが ゆっくり減る（回復なら増える）
+                    cards[0].ClearAura(); cards[1].ClearAura();
+                    UpdateTurns();
                     break;
                 case SandstormDamage sd: yield return cards[sd.Side].HpTo(sd.Hp); break;
                 case PokemonFainted f: yield return cards[f.Side].HpTo(0); yield return cards[f.Side].Faint(); break; // 沈んで消える
@@ -546,10 +544,11 @@ public partial class GameRunner : MonoBehaviour
     void RefreshAll()
     {
         if (game == null) return;
-        if (S.Battle == null) battlePanel.gameObject.SetActive(false);
+        if (S.Battle == null && battlePanel.gameObject.activeSelf) ShowBattle(false);
         RefreshHud(); // メイン画面の部品（UI仕様書_メイン画面）
         PaintBoard(true);
         BuildMenu();
+        RefreshBattleScene(); // コマンドの押せる・押せない は メニューを作ったあとで
         if (debugPanel != null) BuildDebugPanel();
         SyncSnorlax();
         TryCpu();
@@ -631,6 +630,7 @@ public partial class GameRunner : MonoBehaviour
     void BuildMenu()
     {
         menu.Clear(); menuArt.Clear();
+        promptSide = -1;
         if (S.Phase == Phase.GameOver)
         {
             Add("結果発表", ShowResults, KeyCode.Return);
@@ -862,6 +862,8 @@ public partial class GameRunner : MonoBehaviour
                 }
                 return $"{side.Name}さん、出すポケモンを えらんでください（相手には見えません）";
             }
+            // コマンドは バトル画面の ポケモンの下で選ぶ（UI仕様書 7.2）。ここでは 押したときの動きとキーだけを決める（並びは □ ○ △ R1）
+            // コントローラー：□ ○ △ R1。キーボード：A S D F（攻撃・防御とも同じ記号は同じキー）
             case BattleStep.Commands:
             {
                 var a = b.Sides[b.Attacker];
@@ -869,20 +871,31 @@ public partial class GameRunner : MonoBehaviour
                 if (b.AttackCmd == null && a.Player >= 0 && !IsCpu(a.Player))
                 {
                     int pl = a.Player;
-                    Add("物理攻撃 [Z]", () => Send(new ChooseAttack { Player = pl, Attack = Attack.Physical }), KeyCode.Z, Ok(new ChooseAttack { Player = pl, Attack = Attack.Physical }));
-                    Add("特殊攻撃 [X]", () => Send(new ChooseAttack { Player = pl, Attack = Attack.Special }), KeyCode.X, Ok(new ChooseAttack { Player = pl, Attack = Attack.Special }));
-                    Add("必殺技 [C]", () => Send(new ChooseAttack { Player = pl, Attack = Attack.Super }), KeyCode.C, Ok(new ChooseAttack { Player = pl, Attack = Attack.Super }));
+                    promptSide = b.Attacker;
+                    Add("こうげき", () => Send(new ChooseAttack { Player = pl, Attack = Attack.Physical }), KeyCode.A, Ok(new ChooseAttack { Player = pl, Attack = Attack.Physical }));
+                    Add("とくこう", () => Send(new ChooseAttack { Player = pl, Attack = Attack.Special }), KeyCode.S, Ok(new ChooseAttack { Player = pl, Attack = Attack.Special }));
+                    Add("必殺", () => Send(new ChooseAttack { Player = pl, Attack = Attack.Super }), KeyCode.D, Ok(new ChooseAttack { Player = pl, Attack = Attack.Super }));
                     var usable = S.Players[pl].PokemonBag.Distinct().Where(i => Ok(new ChooseAttack { Player = pl, Attack = Attack.Item, Item = i })).ToList();
-                    Add("どうぐ [V]", () => { subMenu = () => BattleItemMenu(pl, usable); RefreshAll(); }, KeyCode.V, usable.Count > 0);
+                    Add("どうぐ", () => { subMenu = () => BattleItemMenu(pl, usable); RefreshAll(); }, KeyCode.F, usable.Count > 0);
                     return $"{a.Name}さん（攻撃）：{a.Current.Species}の コマンド";
                 }
                 int dp = d.Player;
-                Add("まもる [A]", () => Send(new ChooseDefense { Player = dp, Defense = Defense.Guard }), KeyCode.A);
-                Add("特殊守り [S]", () => Send(new ChooseDefense { Player = dp, Defense = Defense.SpecialGuard }), KeyCode.S);
-                Add("カウンター [D]", () => Send(new ChooseDefense { Player = dp, Defense = Defense.Counter }), KeyCode.D);
-                string flee = b.Kind == BattleKind.Player ? "降参" : "にげる";
-                Add($"{flee} [F]", () => { subMenu = () => FleeConfirm(dp, flee); RefreshAll(); }, KeyCode.F, Ok(new ChooseDefense { Player = dp, Defense = Defense.Flee }));
-                return $"{d.Name}さん（防御）：{d.Current.Species}の コマンド" + (b.AttackCmd != null && a.Player >= 0 ? "　※相手は選択済み" : "");
+                promptSide = 1 - b.Attacker;
+                Add("ぼうぎょ", () => Send(new ChooseDefense { Player = dp, Defense = Defense.Guard }), KeyCode.A);
+                Add("とくぼう", () => Send(new ChooseDefense { Player = dp, Defense = Defense.SpecialGuard }), KeyCode.S);
+                Add("カウンター", () => Send(new ChooseDefense { Player = dp, Defense = Defense.Counter }), KeyCode.D);
+                string flee = b.Kind == BattleKind.Player || b.Kind == BattleKind.Tournament ? "降参" : "にげる";
+                Add(flee, () => { subMenu = () => FleeConfirm(dp, flee); RefreshAll(); }, KeyCode.F, Ok(new ChooseDefense { Player = dp, Defense = Defense.Flee }));
+                return $"{d.Name}さん（防御）：{d.Current.Species}の コマンド";
+            }
+            // 先攻・後攻のカード：←→ で選んで ○（Enter）。カードを押しても選べる
+            case BattleStep.Initiative:
+            {
+                int pl = b.Sides[0].Player;
+                Add("ひだりの カード", () => MoveCardCursor(-1), KeyCode.LeftArrow);
+                Add("みぎの カード", () => MoveCardCursor(1), KeyCode.RightArrow);
+                Add("この カードに する", () => Send(new PickCard { Player = pl, Card = cardCursor }), KeyCode.Return);
+                return $"{b.Sides[0].Name}さん：カードを 1枚 えらんでください";
             }
             case BattleStep.Ball:
             {
@@ -966,6 +979,8 @@ public partial class GameRunner : MonoBehaviour
             made.Add(b);
         }
         PadHighlight(title, made); // コントローラーのカーソル
+        // バトル中、コマンドとカードは バトル画面で選ぶので E メニューは隠す（選ぶものがないときも）
+        if (menuPanel != null) menuPanel.gameObject.SetActive(!(battlePanel.gameObject.activeSelf && (menu.Count == 0 || SceneInput)));
     }
 
     // ---- 入力 ----
@@ -1022,6 +1037,7 @@ public partial class GameRunner : MonoBehaviour
         // HPが赤いあいだ ピコピコ（バトル画面が出ていて、プレイヤーのポケモンのHPが2割以下）
         if (sound != null) sound.SetAlarm(battlePanel != null && battlePanel.gameObject.activeInHierarchy && cards[0] != null && cards.Any(c => c.Danger));
         SlideMessage(); // G セリフ欄
+        AnimateWeather(); // バトルの天気（GameRunner.Battle.cs）
         var cam = Camera.main;
         if (cam == null || cameraTarget == null) return;
         Vector3 want = cameraTarget.position + camPan + cameraOffset * zoom;
@@ -1091,198 +1107,5 @@ public partial class GameRunner : MonoBehaviour
             case "ドラゴン": return new Color(0.8f, 0.65f, 0.25f);
             default: return new Color(0.8f, 0.8f, 0.75f);
         }
-    }
-
-    sealed class BattleCard
-    {
-        readonly Text owner, title, hpText, flash;
-        readonly Image circle, hpBar, expBack, expBar, ball;
-        readonly GameRunner runner;
-        int maxHp = 1, hp;
-        float shownHp;     // バーに出しているHP（ゆっくり近づける）
-        string status = "";
-        public int Player = -1;      // このカードのプレイヤー（野生・NPC なら -1。経験値バーと警告音は プレイヤーのポケモンだけ）
-        string species = "", type = "", weakness = "";
-        int level;
-        float shownExp;    // 経験値バーに出している経験値の合計
-
-        public BattleCard(RectTransform root, GameRunner runner)
-        {
-            this.runner = runner;
-            owner = Ui.Label(Ui.Rect(root, "Owner", new Vector2(0, 0.88f), Vector2.one), "", 26, TextAnchor.MiddleCenter);
-            circle = Ui.Panel(root, "Circle", new Vector2(0.3f, 0.38f), new Vector2(0.7f, 0.86f), Color.gray);
-            circle.preserveAspect = true;
-            circle.sprite = Ui.Circle;
-            ball = Ui.Panel(root, "Ball", new Vector2(0.44f, 0.4f), new Vector2(0.56f, 0.56f), Color.white); // 投げたボール
-            ball.preserveAspect = true; ball.enabled = false;
-            title = Ui.Label(Ui.Rect(root, "Title", new Vector2(0, 0.2f), new Vector2(1, 0.36f)), "", 26, TextAnchor.MiddleCenter);
-            Ui.Panel(root, "HpBack", new Vector2(0.1f, 0.12f), new Vector2(0.9f, 0.18f), new Color(0.2f, 0.2f, 0.2f));
-            hpBar = Ui.Panel(root, "Hp", new Vector2(0.1f, 0.12f), new Vector2(0.9f, 0.18f), new Color(0.3f, 0.9f, 0.4f));
-            expBack = Ui.Panel(root, "ExpBack", new Vector2(0.1f, 0.095f), new Vector2(0.9f, 0.112f), new Color(0.15f, 0.15f, 0.2f)); // 経験値バー（HPバーの下の細い青）
-            expBar = Ui.Panel(expBack.transform, "Exp", Vector2.zero, new Vector2(0, 1), new Color(0.3f, 0.65f, 1f));
-            hpText = Ui.Label(Ui.Rect(root, "HpText", new Vector2(0, 0), new Vector2(1, 0.095f)), "", 22, TextAnchor.MiddleCenter);
-            flash = Ui.Label(Ui.Rect(root, "Flash", new Vector2(0, 0.38f), new Vector2(0.3f, 0.6f)), "", 22, TextAnchor.MiddleCenter, new Color(1, 0.9f, 0.4f));
-        }
-
-        public void SetOwner(string name, int player) { owner.text = name; Player = player; }
-        public void SetStatus(string s) { status = s; Draw(); }
-        public void Clear() { status = ""; title.text = hpText.text = flash.text = ""; circle.color = Color.clear; ball.enabled = false; species = ""; hp = 0; shownHp = 0; expBack.gameObject.SetActive(false); hpBar.rectTransform.anchorMax = new Vector2(0.9f, 0.18f); }
-
-        public void Show(string species, int level, int hp, int max, string type, string weakness, int exp)
-        {
-            maxHp = Math.Max(1, max);
-            this.species = species; this.level = level; this.type = type; this.weakness = weakness;
-            var sprite = runner.PokemonSprite(species);
-            circle.sprite = sprite != null ? sprite : Ui.Circle;
-            circle.color = sprite != null ? Color.white : TypeColor(type);
-            circle.enabled = true;
-            ball.enabled = false;
-            circle.rectTransform.anchoredPosition = Vector2.zero; circle.rectTransform.localScale = Vector3.one; // たおれた・出てくる演出のあと
-            DrawTitle();
-            flash.text = "";
-            SetHp(hp);
-            expBack.gameObject.SetActive(Player >= 0);
-            shownExp = exp; DrawExp();
-        }
-
-        void DrawTitle() => title.text = $"{species}　Lv{level}\nタイプ {type}　弱点 {weakness}";
-
-        // 経験値バー：今のレベルの はじめ〜次のレベルまでの どこにいるか
-        void DrawExp()
-        {
-            float from = Pokemons.ExpForLevel(level), to = Pokemons.ExpForLevel(level + 1);
-            expBar.rectTransform.anchorMax = new Vector2(Mathf.Clamp01((shownExp - from) / Mathf.Max(1, to - from)), 1);
-        }
-
-        public bool Owns(int player, string mon) => Player >= 0 && player == Player && mon == species;
-
-        // 経験値バーが ゆっくり伸びる。いっぱいになったら レベルアップして、0から また伸びる
-        public IEnumerator ExpTo(int from, int to, int maxLevel)
-        {
-            shownExp = from; DrawExp();
-            float seconds = runner.shortBattle ? 0.5f : 1f; // バー1本ぶんの時間
-            while (shownExp < to && !SkipHeld())
-            {
-                float next = Mathf.Min(to, level < maxLevel ? Pokemons.ExpForLevel(level + 1) : to);
-                float speed = (Pokemons.ExpForLevel(level + 1) - Pokemons.ExpForLevel(level)) / seconds;
-                shownExp = Mathf.MoveTowards(shownExp, next, speed * Time.deltaTime);
-                if (level < maxLevel && shownExp >= Pokemons.ExpForLevel(level + 1)) { level++; DrawTitle(); Flash("レベルアップ！"); }
-                DrawExp();
-                yield return null;
-            }
-            shownExp = to;
-            while (level < maxLevel && to >= Pokemons.ExpForLevel(level + 1)) { level++; DrawTitle(); } // 早送りしたとき
-            DrawExp();
-        }
-
-        // HPが赤い（2割以下）。プレイヤーのポケモンだけ（警告音）
-        public bool Danger => Player >= 0 && species != "" && shownHp > 0 && shownHp <= maxHp * 0.2f;
-
-        // ボールを投げる：ボールが飛んできて ポケモンが吸いこまれ、ゆれる。捕まえたら そのまま、逃げられたら ポケモンが出てくる
-        public IEnumerator Catch(Sprite ballSprite, bool caught)
-        {
-            float s = runner.shortBattle ? 0.5f : 1f;
-            Color baseColor = circle.color;
-            ball.sprite = ballSprite; ball.color = Color.white; ball.enabled = true;
-            ball.rectTransform.localRotation = Quaternion.identity;
-            for (float t = 0; t < 0.35f * s && !SkipHeld(); t += Time.deltaTime) // 左下から 弧をえがいて飛んでくる
-            {
-                float k = t / (0.35f * s);
-                ball.rectTransform.anchoredPosition = new Vector2(Mathf.Lerp(-260, 0, k), Mathf.Sin(k * Mathf.PI) * 120 + Mathf.Lerp(-80, 0, k));
-                ball.rectTransform.localRotation = Quaternion.Euler(0, 0, -720 * k);
-                yield return null;
-            }
-            ball.rectTransform.anchoredPosition = Vector2.zero; ball.rectTransform.localRotation = Quaternion.identity;
-            for (float t = 0; t < 0.3f * s && !SkipHeld(); t += Time.deltaTime) // 白く光って 吸いこまれる
-            {
-                float k = t / (0.3f * s);
-                circle.rectTransform.localScale = Vector3.one * (1 - k);
-                circle.color = Color.Lerp(baseColor, new Color(1, 1, 1, 0.6f), k);
-                yield return null;
-            }
-            circle.enabled = false;
-            int wobbles = caught ? 3 : UnityEngine.Random.Range(1, 3); // 逃げられるときは 1〜2回で
-            for (int w = 0; w < wobbles; w++)
-            {
-                yield return runner.Wait(0.35f * s);
-                for (float t = 0; t < 0.4f * s && !SkipHeld(); t += Time.deltaTime) // 左右に ゆらっ
-                {
-                    ball.rectTransform.localRotation = Quaternion.Euler(0, 0, Mathf.Sin(t / (0.4f * s) * Mathf.PI * 2) * 25);
-                    yield return null;
-                }
-                ball.rectTransform.localRotation = Quaternion.identity;
-            }
-            yield return runner.Wait(0.3f * s);
-            circle.rectTransform.localScale = Vector3.one; circle.color = baseColor;
-            if (caught)
-            {
-                ball.color = new Color(0.75f, 0.75f, 0.75f); // カチッ：少し暗くなって 止まる
-                Flash("つかまえた！");
-                yield return runner.Wait(0.5f * s);
-            }
-            else
-            {
-                ball.enabled = false;
-                circle.enabled = true;
-                Flash("あっ！ でてきた");
-                yield return Appear();
-            }
-        }
-
-        // すぐに変える（出したとき）
-        public void SetHp(int hp) { this.hp = hp; shownHp = hp; Draw(); }
-
-        // HPを ゆっくり変える（本家のように、満タンから0まで およそ1.5秒。早送りなら すぐ）
-        public IEnumerator HpTo(int hp)
-        {
-            this.hp = hp;
-            float speed = maxHp / (runner.shortBattle ? 0.8f : 1.5f);
-            while (!Mathf.Approximately(shownHp, hp))
-            {
-                shownHp = SkipHeld() ? hp : Mathf.MoveTowards(shownHp, hp, speed * Time.deltaTime);
-                Draw();
-                yield return null;
-            }
-        }
-
-        void Draw()
-        {
-            float r = Mathf.Clamp01(shownHp / maxHp);
-            hpBar.rectTransform.anchorMax = new Vector2(0.1f + 0.8f * r, 0.18f);
-            hpBar.color = r > 0.5f ? new Color(0.3f, 0.9f, 0.4f) : r > 0.2f ? new Color(0.95f, 0.8f, 0.2f) : new Color(0.95f, 0.3f, 0.25f);
-            hpText.text = $"HP {Mathf.CeilToInt(shownHp)} / {maxHp}" + (status != "" ? $"　【{status}】" : "");
-        }
-
-        // 出てくる：小さい所から ポンと大きくなる
-        public IEnumerator Appear()
-        {
-            float total = runner.shortBattle ? 0.2f : 0.35f;
-            for (float t = 0; t < total && !SkipHeld(); t += Time.deltaTime)
-            {
-                float k = t / total;
-                circle.rectTransform.localScale = Vector3.one * (k < 0.8f ? Mathf.Lerp(0.1f, 1.1f, k / 0.8f) : Mathf.Lerp(1.1f, 1f, (k - 0.8f) / 0.2f));
-                yield return null;
-            }
-            circle.rectTransform.localScale = Vector3.one;
-        }
-
-        // たおれる：下に沈みながら 消える
-        public IEnumerator Faint()
-        {
-            float total = runner.shortBattle ? 0.35f : 0.7f;
-            Color c = circle.color;
-            for (float t = 0; t < total && !SkipHeld(); t += Time.deltaTime)
-            {
-                float k = t / total;
-                circle.rectTransform.anchoredPosition = new Vector2(0, -140 * k * k);
-                circle.color = new Color(c.r, c.g, c.b, 1 - k);
-                yield return null;
-            }
-            circle.rectTransform.anchoredPosition = Vector2.zero;
-            circle.color = new Color(c.r, c.g, c.b, 0);
-        }
-
-        public void Flash(string text) => flash.text = text;
-        public Image Body => circle; // 技の演出で動かす
     }
 }
