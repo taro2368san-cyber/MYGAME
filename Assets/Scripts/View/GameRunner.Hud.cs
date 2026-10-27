@@ -156,7 +156,7 @@ public partial class GameRunner
     // 場面ごとの表示（UI仕様書 3）：移動中・見渡し中は隠す。準備フェーズは 新しい文があるときだけ
     bool MessageWanted()
     {
-        if (logLines.Count == 0 || exploring) return false;
+        if (logLines.Count == 0 || exploring || EventOpen) return false; // イベント画面は 自分のセリフ欄を使う
         if (Typing || Time.time - lastLogTime < MessageHold) return true;
         return S.Phase != Phase.Moving && (playing || S.Battle != null || S.Phase == Phase.Facility);
     }

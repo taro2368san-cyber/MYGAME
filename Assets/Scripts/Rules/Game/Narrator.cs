@@ -29,6 +29,18 @@ namespace Sugoroku.Rules
         // 文言CSV（イベント文言・トレーナー文言）のセリフ。パターンはランダムに1つ、同じ順番に条件つきの行があれば満たすほうを使う
         string Lines(string key, int player, Dictionary<string, string> values)
         {
+            var lines = DialogLines(key, player, values);
+            return lines == null ? null : Join(lines);
+        }
+
+        // 話す人つきのセリフを1つの文に（「話す人「セリフ」」の行を改行でつなぐ）
+        public static string Join(List<(string Speaker, string Text)> lines) => string.Join("\n", lines.Select(l => l.Speaker != "" ? $"{l.Speaker}「{l.Text}」" : l.Text));
+
+        // セリフを行ごとに（話す人・文）。イベント画面で 話す人ごとに出すのに使う。キーがなければ null
+        public List<(string Speaker, string Text)> DialogLines(Dialog d) => DialogLines(d.Key, d.Player, d.Values);
+
+        List<(string Speaker, string Text)> DialogLines(string key, int player, Dictionary<string, string> values)
+        {
             var all = data.Dialogs.Where(d => d.Key == key).ToList();
             if (all.Count == 0) return null;
             var p = player >= 0 && player < state.Players.Count ? state.Players[player] : null;
@@ -43,7 +55,7 @@ namespace Sugoroku.Rules
                 if (values != null) foreach (var kv in values) s = s.Replace("{" + kv.Key + "}", kv.Value);
                 return s;
             }
-            return string.Join("\n", lines.Select(d => d.Speaker != "" ? $"{Fill(d.Speaker)}「{Fill(d.Text)}」" : Fill(d.Text)));
+            return lines.Select(d => (Fill(d.Speaker), Fill(d.Text))).ToList();
         }
 
         // 文言シートのキーで1行（画面側から使う。エンドロールなど）

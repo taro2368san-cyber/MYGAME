@@ -337,6 +337,7 @@ public partial class GameRunner : MonoBehaviour
         grid.cellSize = new Vector2(560, 50); grid.spacing = new Vector2(8, 6); grid.padding = new RectOffset(12, 12, 6, 6);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount; grid.constraintCount = 1;
 
+        BuildEventScreen(); // イベント画面（GameRunner.Event.cs）。セリフ欄・メニューの上、大きな知らせの下
         var bannerPanel = Ui.Panel(canvas.transform, "Banner", new Vector2(0.1f, 0.42f), new Vector2(0.9f, 0.62f), new Color(0, 0, 0, 0.85f));
         banner = Ui.Label(bannerPanel.transform, "", 46, TextAnchor.MiddleCenter);
         bannerIcon = Ui.Panel(bannerPanel.transform, "Mon", new Vector2(0.02f, 0.08f), new Vector2(0.14f, 0.92f), Color.white); // 捕まえた・進化した子の絵
@@ -394,8 +395,15 @@ public partial class GameRunner : MonoBehaviour
         while (queue.Count > 0)
         {
             var e = queue.Dequeue();
-            string text = narrator.Describe(e);
-            if (text != null) AddLog(text);
+            // セリフは 話す人ごとの行で受けとる。ライバル・拠点の人・ランダムイベントの人なら イベント画面で見せる（UI仕様書 5）
+            var lines = e is Dialog dg ? narrator.DialogLines(dg) : null;
+            string text = lines != null ? Narrator.Join(lines) : narrator.Describe(e);
+            string person = e is Dialog dp ? EventPersonOf(dp, lines) : null;
+            if (person != null) yield return OpenEvent(person, ((Dialog)e).Player);
+            if (e is BattleStarted) CloseEvent(); // バトルになるなら バトル画面へ（ジムリーダー・職業トレーナーは BattleStarted で見せる）
+            bool inEvent = EventOpen && text != null;
+            if (inEvent) yield return EventLines(lines ?? new List<(string, string)> { ("", text) }); // イベント画面が開いているあいだは 文もそこに
+            else if (text != null) AddLog(text);
             EventSound(e);
             CollectNotice(e);
             switch (e)
@@ -423,6 +431,13 @@ public partial class GameRunner : MonoBehaviour
                 case TicketChanged tc: yield return Banner(text, PlayerColor(S.Players[tc.Player]), 2); continue;
                 case SentToCenter c: pieces[c.Player].position = PiecePosition(c.Player, c.Square); break;
                 case BattleStarted b:
+                    // ジムリーダー・職業マスのトレーナーは、バトルの前に イベント画面で しょうぶを しかけてくる
+                    if (b.Kind == BattleKind.Gym || b.Kind == BattleKind.Job)
+                    {
+                        yield return OpenEvent(b.Opponent, b.Players[0]);
+                        yield return EventLines(new List<(string, string)> { ("", text ?? $"{b.Opponent}との バトル！") }); // セリフは文言CSVにないので、ふつうの知らせの文
+                        CloseEvent();
+                    }
                     if ((b.Kind == BattleKind.Player || b.Kind == BattleKind.Tournament) && !S.Players[b.Players[0]].IsCpu && !S.Players[b.Players[1]].IsCpu) yield return Banner($"{S.Players[b.Players[0]].Name}さんは コントローラー1、{S.Players[b.Players[1]].Name}さんは 2を 持ってください", Color.white, 2);
                     StartBattleScene(b.Kind); // バトル画面（A〜D は隠す）
                     cards[0].SetOwner(b.Players[0] >= 0 ? S.Players[b.Players[0]].Name : "", b.Players[0]);
@@ -465,10 +480,11 @@ public partial class GameRunner : MonoBehaviour
             }
             // バトル演出の短縮。絆による回避・進化・バッジは思い出の場面なので短くしない（17.6）
             bool keep = e is Evolved || e is BadgeEarned || (e is RoundResolved rr && rr.Bond);
-            if (text != null) yield return WaitMessage(shortBattle && battlePanel.gameObject.activeSelf && !keep ? messageSeconds / 2 : messageSeconds);
+            if (text != null && !inEvent) yield return WaitMessage(shortBattle && battlePanel.gameObject.activeSelf && !keep ? messageSeconds / 2 : messageSeconds);
             if (HintFor(e) is string hint) yield return ShowHint(hint);
         }
         playing = false;
+        AfterEventQueue(); // 選択肢を待っていなければ イベント画面を閉じる
         if (S.Phase == Phase.Prepare && S.Week != lastAutoSaveWeek) { lastAutoSaveWeek = S.Week; SaveTo(0); } // 週の終わりに自動セーブ（1.2）
         RefreshAll();
     }
@@ -980,7 +996,8 @@ public partial class GameRunner : MonoBehaviour
         }
         PadHighlight(title, made); // コントローラーのカーソル
         // バトル中、コマンドとカードは バトル画面で選ぶので E メニューは隠す（選ぶものがないときも）
-        if (menuPanel != null) menuPanel.gameObject.SetActive(!(battlePanel.gameObject.activeSelf && (menu.Count == 0 || SceneInput)));
+        if (menuPanel != null) menuPanel.gameObject.SetActive(!EventOpen && !(battlePanel.gameObject.activeSelf && (menu.Count == 0 || SceneInput)));
+        if (EventOpen) DrawEventChoices(title); // イベント画面では 選択肢をセリフ欄の右に
     }
 
     // ---- 入力 ----
@@ -1038,6 +1055,7 @@ public partial class GameRunner : MonoBehaviour
         if (sound != null) sound.SetAlarm(battlePanel != null && battlePanel.gameObject.activeInHierarchy && cards[0] != null && cards.Any(c => c.Danger));
         SlideMessage(); // G セリフ欄
         AnimateWeather(); // バトルの天気（GameRunner.Battle.cs）
+        AnimateEvent();   // イベント画面のセリフ（GameRunner.Event.cs）
         var cam = Camera.main;
         if (cam == null || cameraTarget == null) return;
         Vector3 want = cameraTarget.position + camPan + cameraOffset * zoom;
@@ -1064,15 +1082,29 @@ public partial class GameRunner : MonoBehaviour
     public Sprite PokemonIcon(string species)
     {
         if (icons.TryGetValue(species, out var icon)) return icon;
-        var full = WalkSprite(species, 1) ?? PokemonSprite(species);
-        if (full == null || !full.texture.isReadable) return icons[species] = full;
+        return icons[species] = Trim(WalkSprite(species, 1) ?? PokemonSprite(species), new Vector2(0.5f, 0.5f));
+    }
+
+    // 絵のまわりの透明な余白を切る（読めない絵・全部透明なら そのまま）。pivot は切ったあとの絵の基準点
+    static Sprite Trim(Sprite full, Vector2 pivot)
+    {
+        if (full == null || !full.texture.isReadable) return full;
         var tex = full.texture;
+        var r = full.rect;
         var px = tex.GetPixels32();
-        int x0 = tex.width, y0 = tex.height, x1 = -1, y1 = -1;
-        for (int y = 0; y < tex.height; y++)
-            for (int x = 0; x < tex.width; x++)
+        int x0 = (int)r.xMax, y0 = (int)r.yMax, x1 = -1, y1 = -1;
+        for (int y = (int)r.y; y < (int)r.yMax; y++)
+            for (int x = (int)r.x; x < (int)r.xMax; x++)
                 if (px[y * tex.width + x].a > 0) { x0 = Math.Min(x0, x); x1 = Math.Max(x1, x); y0 = Math.Min(y0, y); y1 = Math.Max(y1, y); }
-        return icons[species] = x1 < 0 ? full : Sprite.Create(tex, new Rect(x0, y0, x1 - x0 + 1, y1 - y0 + 1), new Vector2(0.5f, 0.5f));
+        return x1 < 0 ? full : Sprite.Create(tex, new Rect(x0, y0, x1 - x0 + 1, y1 - y0 + 1), pivot);
+    }
+
+    // バトルの絵：余白を切って、足もと（下の中央）を基準に
+    readonly Dictionary<string, Sprite> battleSprites = new Dictionary<string, Sprite>();
+    public Sprite BattleSprite(string species)
+    {
+        if (!battleSprites.TryGetValue(species, out var s)) battleSprites[species] = s = Trim(PokemonSprite(species), new Vector2(0.5f, 0));
+        return s;
     }
 
     // 並べる箱の中に置く ポケモンの絵（縦横の比はそのまま）
