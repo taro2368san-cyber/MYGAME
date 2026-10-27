@@ -15,6 +15,7 @@ public partial class GameRunner
     // コマンドの色（□ うすい橙・○ 水色・△ うすい緑・R1 灰色）。並びは □ ○ △ R1（攻撃・防御の enum の順と同じ）
     static readonly Color[] CommandColors = { new Color(1f, 0.76f, 0.5f), new Color(0.55f, 0.85f, 1f), new Color(0.62f, 0.92f, 0.6f), new Color(0.82f, 0.82f, 0.82f) };
     const float BigScale = 1.15f, SmallScale = 0.85f; // 攻撃側・防御側の大きさ
+    const float PixelScale = 3.2f;                    // バトルの絵の 1ドットの大きさ（画面の単位）
 
     Image battleBg;
     RectTransform weatherLayer, cardRow;
@@ -230,27 +231,39 @@ public partial class GameRunner
         // 裏返す
         yield return Flip(made, null);
         cardHint.text = "まぜます…";
-        // 混ぜる：一度 ばらばらに動かしてから、最後の並びへ（上下に ずらして 重ならないように）
-        var mid = Enumerable.Range(0, n).OrderBy(_ => UnityEngine.Random.value).ToArray();
-        yield return MoveCards(made, Enumerable.Range(0, n).ToArray(), mid, 0.35f * s);
-        yield return MoveCards(made, mid, to, 0.35f * s);
+        // 混ぜる：真ん中の1か所に ぴったり重ねて集め、重ねたまま ゆすってから、1枚ずつ配る（目で追えないように）
+        for (float t = 0; t < 0.3f * s && !SkipHeld(); t += Time.deltaTime)
+        {
+            float k = Mathf.SmoothStep(0, 1, t / (0.3f * s));
+            for (int i = 0; i < n; i++) made[i].anchoredPosition = new Vector2(Mathf.Lerp(CardX(i, n), 0, k), 0);
+            yield return null;
+        }
+        foreach (var c in made) c.anchoredPosition = Vector2.zero;
+        foreach (var c in made.OrderBy(_ => UnityEngine.Random.value).ToList()) c.SetAsLastSibling(); // 重なりの順も 入れかえる
+        for (float t = 0; t < 0.5f * s && !SkipHeld(); t += Time.deltaTime) // 重ねたまま ゆする
+        {
+            foreach (var c in made) c.localRotation = Quaternion.Euler(0, 0, UnityEngine.Random.Range(-8f, 8f));
+            yield return null;
+        }
+        foreach (var c in made) c.localRotation = Quaternion.identity;
+        // 上のカードから 1枚ずつ、置く場所へ（置く順番は ばらばら）
+        var dealOrder = Enumerable.Range(0, n).OrderBy(_ => UnityEngine.Random.value).ToList();
+        foreach (int slot in dealOrder)
+        {
+            var c = made[Array.IndexOf(to, slot)];
+            c.SetAsLastSibling();
+            for (float t = 0; t < 0.15f * s && !SkipHeld(); t += Time.deltaTime)
+            {
+                c.anchoredPosition = new Vector2(Mathf.Lerp(0, CardX(slot, n), Mathf.SmoothStep(0, 1, t / (0.15f * s))), 0);
+                yield return null;
+            }
+            c.anchoredPosition = new Vector2(CardX(slot, n), 0);
+        }
         cardAt.Clear();
         for (int j = 0; j < n; j++) cardAt.Add(made[Array.IndexOf(to, j)]);
         BindCards();
         cardCursor = 0;
         cardHint.text = "";
-    }
-
-    IEnumerator MoveCards(List<RectTransform> made, int[] from, int[] to, float seconds)
-    {
-        int n = made.Count;
-        for (float t = 0; t < seconds && !SkipHeld(); t += Time.deltaTime)
-        {
-            float k = Mathf.SmoothStep(0, 1, t / seconds);
-            for (int i = 0; i < n; i++) made[i].anchoredPosition = new Vector2(Mathf.Lerp(CardX(from[i], n), CardX(to[i], n), k), Mathf.Sin(k * Mathf.PI) * (i % 2 == 0 ? 60 : -60));
-            yield return null;
-        }
-        for (int i = 0; i < n; i++) made[i].anchoredPosition = new Vector2(CardX(to[i], n), 0);
     }
 
     // カードを裏返す（横に縮めて 面をかえて 広げる）。faces が null なら裏に、あれば その文字の表に
@@ -492,7 +505,8 @@ public partial class GameRunner
             hpText = Ui.Label(Ui.Rect(info, "HpText", new Vector2(0.04f, 0.02f), new Vector2(0.96f, 0.26f)), "", 22, TextAnchor.MiddleLeft);
             aura = Ui.Panel(stage, "Aura", new Vector2(0.1f, 0f), new Vector2(0.9f, 0.85f), Color.clear); // 結果発表のオーラ（ポケモンの後ろ）
             aura.sprite = Ui.Circle; aura.raycastTarget = false; aura.preserveAspect = true;
-            circle = Ui.Panel(stage, "Mon", new Vector2(-0.1f, -0.08f), new Vector2(1.1f, 1.12f), Color.gray); // 絵のまわりの透明な余白のぶん 少し大きく
+            circle = Ui.Panel(stage, "Mon", new Vector2(0.5f, 0), new Vector2(0.5f, 0), Color.gray); // 足もとを 台座（舞台の下の中央）に。大きさは Show で絵に合わせる
+            circle.rectTransform.pivot = new Vector2(0.5f, 0);
             circle.preserveAspect = true; circle.sprite = Ui.Circle; circle.raycastTarget = false;
             ball = Ui.Panel(stage, "Ball", new Vector2(0.4f, 0.05f), new Vector2(0.6f, 0.25f), Color.white); // 投げたボール・出てくるボール
             ball.preserveAspect = true; ball.enabled = false; ball.raycastTarget = false;
@@ -514,9 +528,14 @@ public partial class GameRunner
         {
             maxHp = Math.Max(1, max);
             this.species = species; this.level = level; this.type = type; this.weakness = weakness;
-            var sprite = runner.PokemonSprite(species);
+            var sprite = runner.BattleSprite(species);
             circle.sprite = sprite != null ? sprite : Ui.Circle;
             circle.color = sprite != null ? Color.white : TypeColor(type);
+            // 絵の1ドットを 同じ大きさで（大きいポケモンは大きく）。高すぎるときは 舞台に入るまで縮める
+            float h = stage.rect.height > 0 ? stage.rect.height : 360;
+            Vector2 size = sprite != null ? sprite.rect.size * PixelScale : new Vector2(150, 150);
+            if (size.y > h) size *= h / size.y;
+            circle.rectTransform.sizeDelta = size;
             circle.enabled = true;
             ball.enabled = false;
             circle.rectTransform.anchoredPosition = Vector2.zero; circle.rectTransform.localScale = Vector3.one; // たおれた・出てくる演出のあと
