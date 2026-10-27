@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Sugoroku.Rules;
@@ -7,7 +8,7 @@ using UnityEngine.UI;
 // メイン画面の部品（設計メモ/新設定追加項目/UI仕様書.md）
 // A 週と天気（左上）、B 場所名（上の中央）、C 手番のプレイヤー（右上）、D ほかのプレイヤー（右側）、E メニュー（左下）、G メッセージ（下の中央）
 // F 盤面：プレイヤーのコマの横に、先頭のポケモンがついて歩く
-// ponytail: 角丸・C/Dの入れ替わりのアニメーションはまだ。メニューの絵・バッジ・メダルは Ui で描いた仮の絵
+// ponytail: メニューの絵・バッジ・メダルは Ui で描いた仮の絵
 public partial class GameRunner
 {
     static readonly Color HudColor = new Color(0.05f, 0.28f, 0.32f, 0.85f); // 濃い青緑、半透明（4. 見た目）
@@ -48,16 +49,16 @@ public partial class GameRunner
         root.SetParent(canvas.transform, false);
         root.anchorMin = Vector2.zero; root.anchorMax = Vector2.one; root.offsetMin = root.offsetMax = Vector2.zero;
 
-        var a = Ui.Panel(root, "A_Week", new Vector2(0.005f, 0.88f), new Vector2(0.2f, 0.99f), HudColor);
+        var a = Ui.Round(Ui.Panel(root, "A_Week", new Vector2(0.005f, 0.88f), new Vector2(0.2f, 0.99f), HudColor));
         weekText = Ui.Label(a.transform, "", 28, TextAnchor.MiddleLeft);
         weekText.rectTransform.offsetMin = new Vector2(16, 4); weekText.rectTransform.offsetMax = new Vector2(-8, -4);
 
-        var b = Ui.Panel(root, "B_Place", new Vector2(0.36f, 0.93f), new Vector2(0.64f, 0.99f), HudColor);
+        var b = Ui.Round(Ui.Panel(root, "B_Place", new Vector2(0.36f, 0.93f), new Vector2(0.64f, 0.99f), HudColor));
         placeText = Ui.Label(b.transform, "", 34, TextAnchor.MiddleCenter);
 
         // C：名前とお金（お金は手番の人だけ）・先頭のポケモン・バッジ8個
-        currentFrame = Ui.Panel(root, "C_Current", new Vector2(0.62f, 0.85f), new Vector2(0.995f, 0.99f), Color.white);
-        var inner = Ui.Panel(currentFrame.transform, "Inner", Vector2.zero, Vector2.one, HudColor);
+        currentFrame = Ui.Round(Ui.Panel(root, "C_Current", new Vector2(0.62f, 0.85f), new Vector2(0.995f, 0.99f), Color.white));
+        var inner = Ui.Round(Ui.Panel(currentFrame.transform, "Inner", Vector2.zero, Vector2.one, HudColor));
         inner.rectTransform.offsetMin = new Vector2(6, 6); inner.rectTransform.offsetMax = new Vector2(-6, -6);
         currentText = Ui.Label(inner.transform, "", 26, TextAnchor.MiddleLeft);
         currentText.rectTransform.anchorMax = new Vector2(0.34f, 1);
@@ -120,9 +121,9 @@ public partial class GameRunner
         for (int k = 1; k < n; k++)
         {
             var p = S.Players[S.TurnOrder[(S.TurnIndex + k) % n]];
-            var frame = Ui.Panel(othersCol, "Other", Vector2.zero, Vector2.one, PlayerColor(p));
+            var frame = Ui.Round(Ui.Panel(othersCol, "Other", Vector2.zero, Vector2.one, PlayerColor(p)));
             frame.gameObject.AddComponent<LayoutElement>().preferredHeight = 80;
-            var box = Ui.Panel(frame.transform, "Inner", Vector2.zero, Vector2.one, HudColor);
+            var box = Ui.Round(Ui.Panel(frame.transform, "Inner", Vector2.zero, Vector2.one, HudColor));
             box.rectTransform.offsetMin = new Vector2(5, 5); box.rectTransform.offsetMax = new Vector2(-5, -5);
             var t = Ui.Label(box.transform, p.Name, 26, TextAnchor.MiddleLeft);
             t.rectTransform.anchorMax = new Vector2(0.5f, 1);
@@ -135,6 +136,36 @@ public partial class GameRunner
 
         SyncBuddies();
         SyncSymbols();
+    }
+
+    // ---- 手番が替わる：次の人の D の欄が C の位置へ上がって、中身が入れかわる（UI仕様書 D の案）----
+    IEnumerator TurnSwapAnim(int player)
+    {
+        string name = S.Players[player].Name;
+        RectTransform row = null;
+        foreach (RectTransform child in othersCol)
+            if (child.GetComponentInChildren<Text>()?.text == name) { row = child; break; }
+        if (row == null || !hudRoot.activeInHierarchy) { RefreshHud(); yield break; }
+        var ghost = (RectTransform)Instantiate(row.gameObject, hudRoot.transform).transform; // 上に重ねた写しを動かす
+        ghost.anchorMin = ghost.anchorMax = ghost.pivot = new Vector2(0.5f, 0.5f);
+        ghost.position = row.position;
+        ghost.sizeDelta = row.rect.size;
+        var rowGroup = row.gameObject.AddComponent<CanvasGroup>(); rowGroup.alpha = 0;
+        if (!currentFrame.TryGetComponent<CanvasGroup>(out var cGroup)) cGroup = currentFrame.gameObject.AddComponent<CanvasGroup>();
+        Vector3 from = ghost.position, to = currentFrame.rectTransform.position;
+        Vector2 size0 = ghost.sizeDelta, size1 = currentFrame.rectTransform.rect.size;
+        float total = 0.35f;
+        for (float t = 0; t < total && !SkipHeld(); t += Time.deltaTime)
+        {
+            float k = Mathf.SmoothStep(0, 1, t / total);
+            ghost.position = Vector3.Lerp(from, to, k);
+            ghost.sizeDelta = Vector2.Lerp(size0, size1, k);
+            cGroup.alpha = 1 - k;
+            yield return null;
+        }
+        Destroy(ghost.gameObject);
+        cGroup.alpha = 1;
+        RefreshHud(); // C と D を 新しい手番で描き直す（D の欄は作り直されるので 透明にしたものも消える）
     }
 
     // ---- G セリフ欄：出すときは下からスライド、読み終わったら下へ引っこむ。新しい文は1文字ずつ（○・スペースで全文）----

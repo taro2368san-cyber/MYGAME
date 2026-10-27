@@ -147,6 +147,29 @@ public static class Ui
         }
     }
 
+    // 角の丸い四角（UI仕様書 4 の案）。9スライスなので どの大きさでも角の丸さは同じ
+    static Sprite rounded;
+    public static Sprite Rounded
+    {
+        get
+        {
+            if (rounded != null) return rounded;
+            const int n = 32; const float r = 10;
+            var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float dx = Mathf.Max(0, Mathf.Max(r - (x + 0.5f), x + 0.5f - (n - r))), dy = Mathf.Max(0, Mathf.Max(r - (y + 0.5f), y + 0.5f - (n - r)));
+                    tex.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(r - Mathf.Sqrt(dx * dx + dy * dy) + 0.5f)));
+                }
+            tex.Apply();
+            return rounded = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 100, 0, SpriteMeshType.FullRect, new Vector4(12, 12, 12, 12));
+        }
+    }
+
+    // 部品の角を丸くする（絵を出す Image には使わない：絵の縦横の比が保てなくなる）
+    public static Image Round(Image img) { img.sprite = Rounded; img.type = Image.Type.Sliced; return img; }
+
     public static Canvas Canvas(string name)
     {
         var go = new GameObject(name, typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
@@ -208,7 +231,7 @@ public static class Ui
     {
         var go = new GameObject("Button", typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
         go.transform.SetParent(parent, false);
-        go.GetComponent<Image>().color = new Color(0.2f, 0.25f, 0.35f, 0.95f);
+        Round(go.GetComponent<Image>()).color = new Color(0.2f, 0.25f, 0.35f, 0.95f);
         var le = go.GetComponent<LayoutElement>();
         le.preferredWidth = width; le.preferredHeight = height; le.minHeight = height;
         var b = go.GetComponent<Button>();

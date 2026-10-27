@@ -298,6 +298,7 @@ public partial class GameRunner
         int dx = Down(g, x => x.dpad.right) ? 1 : Down(g, x => x.dpad.left) ? -1 : 0;
         int sw = Down(g, x => x.rightShoulder) ? 1 : Down(g, x => x.leftShoulder) ? -1 : 0;
         bool ok = Down(g, x => x.buttonEast), back = Down(g, x => x.buttonSouth);
+        if (Down(g, x => x.buttonNorth)) { DexCycleType(); return true; } // △ タイプでしぼりこむ
         if (dy == 0 && dx == 0 && sw == 0 && !ok && !back) return false;
         DexInput(dy, dx, ok, back, sw);
         return true;

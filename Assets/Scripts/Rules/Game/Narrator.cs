@@ -176,7 +176,10 @@ namespace Sugoroku.Rules
         {
             string a = x.AttackerPokemon, d = x.DefenderPokemon;
             if (x.Item != null) return $"{a}に {x.Item}を つかった（HP {x.AttackerHp}）";
-            string head = $"{a}の {AttackName(x.Attack)}！ {d}は {DefenseName(x.Defense)}";
+            // 技の名前を出す（UI仕様書 7.3 ⑤「ニドリーノの どくづき！」）。名前がなければ コマンドの呼び名
+            var sp = data.FindSpecies(a);
+            string move = sp == null ? "" : x.Attack == Attack.Physical ? sp.PhysicalMove : x.Attack == Attack.Special ? sp.SpecialMove : x.Attack == Attack.Super ? sp.SuperMove : "";
+            string head = $"{a}の {(string.IsNullOrEmpty(move) ? AttackName(x.Attack) : $"{move}（{AttackName(x.Attack)}）")}！ {d}は {DefenseName(x.Defense)}";
             string abilities = x.Abilities.Count > 0 ? "\n【" + string.Join("・", x.Abilities) + "】" : "";
             if (x.Absorbed) return head + abilities + $" {d}は 技を すいとった！";
             if (x.Missed)

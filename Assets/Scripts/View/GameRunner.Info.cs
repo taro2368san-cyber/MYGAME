@@ -49,12 +49,15 @@ public partial class GameRunner
 
     // ---- 図鑑（UI仕様書 6）：一覧は全種類を番号順に10体ずつ。登録していない種類は黒い影と「？？？」。● 捕まえた ○ 倒しただけ ----
     // 操作：上下 1体、左右 10体、○ くわしく、× もどる、L1/R1（キーボードは Q/E）ほかの人の図鑑
-    // ponytail: △のタイプでしぼりこみ（案）はまだ。出る場所は 未解放のエリアも出す（仕様書で未定）
+    // △（キーボードは T）：タイプでしぼりこむ（案）。押すたびに 次のタイプ → ぜんぶ
+    // ponytail: 出る場所は 未解放のエリアも出す（仕様書で未定）
     const int DexPage = 10;
     int dexPlayer, dexIndex; // だれの図鑑か、選んでいる種類（番号順の何番目か）
     bool dexDetail;          // くわしくを出しているか
     bool DexOpen => overlay != null && overlay.name == "Dex";
     List<Species> dexAll;    // 番号順の全種類
+    string dexType = "";     // しぼりこんでいるタイプ（空なら ぜんぶ）
+    List<Species> DexList => dexType == "" ? dexAll : dexAll.Where(s => s.Type == dexType).ToList();
 
     void ShowDex(PlayerState p) { dexPlayer = p.Id; dexDetail = false; DrawDex(); }
 
@@ -62,15 +65,16 @@ public partial class GameRunner
     {
         if (dexAll == null) dexAll = data.Species.OrderBy(s => s.Number).ToList();
         var p = S.Players[dexPlayer];
-        dexIndex = Mathf.Clamp(dexIndex, 0, dexAll.Count - 1);
-        if (dexDetail && p.Dex.Contains(dexAll[dexIndex].Name)) { DrawDexDetail(p, dexAll[dexIndex]); return; }
+        var list = DexList;
+        dexIndex = Mathf.Clamp(dexIndex, 0, list.Count - 1);
+        if (dexDetail && p.Dex.Contains(list[dexIndex].Name)) { DrawDexDetail(p, list[dexIndex]); return; }
         dexDetail = false;
         var col = Overlay("Dex");
-        int page = dexIndex / DexPage, pages = (dexAll.Count + DexPage - 1) / DexPage;
-        Ui.Line(col, $"{p.Name}の ずかん　　登録 {p.Dex.Count}／{dexAll.Count}　　捕まえた {p.CaughtSpecies.Count}　　{page + 1}／{pages}ページ", 40, PlayerColor(p));
-        for (int i = page * DexPage; i < Mathf.Min(dexAll.Count, (page + 1) * DexPage); i++)
+        int page = dexIndex / DexPage, pages = Mathf.Max(1, (list.Count + DexPage - 1) / DexPage);
+        Ui.Line(col, $"{p.Name}の ずかん　　登録 {p.Dex.Count}／{dexAll.Count}　　捕まえた {p.CaughtSpecies.Count}　　{page + 1}／{pages}ページ" + (dexType != "" ? $"　　タイプ：{dexType}" : ""), 40, PlayerColor(p));
+        for (int i = page * DexPage; i < Mathf.Min(list.Count, (page + 1) * DexPage); i++)
         {
-            var s = dexAll[i];
+            var s = list[i];
             bool known = p.Dex.Contains(s.Name);
             int k = i;
             var b = Ui.Button(col, $"{s.Number:000}　{(known ? s.Name : "？？？")}　{(p.CaughtSpecies.Contains(s.Name) ? "●" : known ? "○" : "")}", () => { dexIndex = k; dexDetail = true; DrawDex(); }, 1000, 60);
@@ -82,8 +86,9 @@ public partial class GameRunner
             icon.sprite = PokemonIcon(s.Name) ?? Ui.Circle; icon.preserveAspect = true; icon.raycastTarget = false;
             icon.rectTransform.sizeDelta = new Vector2(54, 54); icon.rectTransform.anchoredPosition = new Vector2(40, 0);
         }
-        Ui.Line(col, "十字キー 上下：1体　左右：10体　○：くわしく　×：閉じる" + (S.Players.Count > 1 ? "　L1/R1（Q/E）：ほかの人の図鑑" : ""), 22, new Color(0.8f, 0.8f, 0.8f));
+        Ui.Line(col, "十字キー 上下：1体　左右：10体　○：くわしく　×：閉じる　△（T）：タイプで しぼりこむ" + (S.Players.Count > 1 ? "　L1/R1（Q/E）：ほかの人の図鑑" : ""), 22, new Color(0.8f, 0.8f, 0.8f));
         var row = Row(col);
+        Ui.Button(row, dexType == "" ? "タイプ：ぜんぶ" : $"タイプ：{dexType}", DexCycleType, 240, 64);
         Ui.Button(row, "まえのページ", () => DexInput(0, -1, false, false, 0), 220, 64).interactable = page > 0;
         Ui.Button(row, "つぎのページ", () => DexInput(0, 1, false, false, 0), 220, 64).interactable = page < pages - 1;
         if (S.Players.Count > 1) Ui.Button(row, "ほかの人の図鑑", () => DexInput(0, 0, false, false, 1), 260, 64);
@@ -125,8 +130,8 @@ public partial class GameRunner
         if (sw != 0) dexPlayer = S.TurnOrder[(S.TurnOrder.IndexOf(dexPlayer) + sw + S.TurnOrder.Count) % S.TurnOrder.Count];
         else if (dexDetail) { if (!ok && !back) return; dexDetail = false; }
         else if (dy != 0) dexIndex += dy;
-        else if (dx != 0) dexIndex = Mathf.Clamp(dexIndex + dx * DexPage, 0, dexAll.Count - 1);
-        else if (ok) { if (!S.Players[dexPlayer].Dex.Contains(dexAll[dexIndex].Name)) return; dexDetail = true; }
+        else if (dx != 0) dexIndex = Mathf.Clamp(dexIndex + dx * DexPage, 0, DexList.Count - 1);
+        else if (ok) { if (!S.Players[dexPlayer].Dex.Contains(DexList[dexIndex].Name)) return; dexDetail = true; }
         else if (back) { CloseOverlay(); return; }
         else return;
         DrawDex();
@@ -139,6 +144,18 @@ public partial class GameRunner
         int sw = Input.GetKeyDown(KeyCode.E) ? 1 : Input.GetKeyDown(KeyCode.Q) ? -1 : 0;
         bool ok = Input.GetKeyDown(KeyCode.Return), back = Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.Backspace);
         if (dy != 0 || dx != 0 || sw != 0 || ok || back) DexInput(dy, dx, ok, back, sw);
+        else if (Input.GetKeyDown(KeyCode.T)) DexCycleType();
+    }
+
+    // タイプでしぼりこむ：番号順に出てくるタイプを 1つずつ、最後のあとは ぜんぶ
+    void DexCycleType()
+    {
+        if (dexDetail) return;
+        var types = dexAll.Select(s => s.Type).Distinct().ToList();
+        int i = types.IndexOf(dexType);
+        dexType = i + 1 < types.Count ? types[i + 1] : "";
+        dexIndex = 0;
+        DrawDex();
     }
 
     // 順位（16.6 #46）

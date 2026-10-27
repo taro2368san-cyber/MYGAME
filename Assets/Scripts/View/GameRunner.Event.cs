@@ -32,8 +32,8 @@ public partial class GameRunner
         eventArt = Ui.Panel(eventBg.transform, "Portrait", new Vector2(0.33f, 0.3f), new Vector2(0.67f, 0.97f), Color.white);
         eventArt.preserveAspect = true; eventArt.raycastTarget = false;
         // セリフ欄（メイン画面と同じ見た目：濃い緑に金のふち）。右に選択肢
-        var gold = Ui.Panel(eventBg.transform, "Talk", new Vector2(0.04f, 0.03f), new Vector2(0.96f, 0.3f), new Color(0.85f, 0.7f, 0.3f));
-        var box = Ui.Panel(gold.transform, "Inner", Vector2.zero, Vector2.one, new Color(0.04f, 0.25f, 0.14f, 0.96f));
+        var gold = Ui.Round(Ui.Panel(eventBg.transform, "Talk", new Vector2(0.04f, 0.03f), new Vector2(0.96f, 0.3f), new Color(0.85f, 0.7f, 0.3f)));
+        var box = Ui.Round(Ui.Panel(gold.transform, "Inner", Vector2.zero, Vector2.one, new Color(0.04f, 0.25f, 0.14f, 0.96f)));
         box.rectTransform.offsetMin = new Vector2(3, 3); box.rectTransform.offsetMax = new Vector2(-3, -3);
         eventText = Ui.Label(box.transform, "", 30, TextAnchor.UpperLeft);
         eventText.rectTransform.offsetMin = new Vector2(24, 14); eventText.rectTransform.offsetMax = new Vector2(-24, -14);

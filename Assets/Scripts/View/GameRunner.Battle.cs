@@ -37,7 +37,7 @@ public partial class GameRunner
         for (int i = 0; i < 2; i++)
         {
             float x0 = i == 0 ? 0.02f : 0.62f, cx = i == 0 ? 0.27f : 0.73f;
-            var info = Ui.Panel(battlePanel, $"Info{i}", new Vector2(x0, 0.83f), new Vector2(x0 + 0.36f, 0.98f), HudColor).rectTransform;
+            var info = Ui.Round(Ui.Panel(battlePanel, $"Info{i}", new Vector2(x0, 0.83f), new Vector2(x0 + 0.36f, 0.98f), HudColor)).rectTransform;
             var plate = Ui.Panel(battlePanel, $"Plate{i}", new Vector2(cx - 0.13f, 0.43f), new Vector2(cx + 0.13f, 0.51f), new Color(0.15f, 0.12f, 0.1f, 0.35f)); // 台座（つぶれた丸）
             plate.sprite = Ui.Circle; plate.raycastTarget = false;
             var stage = Ui.Rect(battlePanel, $"Stage{i}", new Vector2(cx - 0.12f, 0.46f), new Vector2(cx + 0.12f, 0.8f));
@@ -432,7 +432,7 @@ public partial class GameRunner
             };
             for (int i = 0; i < 4; i++)
             {
-                var img = Ui.Panel(root, $"Command{i}", places[i].Item1, places[i].Item2, CommandColors[i]);
+                var img = Ui.Round(Ui.Panel(root, $"Command{i}", places[i].Item1, places[i].Item2, CommandColors[i]));
                 img.gameObject.AddComponent<Outline>().effectColor = new Color(0, 0, 0, 0.6f);
                 var b = img.gameObject.AddComponent<Button>();
                 b.transition = Selectable.Transition.None;

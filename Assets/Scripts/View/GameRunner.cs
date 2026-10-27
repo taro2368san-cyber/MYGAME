@@ -319,16 +319,16 @@ public partial class GameRunner : MonoBehaviour
         BuildHud(); // A 週と天気・B 場所名・C 手番の人・D ほかの人（GameRunner.Hud.cs）
         BuildBattleScene(); // バトル画面（GameRunner.Battle.cs）。セリフ欄とメニューは この上に出す
         // G セリフ欄（下の中央）：濃い緑の箱に白い文字、細い金色のふち。出すときは下からスライド（GameRunner.Hud.cs の SlideMessage）
-        var gold = messageGold = Ui.Panel(canvas.transform, "G_Message", new Vector2(0.32f, 0.01f), new Vector2(0.75f, 0.25f), new Color(0.85f, 0.7f, 0.3f));
+        var gold = messageGold = Ui.Round(Ui.Panel(canvas.transform, "G_Message", new Vector2(0.32f, 0.01f), new Vector2(0.75f, 0.25f), new Color(0.85f, 0.7f, 0.3f)));
         messagePanel = gold.gameObject;
-        var bottom = Ui.Panel(gold.transform, "Inner", Vector2.zero, Vector2.one, new Color(0.04f, 0.25f, 0.14f, 0.95f));
+        var bottom = Ui.Round(Ui.Panel(gold.transform, "Inner", Vector2.zero, Vector2.one, new Color(0.04f, 0.25f, 0.14f, 0.95f)));
         bottom.rectTransform.offsetMin = new Vector2(3, 3); bottom.rectTransform.offsetMax = new Vector2(-3, -3);
         messageShown = 0;
         log = Ui.Label(bottom.transform, "", 24);
         log.rectTransform.offsetMin = new Vector2(16, 8); log.rectTransform.offsetMax = new Vector2(-16, -8);
         log.verticalOverflow = VerticalWrapMode.Truncate;
         // E メニュー（左下）。準備フェーズは いどう／どうぐ／マップ／ポケモン／ずかん／せってい。ほかの場面の選択肢もここに出す
-        var right = menuPanel = Ui.Panel(canvas.transform, "E_Menu", new Vector2(0.005f, 0.01f), new Vector2(0.31f, 0.52f), HudColor);
+        var right = menuPanel = Ui.Round(Ui.Panel(canvas.transform, "E_Menu", new Vector2(0.005f, 0.01f), new Vector2(0.31f, 0.52f), HudColor));
         var promptRect = Ui.Rect(right.transform, "Prompt", new Vector2(0, 0.86f), Vector2.one);
         prompt = Ui.Label(promptRect, "", 24, TextAnchor.MiddleLeft, new Color(1, 0.9f, 0.5f));
         prompt.rectTransform.offsetMin = new Vector2(14, 0); prompt.rectTransform.offsetMax = new Vector2(-10, 0);
@@ -411,6 +411,7 @@ public partial class GameRunner : MonoBehaviour
                 case TurnStarted t:
                     cameraTarget = pieces[t.Player];
                     camPan = Vector3.zero;
+                    yield return TurnSwapAnim(t.Player); // 次の人の欄が C へ上がる
                     yield return ShowNotices(t.Player); // 17.5
                     break;
                 case BallThrown bt: // ボールが揺れる（17.6）：野生のカードで ボールの絵を動かす
