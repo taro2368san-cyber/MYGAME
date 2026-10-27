@@ -18,6 +18,7 @@ public partial class GameRunner
     const float PixelScale = 3.2f;                    // バトルの絵の 1ドットの大きさ（画面の単位）
 
     Image battleBg;
+    readonly Image[] plates = new Image[2];
     RectTransform weatherLayer, cardRow;
     Text turnText, cardHint;
     readonly CommandPad[] pads = new CommandPad[2];
@@ -38,8 +39,8 @@ public partial class GameRunner
         {
             float x0 = i == 0 ? 0.02f : 0.62f, cx = i == 0 ? 0.27f : 0.73f;
             var info = Ui.Round(Ui.Panel(battlePanel, $"Info{i}", new Vector2(x0, 0.83f), new Vector2(x0 + 0.36f, 0.98f), HudColor)).rectTransform;
-            var plate = Ui.Panel(battlePanel, $"Plate{i}", new Vector2(cx - 0.13f, 0.43f), new Vector2(cx + 0.13f, 0.51f), new Color(0.15f, 0.12f, 0.1f, 0.35f)); // 台座（つぶれた丸）
-            plate.sprite = Ui.Circle; plate.raycastTarget = false;
+            var plate = plates[i] = Ui.Panel(battlePanel, $"Plate{i}", new Vector2(cx - 0.13f, 0.43f), new Vector2(cx + 0.13f, 0.51f), Color.white); // 足場（StartBattleScene で絵を決める）
+            plate.raycastTarget = false;
             var stage = Ui.Rect(battlePanel, $"Stage{i}", new Vector2(cx - 0.12f, 0.46f), new Vector2(cx + 0.12f, 0.8f));
             stage.pivot = new Vector2(0.5f, 0); // 大きさは 台座のところから変える
             cards[i] = new BattleCard(info, stage, this);
@@ -70,7 +71,7 @@ public partial class GameRunner
         ShowBattle(true);
         menuPanel.gameObject.SetActive(false); // 演出のあいだ メニューは出さない（選ぶときに DrawMenu が出す）
         shownKind = kind; shownAttacker = -1;
-        battleBg.sprite = BattleBackground(BattleBackgroundKind());
+        SetBattleArt(BattleBackgroundKind());
         cards[0].Clear(); cards[1].Clear();
         foreach (var p in pads) p.Show(false);
         Ui.Clear(cardRow); cardAt.Clear(); cardHint.text = "";
@@ -337,6 +338,29 @@ public partial class GameRunner
         if (sq.Place.StartsWith("うずまき島")) return "海";
         string kind = data.Places.FirstOrDefault(p => p.Name == sq.Place)?.Kind ?? "";
         return kind == "水道" ? "海" : kind == "ダンジョン" || kind == "山" ? "洞窟" : "草"; // 道路・森・町・地方の島は 草
+    }
+
+    // 背景と足場の絵（Resources/Battle。DP のバトル背景と足場、作者 KLNOTHINCOMIN：設計メモ/素材の出典.md）
+    // 草 → 草原（森の場所なら森）・草の足場、海 → 海・水、洞窟 → 洞窟1・洞窟、室内明 → 屋内、室内暗 → 屋内を暗く。足場は 左右とも相手側の楕円
+    // ponytail: 昼の絵だけ（夕方・夜は 時間のしくみができたら）。絵がなければ コードで描いた仮の背景と丸い影
+    void SetBattleArt(string kind)
+    {
+        var sq = board[S.Battle.Square];
+        bool forest = data.Places.FirstOrDefault(p => p.Name == sq.Place)?.Kind == "森";
+        var (bg, plate) = kind == "海" ? ("dp_bg_ocean_day", "dp_platform_water_day_enemy")
+            : kind == "洞窟" ? ("dp_bg_cave_1", "dp_platform_cave_enemy")
+            : kind == "室内明" || kind == "室内暗" ? ("dp_bg_indoor", "dp_platform_indoor_enemy")
+            : (forest ? "dp_bg_forest_day" : "dp_bg_grassland_day", "dp_platform_grass_day_enemy");
+        var bgSprite = Resources.Load<Sprite>("Battle/Backgrounds/" + bg);
+        battleBg.sprite = bgSprite ?? BattleBackground(kind);
+        battleBg.color = bgSprite != null && kind == "室内暗" ? new Color(0.45f, 0.4f, 0.55f) : Color.white; // 室内暗は 屋内を暗く
+        var plateSprite = Resources.Load<Sprite>("Battle/Platforms/" + plate);
+        foreach (var p in plates)
+        {
+            p.sprite = plateSprite ?? Ui.Circle;
+            p.preserveAspect = plateSprite != null;
+            p.color = plateSprite == null ? new Color(0.15f, 0.12f, 0.1f, 0.35f) : kind == "室内暗" ? new Color(0.6f, 0.55f, 0.7f) : Color.white;
+        }
     }
 
     // 仮の背景：上が空や壁、下が地面や床のグラデーション（つぶつぶを少し）
