@@ -19,9 +19,11 @@ public static class SpecialMapBuilder
     {
         public string Key, Name, Image, Place, MapId, Parent, Prefix; public float Scale; public Vector2 Origin; public bool Tower;
         public string Nodes, Edges, Floor;
+        public bool Main; // 本マップ：板は作らず、Image の絵を貼った板（置いてあるもの）の上にマスを置く。Origin・Scale はその板から決める
     }
 
     // マスの書き方「番号:列,段:種類」。種類 空=空マス 草=草むら 海=海上 ト=トレーナー ボ=モンスターボール ラ=ライバル ロ=ロケット団 イ=イベントマス ワN=ワープN番 シ=伝説のシンボル（番号のところに ポケモンの名前）
+    // セ=ポケモンセンター ジ=ジム 店<ショップid>=ショップ（例：店shop_guren）
     static readonly MapDef[] Maps =
     {
         // ポケモンタワー：シオンタウンのワープ8から入る行き止まり。4階（絵は 1・3・5・7 を使う）
@@ -115,12 +117,44 @@ public static class SpecialMapBuilder
         new MapDef { Key = "VR3", Name = "Victory Road 3F", Image = "Assets/maps/Victory Road/3.png", Place = "チャンピオンロード", MapId = "victoryroad", Parent = "VictoryRoad", Prefix = "VR_3F_", Scale = 0.05f, Origin = new Vector2(236, 780), Floor = "8,3;20,15;5,10",
             Nodes = "01:37,12:空 02:32,14:草 03:24,16:ト 04:13,16:草 05:4,13:空 06:7,7:ボ 07:12,4:草 08:30,4:草 ファイヤー:39,4:シ",
             Edges = "01-02 02-03 03-04 04-05 05-06 06-07 07-08 08-ファイヤー ファイヤー-01" },
+
+        // シルフカンパニー：ヤマブキシティの入口（ワープ111）から。1〜5階と11階（社長室にロケット団の拠点、ライバルのハウ）。階段で上の階へ（6〜10階は とばす）
+        new MapDef { Key = "SC1", Name = "Silph Co 1F", Image = "Assets/maps/Silph Co/1.png", Place = "シルフカンパニー", MapId = "silph", Parent = "SilphCo", Prefix = "SC_1F_", Scale = 0.05f, Origin = new Vector2(0, 840), Floor = "5,15;30,15",
+            Nodes = "01:9,21:ワ111 02:9,16:空 03:4,12:空 04:13,6:空 05:23,6:ボ 06:30,10:空 07:33,5:空 08:30,20:空 09:20,20:空",
+            Edges = "01-02 02-03 03-04 04-05 05-06 06-07 02-09 09-08 08-06" },
+        new MapDef { Key = "SC2", Name = "Silph Co 2F", Image = "Assets/maps/Silph Co/2.png", Place = "シルフカンパニー", MapId = "silph", Parent = "SilphCo", Prefix = "SC_2F_", Scale = 0.05f, Origin = new Vector2(34, 840), Floor = "31,11;10,10",
+            Nodes = "01:28,5:空 02:30,10:空 03:22,10:ト 04:12,10:空 05:5,6:ボ 06:4,19:ト 07:20,19:空 08:31,20:空 09:33,5:空",
+            Edges = "01-02 02-03 03-04 04-05 04-06 03-07 02-08 02-09" },
+        new MapDef { Key = "SC3", Name = "Silph Co 3F", Image = "Assets/maps/Silph Co/3.png", Place = "シルフカンパニー", MapId = "silph", Parent = "SilphCo", Prefix = "SC_3F_", Scale = 0.05f, Origin = new Vector2(68, 840), Floor = "24,12;10,5",
+            Nodes = "01:28,5:空 02:30,6:空 03:18,5:ト 04:8,6:空 05:6,12:ボ 06:16,12:ト 07:24,12:空 08:24,19:空 09:10,20:ト 10:33,12:空 11:33,5:空",
+            Edges = "01-02 02-03 03-04 04-05 05-06 03-07 07-08 08-09 07-10 02-11" },
+        new MapDef { Key = "SC4", Name = "Silph Co 4F", Image = "Assets/maps/Silph Co/4.png", Place = "シルフカンパニー", MapId = "silph", Parent = "SilphCo", Prefix = "SC_4F_", Scale = 0.05f, Origin = new Vector2(102, 840), Floor = "23,10;10,19",
+            Nodes = "01:28,5:空 02:24,8:空 03:23,15:空 04:15,19:ト 05:4,19:空 06:5,8:ボ 07:15,7:ト 08:31,13:空 09:33,5:空",
+            Edges = "01-02 02-03 03-04 04-05 05-06 02-07 02-08 01-09" },
+        new MapDef { Key = "SC5", Name = "Silph Co 5F", Image = "Assets/maps/Silph Co/5.png", Place = "シルフカンパニー", MapId = "silph", Parent = "SilphCo", Prefix = "SC_5F_", Scale = 0.05f, Origin = new Vector2(136, 840), Floor = "23,7;12,20",
+            Nodes = "01:28,5:空 02:23,7:空 03:14,8:ト 04:6,10:ボ 05:12,20:空 06:30,20:ト 07:16,13:空 08:34,6:空",
+            Edges = "01-02 02-03 03-04 03-05 05-06 02-07 01-08" },
+        new MapDef { Key = "SC11", Name = "Silph Co 11F", Image = "Assets/maps/Silph Co/11.png", Place = "シルフカンパニー", MapId = "silph", Parent = "SilphCo", Prefix = "SC_11F_", Scale = 0.05f, Origin = new Vector2(170, 840), Floor = "3,10;15,12",
+            Nodes = "01:7,5:空 02:3,8:空 03:3,17:空 04:9,19:ト 05:10,10:ロ 06:15,12:ラ 07:15,5:空",
+            Edges = "01-02 02-03 03-04 04-05 04-06 06-07 07-01" },
+
+        // ---- 本マップ（置いてある板の上にマスを置く。板は消さない）----
+        // 9番道路：ハナダシティの東の出口から 10番道路の北へ。上の砂の道と 下の段の道
+        new MapDef { Key = "R9", Name = "Route 9", Image = "Assets/maps/Route 09/1.png", Place = "9番道路", MapId = "", Parent = "Route9", Prefix = "R9_", Main = true, Floor = "20,9;30,17;25,6;12,3;3,9;1,9",
+            Nodes = "01:1,9:空 02:7,9:空 03:11,4:草 04:16,2:ボ 06:22,9:ト 07:29,9:空 08:38,2:草 09:39,8:空 10:47,7:ト 11:55,8:空 12:63,7:ボ 13:70,9:空 14:10,16:空 15:24,17:ト 16:38,17:空 17:52,17:草 18:66,17:空",
+            Edges = "01-02 02-03 03-04 02-06 06-07 07-09 09-08 09-10 10-11 11-12 12-13 02-14 14-15 15-16 16-17 17-18 18-13" },
+        // 10番道路の北：9番道路から。イワヤマトンネル北の入口（ワープ101）、ポケモンセンター、川を なみのりで下って むじんはつでんしょ（ワープ104）
+        new MapDef { Key = "R10N", Name = "Route 10 North", Image = "Assets/maps/Route 10/1.png", Place = "10番道路", MapId = "", Parent = "Route10North", Prefix = "R10N_", Main = true, Floor = "5,23;2,9;10,12;10,6;14,7;1,9",
+            Nodes = "01:1,9:空 02:7,7:草 03:13,6:草 04:3,14:空 05:8,20:ワ101 06:13,21:セ 07:5,25:ト 08:12,27:空 09:17,24:空 10:20,26:海 11:20,36:海 12:16,44:空 13:7,42:ワ104",
+            Edges = "01-02 02-03 01-04 04-05 05-06 06-09 04-07 07-08 08-09 09-10 10-11 11-12 12-13" },
     };
 
     // 板と板をまたぐ道（階段・エリアの出入口）
     static readonly string[] Links = { "T1.08-T2.01", "T2.07-T3.01", "T3.06-T4.01", "C.07-W.01", "C.13-N.01", "C.18-E.17", "N.06-E.01", "N.20-W.07",
         "RT1.05-RT2.01", "RT2.14-RT1.12", "CC1.10-CC2.01", "SF1.07-SF2.01",
-        "SS1.11-SS2.01", "SS1.07-SS3.01", "PM1.14-PM2.01", "VR1.12-VR2.01", "VR2.15-VR3.01" };
+        "SS1.11-SS2.01", "SS1.07-SS3.01", "PM1.14-PM2.01", "VR1.12-VR2.01", "VR2.15-VR3.01",
+        "SC1.07-SC2.01", "SC2.09-SC3.01", "SC3.11-SC4.01", "SC4.09-SC5.01", "SC5.08-SC11.01",
+        "R9.01-#355", "R9.13-R10N.01" }; // #355：ハナダシティの東の出口
 
     // 別マップごとのメニュー（そのマップだけ作り直す）
     [MenuItem("Tools/すごろく/別マップを作る/ポケモンタワー")] static void MenuTower() => BuildMenu("PokemonTower");
@@ -133,6 +167,9 @@ public static class SpecialMapBuilder
     [MenuItem("Tools/すごろく/別マップを作る/サントアンヌ号")] static void MenuSSAnne() => BuildMenu("SSAnne");
     [MenuItem("Tools/すごろく/別マップを作る/ポケモン屋敷")] static void MenuMansion() => BuildMenu("PokemonMansion");
     [MenuItem("Tools/すごろく/別マップを作る/チャンピオンロード")] static void MenuVictoryRoad() => BuildMenu("VictoryRoad");
+    [MenuItem("Tools/すごろく/別マップを作る/シルフカンパニー")] static void MenuSilph() => BuildMenu("SilphCo");
+    [MenuItem("Tools/すごろく/本マップのマスを置く/9番道路")] static void MenuRoute9() => BuildMenu("Route9");
+    [MenuItem("Tools/すごろく/本マップのマスを置く/10番道路の北")] static void MenuRoute10North() => BuildMenu("Route10North");
 
     static void BuildMenu(string group)
     {
@@ -145,7 +182,7 @@ public static class SpecialMapBuilder
         var board = GameObject.Find("Board");
         if (board == null) yield break;
         foreach (var name in groups) { var t = board.transform.Find(name); if (t != null) yield return t.gameObject; }
-        var ids = new HashSet<string>(Maps.Where(m => groups.Contains(m.Parent)).Select(m => m.MapId));
+        var ids = new HashSet<string>(Maps.Where(m => groups.Contains(m.Parent) && !m.Main).Select(m => m.MapId)); // 本マップの板は消さない
         foreach (var b in UnityEngine.Object.FindObjectsByType<SugorokuBoard>().Where(b => ids.Contains(b.mapId))) yield return b.gameObject;
     }
 
@@ -155,6 +192,9 @@ public static class SpecialMapBuilder
         if (groups == null || groups.Length == 0) groups = Maps.Select(m => m.Parent).Distinct().ToArray();
         var build = Maps.Where(m => groups.Contains(m.Parent)).ToList();
         foreach (var go in Existing(groups).ToList()) Undo.DestroyObjectImmediate(go);
+        // ほかのグループに置いた「消したマスへの道」も消す（あとで つなぎ直す）
+        foreach (var r in UnityEngine.Object.FindObjectsByType<SugorokuRoad>(FindObjectsInactive.Include).Where(r => r.squareA == null || r.squareB == null).ToList())
+            Undo.DestroyObjectImmediate(r.gameObject);
         var root = GameObject.Find("Board").transform;
         var squarePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(SquarePrefab);
         var roadPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(RoadPrefab);
@@ -169,8 +209,20 @@ public static class SpecialMapBuilder
             int tilesX = tex.width / 16, tilesY = tex.height / 16;
             var seeds = string.IsNullOrEmpty(m.Floor) ? null
                 : m.Floor.Split(';').Select(p => p.Split(',')).Select(p => TileMean(tex, int.Parse(p[0]), int.Parse(p[1]))).ToList();
+            if (m.Main)
+            {
+                // 本マップ：その絵を貼った板の 左上と 1px の長さを使う
+                var onBoard = UnityEngine.Object.FindObjectsByType<SugorokuBoard>(FindObjectsInactive.Include)
+                    .FirstOrDefault(b => b.GetComponent<MeshRenderer>()?.sharedMaterial?.mainTexture is Texture t && AssetDatabase.GetAssetPath(t) == m.Image);
+                if (onBoard == null) { log.Add($"{m.Name}：{m.Image} の板が見つからないので とばした"); UnityEngine.Object.DestroyImmediate(tex); continue; }
+                var bb = onBoard.GetComponent<MeshRenderer>().bounds;
+                m.Origin = new Vector2(bb.min.x, bb.max.z);
+                m.Scale = bb.size.x / tex.width;
+            }
             float w = tex.width * m.Scale, h = tex.height * m.Scale;
 
+            if (!m.Main)
+            {
             // 板：おつきみ山と同じ（キューブ、Y 180度、厚さ0.2）
             var plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
             plate.name = $"BoardBase ({m.Name})";
@@ -181,6 +233,7 @@ public static class SpecialMapBuilder
             var sb = plate.AddComponent<SugorokuBoard>();
             sb.place = m.Place; sb.mapId = m.MapId;
             Undo.RegisterCreatedObjectUndo(plate, "別マップを作る");
+            }
             float y = -0.1f + 0.1f; // 板の上面 ＋ 0.1（おつきみ山と同じ高さの差）
 
             var parent = root.Find(m.Parent) ?? NewChild(root, m.Parent);
@@ -203,6 +256,7 @@ public static class SpecialMapBuilder
                 sq.id = 0; // 書き出しのときに番号がつく
                 sq.type = TypeOf(kind, out int warp);
                 sq.warpId = warp;
+                if (kind.StartsWith("店")) sq.shopId = kind.Substring(1);
                 sq.grassKind = sea ? GrassKind.海上 : GrassKind.草むら;
                 if (kind == "シ") sq.symbolPokemon = parts[0]; // 伝説のシンボル：番号のところが ポケモンの名前
                 typeof(SugorokuSquare).GetMethod("OnValidate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(sq, null); // マスの上の名前
@@ -219,12 +273,25 @@ public static class SpecialMapBuilder
             }
             UnityEngine.Object.DestroyImmediate(tex);
         }
+        // 「#番号」は 今ある盤面のマス（SugorokuSquare の id）
+        var existing = UnityEngine.Object.FindObjectsByType<SugorokuSquare>(FindObjectsInactive.Include);
+        // 「キー.番号」は 今回作ったマス。今回作らなかったグループなら、前に作ったマス（名前は Prefix＋番号）を探す
+        SugorokuSquare End(string key)
+        {
+            if (key.StartsWith("#")) return existing.FirstOrDefault(s => s.id == int.Parse(key.Substring(1)));
+            if (made.TryGetValue(key, out var s2)) return s2;
+            var kv = key.Split('.');
+            var def = Maps.FirstOrDefault(m => m.Key == kv[0]);
+            return def == null ? null : existing.FirstOrDefault(s => s != null && s.name == def.Prefix + kv[1]);
+        }
         foreach (var link in Links)
         {
             var ab = link.Split('-');
-            if (!made.ContainsKey(ab[0]) || !made.ContainsKey(ab[1])) continue; // 今回 作らないマップ
-            var a = made[ab[0]];
-            Road(roadPrefab, a.transform.parent.Find("Roads"), a, made[ab[1]]);
+            if (!ab.Any(k => made.ContainsKey(k))) continue; // 今回 作らないマップ
+            var a = End(ab[0]); var b = End(ab[1]);
+            if (a == null || b == null) { log.Add($"つなげなかった：{link}（マスが見つからない）"); continue; }
+            var mine = made.ContainsKey(ab[0]) ? a : b;
+            Road(roadPrefab, mine.transform.parent.Find("Roads"), a, b);
             roads++;
         }
         UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(root.gameObject.scene);
@@ -265,6 +332,7 @@ public static class SpecialMapBuilder
     {
         warp = 0;
         if (kind.StartsWith("ワ")) { warp = int.Parse(kind.Substring(1)); return SquareType.ワープ; }
+        if (kind.StartsWith("店")) return SquareType.ショップ;
         switch (kind)
         {
             case "草": case "海": return SquareType.草むら;
@@ -274,6 +342,8 @@ public static class SpecialMapBuilder
             case "ロ": return SquareType.ロケット団;
             case "イ": return SquareType.イベントマス;
             case "シ": return SquareType.シンボル;
+            case "セ": return SquareType.ポケモンセンター;
+            case "ジ": return SquareType.ジム;
             default: return SquareType.空マス;
         }
     }
