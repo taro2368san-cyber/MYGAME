@@ -562,7 +562,7 @@ public partial class GameRunner : MonoBehaviour
     {
         if (game == null) return;
         if (S.Battle == null && battlePanel.gameObject.activeSelf) ShowBattle(false);
-        RefreshHud(); // メイン画面の部品（UI仕様書_メイン画面）
+        RefreshHud(); // メイン画面の部品（UI仕様書）
         PaintBoard(true);
         BuildMenu();
         RefreshBattleScene(); // コマンドの押せる・押せない は メニューを作ったあとで
@@ -696,7 +696,7 @@ public partial class GameRunner : MonoBehaviour
         DrawMenu(p.FixedDice >= 0 ? $"Enterで すすむ（出目は {p.FixedDice}）" : p.DiceCount > 1 ? $"Enterで サイコロを振る（{p.DiceCount}個）" : "Enterで サイコロを振る");
     }
 
-    // ポケモン：手持ち一覧。1体を選ぶと くわしく／入れ替え（UI仕様書_メイン画面 E）
+    // ポケモン：手持ち一覧。1体を選ぶと くわしく／入れ替え（UI仕様書 E）
     void PokemonMenu(int me)
     {
         var p = S.Players[me];
