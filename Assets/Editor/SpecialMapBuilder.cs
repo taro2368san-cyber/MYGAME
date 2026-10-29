@@ -147,6 +147,35 @@ public static class SpecialMapBuilder
         new MapDef { Key = "R10N", Name = "Route 10 North", Image = "Assets/maps/Route 10/1.png", Place = "10番道路", MapId = "", Parent = "Route10North", Prefix = "R10N_", Main = true, Floor = "5,23;2,9;10,12;10,6;14,7;1,9",
             Nodes = "01:1,9:空 02:7,7:草 03:13,6:草 04:3,14:空 05:8,20:ワ101 06:13,21:セ 07:5,25:ト 08:12,27:空 09:17,24:空 10:20,26:海 11:20,36:海 12:16,44:空 13:7,42:ワ104",
             Edges = "01-02 02-03 01-04 04-05 05-06 06-09 04-07 07-08 08-09 09-10 10-11 11-12 12-13" },
+        // 23番道路：22番道路のリーグの門（ワープ112）から北へ。バッジの門と 3つの池（なみのり）、草むら、大きな岩の左に チャンピオンロードの入口（ワープ109）
+        // 岩の右の出口（ワープ110）から 上の広場へ。入口側と出口側は道でつながない（チャンピオンロードを通る）
+        new MapDef { Key = "R23", Name = "Route 23", Image = "Assets/maps/Route 23/1.png", Place = "23番道路", MapId = "", Parent = "Route23", Prefix = "R23_", Main = true, Floor = "9,154;3,132;12,78;8,128;9,72;5,40;14,17",
+            Nodes = "01:8,155:ワ112 02:6,150:空 03:10,143:ト 04:14,137:空 05:8,128:空 06:12,121:ト 07:13,114:空 08:8,112:海 09:13,105:空 10:8,99:空 11:10,92:海 12:8,88:空 13:10,83:海 14:12,78:空 15:9,72:草 16:15,66:草 17:11,62:草 18:13,54:空 19:10,48:空 20:5,40:空 21:5,30:ワ109 22:16,46:ボ " +
+                    "23:19,30:ワ110 24:21,24:空 25:14,17:空 26:8,10:ト 27:12,2:空",
+            Edges = "01-02 02-03 03-04 04-05 05-06 06-07 07-08 08-09 09-10 10-11 11-12 12-13 13-14 14-15 15-16 16-17 17-18 18-19 19-20 20-21 19-22 23-24 24-25 25-26 26-27" },
+        // セキエイ高原：23番道路の上から。ポケモンセンター・ショップ・ライバル
+        new MapDef { Key = "IP", Name = "Indigo Plateau", Image = "Assets/maps/Indigo Plateau/1.png", Place = "セキエイ高原", MapId = "", Parent = "IndigoPlateau", Prefix = "IP_", Main = true, Floor = "12,12;12,15;9,9",
+            Nodes = "01:12,18:空 02:12,12:空 03:9,8:セ 04:15,8:店shop_sekiei 05:12,7:ラ",
+            Edges = "01-02 02-03 02-04 03-05 04-05" },
+        // 19番水道の南：セキチクの浜から 海を南へ（なみのり）。下で 20番水道へ
+        new MapDef { Key = "R19S", Name = "Route 19 South", Image = "Assets/maps/Route 19/1.png", Place = "19番水道", MapId = "", Parent = "Route19South", Prefix = "R19S_", Main = true, Floor = "12,3",
+            Nodes = "01:12,16:海 02:8,26:海 03:14,38:海 04:8,48:海 05:4,55:海",
+            Edges = "01-02 02-03 03-04 04-05" },
+        // 20番水道：19番水道から西へ グレンタウンまで（なみのり）。ふたご島の 東の入口（ワープ106）と 西の入口（ワープ105）、砂の小島
+        new MapDef { Key = "R20", Name = "Route 20", Image = "Assets/maps/Route 20/1.png", Place = "20番水道", MapId = "", Parent = "Route20", Prefix = "R20_", Main = true, Floor = "24,6;43,9;66,12",
+            Nodes = "01:118,9:海 02:105,9:海 03:92,8:海 04:80,12:海 05:72,15:ワ106 06:60,9:ワ105 07:52,9:海 08:43,9:ト 09:33,9:海 10:24,6:ボ 11:14,9:海 12:3,9:海 13:62,17:海",
+            Edges = "01-02 02-03 03-04 04-05 04-13 13-07 07-06 07-08 08-09 09-10 10-11 11-12" },
+        // グレンタウン：ポケモン屋敷（ワープ108）、ジム、ポケモンセンター、ショップ。東は 20番水道、北の桟橋は 21番水道
+        new MapDef { Key = "CI", Name = "Cinnabar Island", Image = "Assets/maps/Cinnabar Island/1.png", Place = "グレンタウン", MapId = "", Parent = "Cinnabar", Prefix = "CI_", Main = true, Floor = "12,7;22,13;14,13;5,9",
+            Nodes = "01:22,13:空 02:19,12:店shop_guren 03:14,12:セ 04:12,7:空 05:20,5:ジ 06:8,5:ワ108 07:8,11:空 08:4,8:空 10:14,2:空",
+            Edges = "01-02 02-03 03-04 04-05 04-06 04-07 07-08 04-10" },
+        // 21番水道：マサラタウンの南から グレンタウンの北の桟橋まで（なみのり）。上に草むら、砂の小島
+        new MapDef { Key = "R21N", Name = "Route 21 North", Image = "Assets/maps/Route 21/1.png", Place = "21番水道", MapId = "", Parent = "Route21", Prefix = "R21N_", Main = true, Floor = "16,24;14,8;7,29;17,42",
+            Nodes = "01:8,2:海 02:14,8:草 03:8,16:海 04:16,24:空 05:7,29:ト 06:9,37:海 07:17,42:ボ 08:10,48:海",
+            Edges = "01-02 01-03 03-04 03-05 05-06 04-06 06-07 06-08" },
+        new MapDef { Key = "R21S", Name = "Route 21 South", Image = "Assets/maps/Route 21/2.png", Place = "21番水道", MapId = "", Parent = "Route21", Prefix = "R21S_", Main = true, Floor = "9,8;16,15;8,23;8,37;12,46",
+            Nodes = "01:9,2:海 02:9,8:空 03:16,15:ト 04:8,23:空 05:12,31:海 06:8,37:ボ 07:12,46:空",
+            Edges = "01-02 02-03 02-04 03-04 04-05 05-06 05-07" },
     };
 
     // 板と板をまたぐ道（階段・エリアの出入口）
@@ -154,7 +183,9 @@ public static class SpecialMapBuilder
         "RT1.05-RT2.01", "RT2.14-RT1.12", "CC1.10-CC2.01", "SF1.07-SF2.01",
         "SS1.11-SS2.01", "SS1.07-SS3.01", "PM1.14-PM2.01", "VR1.12-VR2.01", "VR2.15-VR3.01",
         "SC1.07-SC2.01", "SC2.09-SC3.01", "SC3.11-SC4.01", "SC4.09-SC5.01", "SC5.08-SC11.01",
-        "R9.01-#355", "R9.13-R10N.01" }; // #355：ハナダシティの東の出口
+        "R9.01-#355", "R9.13-R10N.01", // #355：ハナダシティの東の出口
+        "R23.27-IP.01",
+        "R19S.01-#1084", "R19S.05-R20.01", "R20.12-CI.01", "R21N.01-#4", "R21N.08-R21S.01", "R21S.07-CI.10" }; // #1084：19番水道の浜、#4：マサラタウンの南
 
     // 別マップごとのメニュー（そのマップだけ作り直す）
     [MenuItem("Tools/すごろく/別マップを作る/ポケモンタワー")] static void MenuTower() => BuildMenu("PokemonTower");
@@ -170,6 +201,12 @@ public static class SpecialMapBuilder
     [MenuItem("Tools/すごろく/別マップを作る/シルフカンパニー")] static void MenuSilph() => BuildMenu("SilphCo");
     [MenuItem("Tools/すごろく/本マップのマスを置く/9番道路")] static void MenuRoute9() => BuildMenu("Route9");
     [MenuItem("Tools/すごろく/本マップのマスを置く/10番道路の北")] static void MenuRoute10North() => BuildMenu("Route10North");
+    [MenuItem("Tools/すごろく/本マップのマスを置く/23番道路")] static void MenuRoute23() => BuildMenu("Route23");
+    [MenuItem("Tools/すごろく/本マップのマスを置く/セキエイ高原")] static void MenuIndigo() => BuildMenu("IndigoPlateau");
+    [MenuItem("Tools/すごろく/本マップのマスを置く/19番水道の南")] static void MenuRoute19South() => BuildMenu("Route19South");
+    [MenuItem("Tools/すごろく/本マップのマスを置く/20番水道")] static void MenuRoute20() => BuildMenu("Route20");
+    [MenuItem("Tools/すごろく/本マップのマスを置く/グレンタウン")] static void MenuCinnabar() => BuildMenu("Cinnabar");
+    [MenuItem("Tools/すごろく/本マップのマスを置く/21番水道")] static void MenuRoute21() => BuildMenu("Route21");
 
     static void BuildMenu(string group)
     {
