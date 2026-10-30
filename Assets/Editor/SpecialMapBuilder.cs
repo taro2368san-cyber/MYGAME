@@ -138,6 +138,22 @@ public static class SpecialMapBuilder
             Nodes = "01:7,5:空 02:3,8:空 03:3,17:空 04:9,19:ト 05:10,10:ロ 06:15,12:ラ 07:15,5:空",
             Edges = "01-02 02-03 03-04 04-05 04-06 06-07 07-01" },
 
+        // ポケモン屋敷の 2階・3階：1階の階段から 2階 → 3階、3階の穴から 1階へ落ちる（1階・地下とは別のグループ。作り直しても 1階・地下は そのまま）
+        new MapDef { Key = "PM3", Name = "Pokemon Mansion 2F", Image = "Assets/maps/Pokemon Mansion/2.png", Place = "ポケモン屋敷", MapId = "mansion", Parent = "PokemonMansionUpper", Prefix = "PM_2F_", Scale = 0.05f, Origin = new Vector2(82, 745), Floor = "13,9;30,9;20,20;11,5",
+            Nodes = "01:11,5:空 02:4,6:草 03:13,9:空 04:7,16:ト 05:4,24:草 06:8,32:ボ 07:24,6:草 08:30,9:空 09:28,17:草 10:35,22:空",
+            Edges = "01-02 01-03 03-04 04-05 05-06 03-07 07-08 08-09 09-10" },
+        new MapDef { Key = "PM4", Name = "Pokemon Mansion 3F", Image = "Assets/maps/Pokemon Mansion/3.png", Place = "ポケモン屋敷", MapId = "mansion", Parent = "PokemonMansionUpper", Prefix = "PM_3F_", Scale = 0.05f, Origin = new Vector2(116, 745), Floor = "16,8;28,12;20,17;32,19",
+            Nodes = "01:32,19:空 02:28,12:草 03:24,5:ト 04:16,8:空 05:7,6:草 06:4,15:草 07:9,17:ボ 08:20,17:空",
+            Edges = "01-02 02-03 03-04 04-05 05-06 06-07 04-08" },
+
+        // シロガネ山：23番道路の リーグの門の西（ワープ113、原作の 28番道路の方）から。洞窟の1階と 雪の山頂（絵は コードで描いた自作）
+        new MapDef { Key = "MS1", Name = "Mt. Silver 1F", Image = "Assets/maps/Mt. Silver/1.png", Place = "シロガネ山", MapId = "silver", Parent = "MtSilver", Prefix = "MS_1F_", Scale = 0.05f, Origin = new Vector2(150, 745), Floor = "7,1;8,2;20,2",
+            Nodes = "01:23,20:ワ113 02:23,16:空 03:19,11:ト 04:13,11:草 05:7,10:空 06:4,18:草 07:8,6:空 08:9,3:草 09:16,4:ト 10:19,2:空 11:25,8:草 12:27,13:ボ",
+            Edges = "01-02 02-03 03-04 04-05 05-06 05-07 07-08 08-09 09-10 03-11 11-12 12-02 11-10" },
+        new MapDef { Key = "MS2", Name = "Mt. Silver Summit", Image = "Assets/maps/Mt. Silver/2.png", Place = "シロガネ山", MapId = "silver", Parent = "MtSilver", Prefix = "MS_Top_", Scale = 0.05f, Origin = new Vector2(180, 745), Floor = "7,4;11,2;11,12",
+            Nodes = "01:11,12:空 02:6,10:ト 03:3,13:ボ 04:17,10:ト 05:20,13:空 06:12,7:空 07:11,3:ト 08:8,3:空 09:16,3:空",
+            Edges = "01-02 02-03 01-04 04-05 01-06 06-07 07-08 07-09 08-02 09-04" },
+
         // ---- 本マップ（置いてある板の上にマスを置く。板は消さない）----
         // 9番道路：ハナダシティの東の出口から 10番道路の北へ。上の砂の道と 下の段の道
         new MapDef { Key = "R9", Name = "Route 9", Image = "Assets/maps/Route 09/1.png", Place = "9番道路", MapId = "", Parent = "Route9", Prefix = "R9_", Main = true, Floor = "20,9;30,17;25,6;12,3;3,9;1,9",
@@ -151,8 +167,8 @@ public static class SpecialMapBuilder
         // 岩の右の出口（ワープ110）から 上の広場へ。入口側と出口側は道でつながない（チャンピオンロードを通る）
         new MapDef { Key = "R23", Name = "Route 23", Image = "Assets/maps/Route 23/1.png", Place = "23番道路", MapId = "", Parent = "Route23", Prefix = "R23_", Main = true, Floor = "9,154;3,132;12,78;8,128;9,72;5,40;14,17",
             Nodes = "01:8,155:ワ112 02:6,150:空 03:10,143:ト 04:14,137:空 05:8,128:空 06:12,121:ト 07:13,114:空 08:8,112:海 09:13,105:空 10:8,99:空 11:10,92:海 12:8,88:空 13:10,83:海 14:12,78:空 15:9,72:草 16:15,66:草 17:11,62:草 18:13,54:空 19:10,48:空 20:5,40:空 21:5,30:ワ109 22:16,46:ボ " +
-                    "23:19,30:ワ110 24:21,24:空 25:14,17:空 26:8,10:ト 27:12,2:空",
-            Edges = "01-02 02-03 03-04 04-05 05-06 06-07 07-08 08-09 09-10 10-11 11-12 12-13 13-14 14-15 15-16 16-17 17-18 18-19 19-20 20-21 19-22 23-24 24-25 25-26 26-27" },
+                    "23:19,30:ワ110 24:21,24:空 25:14,17:空 26:8,10:ト 27:12,2:空 28:3,153:ワ113",
+            Edges = "01-02 02-03 03-04 04-05 05-06 06-07 07-08 08-09 09-10 10-11 11-12 12-13 13-14 14-15 15-16 16-17 17-18 18-19 19-20 20-21 19-22 23-24 24-25 25-26 26-27 02-28" },
         // セキエイ高原：23番道路の上から。ポケモンセンター・ショップ・ライバル
         new MapDef { Key = "IP", Name = "Indigo Plateau", Image = "Assets/maps/Indigo Plateau/1.png", Place = "セキエイ高原", MapId = "", Parent = "IndigoPlateau", Prefix = "IP_", Main = true, Floor = "12,12;12,15;9,9",
             Nodes = "01:12,18:空 02:12,12:空 03:9,8:セ 04:15,8:店shop_sekiei 05:12,7:ラ",
@@ -184,7 +200,7 @@ public static class SpecialMapBuilder
         "SS1.11-SS2.01", "SS1.07-SS3.01", "PM1.14-PM2.01", "VR1.12-VR2.01", "VR2.15-VR3.01",
         "SC1.07-SC2.01", "SC2.09-SC3.01", "SC3.11-SC4.01", "SC4.09-SC5.01", "SC5.08-SC11.01",
         "R9.01-#355", "R9.13-R10N.01", // #355：ハナダシティの東の出口
-        "R23.27-IP.01",
+        "R23.27-IP.01", "PM1.04-PM3.01", "PM3.10-PM4.01", "PM4.08-PM1.13", "MS1.10-MS2.01",
         "R19S.01-#1084", "R19S.05-R20.01", "R20.12-CI.01", "R21N.01-#4", "R21N.08-R21S.01", "R21S.07-CI.10" }; // #1084：19番水道の浜、#4：マサラタウンの南
 
     // 別マップごとのメニュー（そのマップだけ作り直す）
@@ -199,6 +215,8 @@ public static class SpecialMapBuilder
     [MenuItem("Tools/すごろく/別マップを作る/ポケモン屋敷")] static void MenuMansion() => BuildMenu("PokemonMansion");
     [MenuItem("Tools/すごろく/別マップを作る/チャンピオンロード")] static void MenuVictoryRoad() => BuildMenu("VictoryRoad");
     [MenuItem("Tools/すごろく/別マップを作る/シルフカンパニー")] static void MenuSilph() => BuildMenu("SilphCo");
+    [MenuItem("Tools/すごろく/別マップを作る/ポケモン屋敷の2階・3階")] static void MenuMansionUpper() => BuildMenu("PokemonMansionUpper");
+    [MenuItem("Tools/すごろく/別マップを作る/シロガネ山")] static void MenuSilver() => BuildMenu("MtSilver");
     [MenuItem("Tools/すごろく/本マップのマスを置く/9番道路")] static void MenuRoute9() => BuildMenu("Route9");
     [MenuItem("Tools/すごろく/本マップのマスを置く/10番道路の北")] static void MenuRoute10North() => BuildMenu("Route10North");
     [MenuItem("Tools/すごろく/本マップのマスを置く/23番道路")] static void MenuRoute23() => BuildMenu("Route23");
@@ -219,8 +237,9 @@ public static class SpecialMapBuilder
         var board = GameObject.Find("Board");
         if (board == null) yield break;
         foreach (var name in groups) { var t = board.transform.Find(name); if (t != null) yield return t.gameObject; }
-        var ids = new HashSet<string>(Maps.Where(m => groups.Contains(m.Parent) && !m.Main).Select(m => m.MapId)); // 本マップの板は消さない
-        foreach (var b in UnityEngine.Object.FindObjectsByType<SugorokuBoard>().Where(b => ids.Contains(b.mapId))) yield return b.gameObject;
+        // そのグループで作った板だけ（名前で選ぶ。同じ mapId の ほかのグループの板や、本マップの板は消さない）
+        var names = new HashSet<string>(Maps.Where(m => groups.Contains(m.Parent) && !m.Main).Select(m => $"BoardBase ({m.Name})"));
+        foreach (var b in UnityEngine.Object.FindObjectsByType<SugorokuBoard>().Where(b => names.Contains(b.name))) yield return b.gameObject;
     }
 
     // groups（Parent の名前）のマップだけを作る。何もわたさなければ全部。何をしたかの文を返す
