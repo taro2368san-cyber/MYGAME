@@ -534,7 +534,7 @@ public partial class GameRunner : MonoBehaviour
     void SyncSnorlax()
     {
         foreach (int sq in snorlax.Keys.Where(k => !S.Blocked.ContainsKey(k)).ToList()) { Destroy(snorlax[sq]); snorlax.Remove(sq); }
-        foreach (int sq in S.Blocked.Keys.Where(k => !snorlax.ContainsKey(k)))
+        foreach (int sq in S.Blocked.Keys.Where(k => !snorlax.ContainsKey(k) && game.SymbolHere(k) == null)) // 12番・16番道路のカビゴンは シンボルの絵が出るので 玉は出さない
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             Destroy(go.GetComponent<Collider>());
