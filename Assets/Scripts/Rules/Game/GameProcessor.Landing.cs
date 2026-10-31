@@ -16,6 +16,7 @@ namespace Sugoroku.Rules
             var other = State.Players.FirstOrDefault(p => p != player && p.Square == player.Square && p.Party.Any(m => !m.Fainted) && p.PendingBattle == null && !OnIsland(player)); // バトルの途中の人とは戦わない。島はその人だけのエリア
             if (other != null && player.Party.Any(m => !m.Fainted)) return StartPlayerBattle(other, events);
             if (SafariGate(player, sq, events)) return false;
+            if (sq.Neighbors.Any(SleepingSnorlax)) Say("ev_snorlax_block", events, player); // となりで 道をふさいで ねむっている（ふえで起こせる）
             SpringTrap(player, events);
 
             switch (sq.Type)

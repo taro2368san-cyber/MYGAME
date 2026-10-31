@@ -47,6 +47,7 @@ namespace Sugoroku.Rules
                 case ItemUse.Snorlax: return State.Blocked.ContainsKey(p.Square) ? "このマスには もう カビゴンが います" : null;
                 case ItemUse.PokeFlute:
                     if (!State.Blocked.ContainsKey(target)) return "カビゴンの いるマスを 選んでください";
+                    if (SymbolHere(target) == Snorlax) return board[p.Square].Neighbors.Contains(target) ? null : "道をふさいでいる カビゴンは となりの マスから 起こします";
                     return board[target].Area == board[p.Square].Area ? null : "同じエリアの カビゴンにしか 届きません";
                 case ItemUse.DartBike: return p.Has("ダート自転車") ? "もう ダート自転車に 乗っています" : null;
                 case ItemUse.SweetScent: return p.Has("アマいおこう") ? "もう アマいおこうが 効いています" : null;
@@ -155,12 +156,14 @@ namespace Sugoroku.Rules
                     // 自分のいるマスにカビゴン。だれも通れない（自分も、ここから出るのはよい）
                     int weeks = Roll(TuneInt("snorlax_weeks_min"), TuneInt("snorlax_weeks_max"));
                     State.Blocked[p.Square] = weeks;
+                    Say("ev_snorlax_sweet", events, p);
                     events.Add(new SnorlaxPlaced { Player = p.Id, Square = p.Square, Weeks = weeks });
                     break;
                 }
                 case ItemUse.PokeFlute:
-                    if (SymbolHere(target) == Snorlax) { WakeSnorlax(target, events); break; } // 12番・16番道路の カビゴン：起こすとバトル
+                    if (SymbolHere(target) == Snorlax) { WakeSnorlax(p, target, events); break; } // 12番・16番道路の カビゴン：起こすとバトル
                     State.Blocked.Remove(target);
+                    Say("ev_snorlax_sweet_gone", events, p);
                     events.Add(new SnorlaxRemoved { Square = target, Player = p.Id });
                     break;
                 case ItemUse.DartBike: AddAilment(p, "ダート自転車", TuneInt("dart_bike_weeks"), p.Id, events); p.BikeUses++; CheckCyclingUnlock(p, events); break;

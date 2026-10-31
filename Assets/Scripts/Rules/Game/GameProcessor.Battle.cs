@@ -873,6 +873,7 @@ namespace Sugoroku.Rules
 
         void FinishBattle(List<GameEvent> events)
         {
+            if (B.Symbol && SleepingSnorlax(B.Square)) Say("ev_snorlax_sleep", events, State.Players[B.Sides[0].Player]); // 逃げた・負けた：カビゴンは また ねむる
             State.Battle = null;
             EndTurn(events);
         }

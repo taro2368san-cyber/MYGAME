@@ -409,7 +409,7 @@ namespace Sugoroku.Rules
 
             if (State.WeatherWeeks > 0 && --State.WeatherWeeks == 0) { events.Add(new WeekEventEnded { Name = State.Weather }); State.Weather = ""; }
             foreach (int sq in State.Blocked.Keys.ToList()) // カビゴンは週がたつと去る
-                if (--State.Blocked[sq] <= 0) { State.Blocked.Remove(sq); events.Add(new SnorlaxRemoved { Square = sq, Player = -1 }); }
+                if (--State.Blocked[sq] <= 0) { State.Blocked.Remove(sq); Say("ev_snorlax_sweet_gone", events); events.Add(new SnorlaxRemoved { Square = sq, Player = -1 }); }
             if (State.FluteWeeks > 0 && --State.FluteWeeks == 0) { events.Add(new WeekEventEnded { Name = "ふえの天候（" + State.FluteWeather + "）" }); State.FluteWeather = ""; }
             if (State.NewsWeeks > 0 && --State.NewsWeeks == 0) { events.Add(new WeekEventEnded { Name = $"{State.NewsKind}（{State.NewsPlace}）" }); State.NewsKind = State.NewsPlace = ""; }
             if (State.WeekEventWeeks > 0 && --State.WeekEventWeeks == 0) { events.Add(new WeekEventEnded { Name = State.WeekEvent }); State.WeekEvent = ""; }

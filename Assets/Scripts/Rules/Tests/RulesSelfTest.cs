@@ -477,12 +477,16 @@ namespace Sugoroku.Rules
             {
                 var (g, me, _) = Two("ポケモンのふえ");
                 bool blocked = g.State.Blocked.ContainsKey(snorSq.Id);
+                // となりでないと 届かない（同じ道路の 2マス先）
+                var far = board.Squares.Values.FirstOrDefault(x => x.Area == snorSq.Area && x.Id != snorSq.Id && !snorSq.Neighbors.Contains(x.Id));
+                if (far != null) me.Square = far.Id;
+                bool farRejected = far == null || g.Validate(new UseItem { Player = me.Id, Item = "ポケモンのふえ", Target = snorSq.Id }) != null;
                 me.Square = snorSq.Neighbors[0];
                 g.Apply(new UseItem { Player = me.Id, Item = "ポケモンのふえ", Target = snorSq.Id }, out string ferr);
-                bool fight = ferr == null && g.State.Battle?.Symbol == true && g.State.Battle.Sides[1].Team[0].Species == "カビゴン";
+                bool fight = farRejected && ferr == null && g.State.Battle?.Symbol == true && g.State.Battle.Sides[1].Team[0].Species == "カビゴン" && g.State.Battle.Sides[1].Team[0].Level == (int)data.Required("snorlax_level");
                 g.DebugEnabled = true;
                 if (fight) g.Apply(new DebugCommand { Player = me.Id, Action = DebugAction.WinBattle }, out _);
-                Check(log, "カビゴン（12番・16番道路）：はじめから道をふさぎ、ポケモンのふえでバトル。倒すと いなくなる", blocked && fight && !g.State.Blocked.ContainsKey(snorSq.Id) && g.State.SymbolsGone.Contains(snorSq.Id));
+                Check(log, "カビゴン（12番・16番道路）：はじめから道をふさぎ、となりから ポケモンのふえでバトル（Lv25）。倒すと いなくなる", blocked && fight && !g.State.Blocked.ContainsKey(snorSq.Id) && g.State.SymbolsGone.Contains(snorSq.Id));
             }
             var safariSq = board.Squares.Values.FirstOrDefault(x => x.MapId == "safari" && x.Type == "草むら" && !x.Sea && x.Neighbors.Any(n => board[n].MapId == "safari") && data.Encounters.Any(e => e.Place == x.Place && e.Method == "草むら"));
             if (safariSq != null)
