@@ -7,7 +7,7 @@ namespace Sugoroku.Rules
     // 週イベントのうち、ポケニュース・ポケニュース特番・突発バトルイベント（仕様書5.3）
     // ポケニュース：event_weeks 週、指定の道路の草むらで「レア枠」（その場所でいちばん出現率が低い行）が news_rare_mult 倍 出やすい
     // ポケニュース特番：event_weeks 週、指定の道路の草むらで news_legend_rate の確率で 準伝説（エンテイ・スイクン・ライコウ・ラティアス・ラティオス）
-    // 突発バトルイベント：週のはじめに 全員でミニトーナメント（クイックバトル）。優勝するとポケベル
+    // 突発バトルイベント：週のはじめに 同じエリアにいる人たちでミニトーナメント（2人いなければ 別の週イベントを引き直す。ステップ2 2-C-2、仮）（クイックバトル）。優勝するとポケベル
     public sealed partial class GameProcessor
     {
         static readonly string[] NewsLegends = { "エンテイ", "スイクン", "ライコウ", "ラティアス", "ラティオス" };
@@ -45,7 +45,14 @@ namespace Sugoroku.Rules
                     return true;
                 }
                 case "突発バトルイベント":
-                    return !StartTournament(events);
+                {
+                    if (StartTournament(events)) return false;
+                    // 同じエリアに 2人いなければ、ほかの週イベントを 引き直す（発生率の比で）
+                    var others = data.WeekEvents.Where(x => x.Name != name && x.Probability > 0).ToList();
+                    if (others.Count == 0) return true;
+                    double r = Rng.Next(ref State.Rng) * others.Sum(x => x.Probability), sum = 0;
+                    return ApplyWeekEvent((others.FirstOrDefault(x => r < (sum += x.Probability)) ?? others[others.Count - 1]).Name, events);
+                }
                 default:
                     return true;
             }
@@ -74,11 +81,14 @@ namespace Sugoroku.Rules
 
         // ---- 突発バトルイベント（ミニトーナメント）----
 
-        // はじめる。戦える人が2人いなければ何もしない（false）
+        // はじめる。戦えるのは 同じエリアにいる人たち（いちばん多いエリア。同じ数なら ランダム）。2人いなければ何もしない（false）
         internal bool StartTournament(List<GameEvent> events)
         {
-            var entrants = State.Players.Where(p => p.Party.Any(m => !m.Fainted)).Select(p => p.Id).ToList();
-            if (entrants.Count < 2) return false;
+            var groups = State.Players.Where(p => p.Party.Any(m => !m.Fainted)).GroupBy(p => data.Places.FirstOrDefault(x => x.Name == board[p.Square].Place)?.Area ?? "")
+                .Where(g => g.Key != "" && g.Count() >= 2).ToList();
+            if (groups.Count == 0) return false;
+            var top = groups.Where(g => g.Count() == groups.Max(x => x.Count())).ToList();
+            var entrants = top[Roll(0, top.Count - 1)].Select(p => p.Id).ToList();
             for (int i = entrants.Count - 1; i > 0; i--) { int j = Roll(0, i); (entrants[i], entrants[j]) = (entrants[j], entrants[i]); }
             State.Tournament = new TournamentState();
             State.Tournament.Entrants.AddRange(entrants);

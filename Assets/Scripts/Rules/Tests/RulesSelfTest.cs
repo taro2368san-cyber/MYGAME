@@ -406,6 +406,50 @@ namespace Sugoroku.Rules
                 var (kg, kev) = LandEvents(keySq, "ヒトカゲ");
                 Check(log, "ジムのカギ：踏んだ人だけ カギを持つ", kev.OfType<GymKeyFound>().Any() && GameProcessor.HasGymKey(kg.State.Players[0], gymName));
             }
+            // ステップ2：格闘道場（勝つと 2体から1体。どの子も ゲーム中に1体）、大好きクラブ（1人1回）、サカキ（フル）
+            var dojoRow = data.EventSquares.FirstOrDefault(x => x.Effect.Kind == EffectKind.Battle && x.Effect.Reward.Contains("|"));
+            var dojoSq = dojoRow == null ? null : board.Squares.Values.FirstOrDefault(x => x.Name == dojoRow.Square && x.Neighbors.Count > 0);
+            if (dojoSq != null)
+            {
+                var (dg, dev) = LandEvents(dojoSq, "ヒトカゲ", s => Pokemons.SetLevel(data, s.Players[0].Party[0], 60));
+                dg.DebugEnabled = true;
+                Apply(dg, new DebugCommand { Player = 0, Action = DebugAction.WinBattle });
+                var gf = dg.State.Facility;
+                bool two = gf != null && gf.Goods.Count == 2;
+                if (gf != null) Apply(dg, new ChooseOption { Index = 0 });
+                string got = two ? gf.Goods[0] : "";
+                var (_, again) = LandEvents(dojoSq, "ヒトカゲ", s => s.Players[0].RocketUsed.Add("once:" + dojoRow.Square));
+                var (og, _) = LandEvents(dojoSq, "ヒトカゲ", s => { Pokemons.SetLevel(data, s.Players[0].Party[0], 60); s.EventsGone.Add("gift:" + got); });
+                og.DebugEnabled = true;
+                Apply(og, new DebugCommand { Player = 0, Action = DebugAction.WinBattle });
+                Check(log, "格闘道場：勝つと 2体から1体もらえる。1人1回。もらわれた子は もう出ない",
+                    dev.OfType<BattleStarted>().Any(b => b.Kind == BattleKind.Event) && two && dg.State.Players[0].Party.Any(m => m.Species == got) && dg.State.EventsGone.Contains("gift:" + got)
+                    && !again.OfType<BattleStarted>().Any() && og.State.Facility != null && og.State.Facility.Goods.Count == 1 && og.State.Facility.Goods[0] != got);
+            }
+            var clubRow = data.EventSquares.FirstOrDefault(x => x.Effect.Kind == EffectKind.Item && x.Effect.CondKind == "1人1回");
+            var clubSq = clubRow == null ? null : board.Squares.Values.FirstOrDefault(x => x.Name == clubRow.Square && x.Neighbors.Count > 0);
+            if (clubSq != null)
+            {
+                var (cg, cev) = LandEvents(clubSq, "ヒトカゲ");
+                var (_, cev2) = LandEvents(clubSq, "ヒトカゲ", s => s.Players[0].RocketUsed.Add("once:" + clubRow.Square));
+                Check(log, "イベントマス「1人1回」：1回目は もらえて、2回目は 何も起きない",
+                    cev.OfType<ItemGained>().Any(x => clubRow.Effect.Value.Split('|').Contains(x.Item)) && cg.State.Players[0].RocketUsed.Contains("once:" + clubRow.Square) && !cev2.OfType<ItemGained>().Any());
+            }
+            var bossRow = data.EventSquares.FirstOrDefault(x => x.Effect.Kind == EffectKind.Battle && data.FindParty(x.Effect.Value)?.Full == true);
+            var bossSq = bossRow == null ? null : board.Squares.Values.FirstOrDefault(x => x.Name == bossRow.Square && x.Neighbors.Count > 0);
+            if (bossSq != null) Check(log, "サカキ：シルフカンパニーのイベントマスで フルバトル", LandOn(bossSq) is BattleStarted bb && bb.Kind == BattleKind.Event && bb.Full && bb.Opponent == data.FindParty(bossRow.Effect.Value).Name);
+            {
+                var cs = new GameState { MaxWeeks = 50, Week = 12 };
+                bool before = Conditions.Met("経過した週の割合", "25", null, cs);
+                cs.Week = 13;
+                Check(log, "通信ケーブル：総週数の25%を過ぎると売られる（50週なら13週目から）", !before && Conditions.Met("経過した週の割合", "25", null, cs));
+            }
+            var rivalSq0 = board.Squares.Values.FirstOrDefault(x => x.Type == "ライバル" && x.Neighbors.Count > 0 && data.Rivals.Any(r => r.Place == x.Place));
+            if (rivalSq0 != null)
+            {
+                var (rg0, _) = LandEvents(rivalSq0, "ヒトカゲ", s => Pokemons.SetLevel(data, s.Players[0].Party[0], 40));
+                Check(log, "ライバル：Lvは 全員の手持ちの平均Lv＋rival_level_offset より下がらない", rg0.State.Battle != null && rg0.State.Battle.Sides[1].Team.All(m => m.Level >= 40 + data.Required("rival_level_offset")));
+            }
 
             if (data.FindSpecies("カビゴン") != null)
             {
@@ -761,6 +805,19 @@ namespace Sugoroku.Rules
                 var won = tev.OfType<TournamentWon>().FirstOrDefault();
                 Check(log, "突発バトルイベント：トーナメント（3人なら1人は不戦勝）、優勝でポケベル、そのあと手番", started && won != null && tg.State.Players[won.Player].TrainerBag.Contains("ポケベル")
                     && tev.OfType<BattleStarted>().Count(b => b.Kind == BattleKind.Tournament) == 2 && tg.State.Phase == Phase.Prepare && tg.State.Tournament == null);
+                // 同じエリアに 2人いなければ 始まらない（エリアの違うマスに 1人ずつ）
+                string AreaOf(BoardSquare s) => data.Places.FirstOrDefault(x => x.Name == s.Place)?.Area ?? "";
+                var spots = board.Squares.Values.Where(s => AreaOf(s) != "").GroupBy(AreaOf).Select(gr => gr.First().Id).Take(3).ToList();
+                if (spots.Count == 3)
+                {
+                    var ag = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ"), ("B", MoveMode.Highlight, "ゼニガメ"), ("C", MoveMode.Highlight, "フシギダネ") }, 50, 9, out _, null, "", new[] { true, true, true });
+                    for (int i = 0; i < 3; i++) ag.State.Players[i].Square = spots[i];
+                    bool apart = ag.StartTournament(new List<GameEvent>());
+                    ag.State.Players[2].Square = spots[0];
+                    var aev = new List<GameEvent>();
+                    bool near = ag.StartTournament(aev);
+                    Check(log, "突発バトルイベント：同じエリアにいる人たちだけで戦う（2人いなければ 始まらない）", !apart && near && aev.OfType<TournamentStarted>().Single().Players.OrderBy(x => x).SequenceEqual(new[] { 0, 2 }));
+                }
             }
             var rivalSq = board.Squares.Values.FirstOrDefault(x => x.Type == "ライバル" && x.Neighbors.Count > 0);
             if (rivalSq != null && data.Rivals.Any(r => r.Place == rivalSq.Place && r.Trades.Count > 0))

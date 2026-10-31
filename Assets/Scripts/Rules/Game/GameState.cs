@@ -105,6 +105,7 @@ namespace Sugoroku.Rules
         public readonly Dictionary<int, int> Traps = new Dictionary<int, int>(); // ワナ：マス → 仕掛けた人
         public readonly Dictionary<int, int> Blocked = new Dictionary<int, int>();
         public readonly HashSet<int> SymbolsGone = new HashSet<int>(); // 伝説のシンボルが いなくなったマス（だれかが倒すか捕まえた。早い者勝ち）
+        public readonly HashSet<string> EventsGone = new HashSet<string>(); // 先着1名のイベント（id）と、ゲーム中に1体だけの もらえるポケモン（"gift:"＋名前）
         public readonly Dictionary<int, string> JobSquares = new Dictionary<int, string>(); // 職業マス：トレーナーマス → 職業（ゲーム開始時に決まる、9.2）
         public readonly HashSet<int> RocketCleared = new HashSet<int>();      // 一度でも倒されたロケット団マス（トレーナーマスの報酬は初回だけ、11.3）
         public List<string> RocketShelf = new List<string>();                 // どろぼうの家に今並んでいる品（行の id） // カビゴン（アマイ三ツ）：マス → 残り週数。だれも通れない

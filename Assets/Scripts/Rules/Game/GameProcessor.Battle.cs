@@ -747,11 +747,11 @@ namespace Sugoroku.Rules
             var b = B;
             var p = State.Players[lose.Player];
             int loss = (int)Math.Ceiling(p.Money * Tune("defeat_money_ratio") - 1e-9);
-            if (b.Kind == BattleKind.Event)
+            if (b.Kind == BattleKind.Event) Say(FindEffect(b.EventId)?.TextKey + "_lose", events, p);
+            if (b.Kind == BattleKind.Event && !b.Full)
             {
-                // イベントのバトルに負けたときは所持金だけ（戦闘不能・1回休みなし）
+                // イベントのバトル（クイック）に負けたときは所持金だけ（戦闘不能・1回休みなし）。フル（サカキなど）は ふつうの負け
                 AddMoney(p, -loss, "負けて落とした", events);
-                Say(data.RandomEvents.FirstOrDefault(e => e.Id == b.EventId)?.TextKey + "_lose", events, p);
                 return;
             }
             foreach (var m in b.Full ? lose.Team : new List<PokemonState> { lose.Current }) m.Hp = 0;
@@ -804,15 +804,35 @@ namespace Sugoroku.Rules
         }
 
         // イベントのバトルに勝った：相手の「報酬」のポケモンをもらう（Lvは調整値 event_reward_level）
+        // 報酬を「エビワラー|サワムラー」と書くと 1体えらぶ。そのときは どの子も ゲーム中に1体だけ（かくとう道場）
         void EventBattleWon(PlayerState p, List<GameEvent> events)
         {
-            var e = data.RandomEvents.FirstOrDefault(x => x.Id == B.EventId);
+            var e = FindEffect(B.EventId);
             if (e == null) return;
+            EventOnceDone(e, p);
             Say(e.TextKey + "_win", events, p);
-            if (e.Reward == "" || data.FindSpecies(e.Reward) == null) return;
-            var mon = Pokemons.Create(data, e.Reward, TuneInt("event_reward_level"), $"{e.Name}からもらった", board[p.Square].Place, State.Week);
-            events.Add(new PokemonReceived { Player = p.Id, Pokemon = e.Reward, From = e.Name, ToBox = p.Party.Count >= TuneInt("party_size") });
-            AddPokemon(p, mon, events);
+            bool pick = e.Reward.Contains("|");
+            var gifts = e.Reward.Split('|').Where(s => data.FindSpecies(s) != null && !(pick && State.EventsGone.Contains("gift:" + s))).ToList();
+            if (gifts.Count == 0) return;
+            if (!pick) { GiveEventPokemon(p, e, gifts[0], events); return; }
+            var f = new FacilityState { Kind = FacilityKind.Event, Player = p.Id, Square = p.Square, EventId = GiftId, PendingItem = e.Id, Prompt = "どの ポケモンを もらう？（どの子も ゲーム中に1体だけ）" };
+            foreach (var s in gifts) { f.Options.Add($"{s} Lv{TuneInt("event_reward_level")}"); f.Goods.Add(s); }
+            OpenFacility(f, events);
+        }
+
+        const string GiftId = "もらうポケモン";
+
+        bool GiftChosen(FacilityState f, int index, List<GameEvent> events)
+        {
+            State.EventsGone.Add("gift:" + f.Goods[index]);
+            return GiveEventPokemon(State.Players[f.Player], FindEffect(f.PendingItem), f.Goods[index], events);
+        }
+
+        bool GiveEventPokemon(PlayerState p, Effect e, string species, List<GameEvent> events)
+        {
+            var mon = Pokemons.Create(data, species, TuneInt("event_reward_level"), $"{e.Name}からもらった", board[p.Square].Place, State.Week);
+            events.Add(new PokemonReceived { Player = p.Id, Pokemon = species, From = e.Name, ToBox = p.Party.Count >= TuneInt("party_size") });
+            return AddPokemon(p, mon, events);
         }
 
         // プレイヤー戦の勝利報酬。袋がいっぱいで選択を待つなら true

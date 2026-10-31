@@ -77,6 +77,12 @@ namespace Sugoroku.Rules
             }
         }
 
+        Effect FindEffect(string id) => data.RandomEvents.Concat(data.EventSquares.Select(x => x.Effect)).FirstOrDefault(x => x.Id == id);
+
+        // 条件「1人1回」「先着1名」（イベントの id ごと）：まだ受けられるか。印は EventOnceDone で付ける（バトルは勝ったとき）
+        bool EventOnceOpen(Effect e, PlayerState p) => e.CondKind == "1人1回" ? !p.RocketUsed.Contains("once:" + e.Id) : e.CondKind != "先着1名" || !State.EventsGone.Contains(e.Id);
+        void EventOnceDone(Effect e, PlayerState p) { if (e.CondKind == "1人1回") p.RocketUsed.Add("once:" + e.Id); else if (e.CondKind == "先着1名") State.EventsGone.Add(e.Id); }
+
         bool Nothing(string reason, List<GameEvent> events)
         {
             events.Add(new NothingHappened { Player = Current.Id, Reason = reason });
@@ -104,6 +110,7 @@ namespace Sugoroku.Rules
             if (e.TextKey != "" && data.HasDialog(e.TextKey)) Say(e.TextKey, events);
             else events.Add(new RandomEventHappened { Player = p.Id, Name = e.Name, Text = e.Text });
 
+            if (!EventOnceOpen(e, p)) return Nothing(e.CondKind == "先着1名" ? "もう ほかの人が すませていた" : "もう すませてある", events);
             if (e.CondKind != "" && !Conditions.Met(e.CondKind, e.CondValue, p, State))
             {
                 Say(e.TextKey + "_notyet", events);
@@ -135,11 +142,12 @@ namespace Sugoroku.Rules
         bool ApplyEffect(Effect e, List<GameEvent> events)
         {
             var p = Current;
+            if (e.Kind != EffectKind.Battle) EventOnceDone(e, p); // バトルは 勝ったときに（EventBattleWon）
             switch (e.Kind)
             {
                 case EffectKind.Money: AddMoney(p, int.Parse(e.Value), e.Name, events); return false;
                 case EffectKind.Points: p.Points += int.Parse(e.Value); events.Add(new PointsChanged { Player = p.Id, Amount = int.Parse(e.Value) }); return false;
-                case EffectKind.Item: return GiveItem(p, e.Value, events);
+                case EffectKind.Item: { var items = e.Value.Split('|'); return GiveItem(p, items[Roll(0, items.Length - 1)], events); } // 「a|b|c」なら どれか1つ
                 case EffectKind.HealAll: HealParty(p, events); return false;
                 case EffectKind.CureStatus:
                     foreach (var m in p.Party) m.Status = Status.None;
@@ -375,7 +383,9 @@ namespace Sugoroku.Rules
             var party = rival == null ? null : data.RivalParties.Where(x => x.RivalId == rival.Id && x.Party.Count > 0 && Conditions.Met(x.CondKind, x.CondValue, p, State)).OrderBy(x => x.Priority).FirstOrDefault();
             if (party == null) return Nothing("ライバルはいなかった", events);
             Say(rival.Id, events, p);
-            StartBattle(BattleKind.Rival, true, Npc(rival.Name, party.Party), events);
+            // Lv は「全員の手持ちの平均Lv＋rival_level_offset」より下げない（盤面が一本道でないので、あとから序盤のライバルに行っても楽勝にしない）
+            int floor = Math.Min((int)Math.Round(State.Players.SelectMany(q => q.Party).Select(m => m.Level).DefaultIfEmpty(1).Average()) + TuneInt("rival_level_offset"), TuneInt("level_max"));
+            StartBattle(BattleKind.Rival, true, Npc(rival.Name, party.Party.Select(x => (x.species, Math.Max(x.level, floor)))), events);
             B.DialogKey = rival.Id;
             return true;
         }
@@ -583,6 +593,7 @@ namespace Sugoroku.Rules
                     if (f.EventId == PortId) { if (PortChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == NpcTradeId) { if (NpcTradeChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == DayCareId) { if (DayCareChosen(f, o.Index, events)) return; EndTurn(events); return; }
+                    if (f.EventId == GiftId) { if (GiftChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == PagerId)
                     {
                         bool wait = PagerChosen(f, o.Index, events, out bool back);
@@ -631,7 +642,7 @@ namespace Sugoroku.Rules
                 else events.Add(new ItemDiscarded { Player = p.Id, Item = f.PendingItem, NotTaken = true });
                 return false;
             }
-            var e = data.RandomEvents.Concat(data.EventSquares.Select(x => x.Effect)).FirstOrDefault(x => x.Id == f.EventId);
+            var e = FindEffect(f.EventId);
             if (e == null) return false;
             if (e.Kind == EffectKind.UnlockJob)
             {

@@ -664,9 +664,9 @@ namespace Sugoroku.Rules
 
             foreach (var e in d.RandomEvents.Concat(d.EventSquares.Select(x => x.Effect)))
             {
-                if (e.Kind == EffectKind.Item && d.FindItem(e.Value) == null) Error($"イベント: {e.Id} のアイテム「{e.Value}」がアイテム一覧・ポケモンの道具シートにありません");
+                if (e.Kind == EffectKind.Item && e.Value.Split('|').FirstOrDefault(i => d.FindItem(i) == null) is string bad) Error($"イベント: {e.Id} のアイテム「{bad}」がアイテム一覧・ポケモンの道具シートにありません");
                 if (e.Kind == EffectKind.Battle && d.FindParty(e.Value) == null) Error($"イベント: {e.Id} のバトル相手「{e.Value}」がイベント_バトル相手.csvにありません");
-                if (e.Kind == EffectKind.Battle && e.Reward != "" && d.FindSpecies(e.Reward) == null) Error($"イベント: {e.Id} の報酬「{e.Reward}」がポケモンシートにありません");
+                if (e.Kind == EffectKind.Battle && e.Reward != "" && e.Reward.Split('|').FirstOrDefault(r => d.FindSpecies(r) == null) is string badR) Error($"イベント: {e.Id} の報酬「{badR}」がポケモンシートにありません");
                 if (e.Kind == EffectKind.UnlockJob)
                     foreach (var j in e.Value.Split('|').Where(j => !d.Jobs.Any(x => x.Name == j))) Error($"イベント: {e.Id} の職業「{j}」が職シートにありません");
                 if (!Conditions.IsKnown(e.CondKind)) Warn($"イベント: {e.Id} の条件の種類「{e.CondKind}」は知らない言葉です（満たさない扱い）");
