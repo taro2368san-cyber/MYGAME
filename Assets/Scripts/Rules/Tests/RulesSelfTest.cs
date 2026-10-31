@@ -625,7 +625,10 @@ namespace Sugoroku.Rules
                 sp.FixedDice = 1;
                 var reach = Apply(g2, new RollDice()).OfType<DiceRolled>().First().Reachable;
                 var g3 = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
+                bool noRod = g3.Validate(new Fish { Player = 0 }) != null; // つりざおがないと つれない
+                g3.State.Players[0].TrainerBag.Add(GameProcessor.FishingRod);
                 var fev = Apply(g3, new Fish());
+                bool rodUsed = !g3.State.Players[0].TrainerBag.Contains(GameProcessor.FishingRod); // 1回で なくなる
                 bool fished = fev.OfType<Fished>().Any() && (fev.OfType<BattleStarted>().Any(b => b.Kind == BattleKind.Wild) || !data.Encounters.Any(e => e.Method == "つり" && (e.Place == board[board.StartSquare].Place || e.Place == sea.Place)));
                 var (_, sev) = LandEvents(sea, "ヒトカゲ", s => s.Players[0].Surf = true);
                 var wild = sev.OfType<BattleStarted>().FirstOrDefault(b => b.Kind == BattleKind.Wild);
@@ -637,9 +640,10 @@ namespace Sugoroku.Rules
                     var tb = TestBoard();
                     tb[seaSquare].GrassKind = "海上";
                     var tg = GameProcessor.NewGame(tb, TestData(3, 3), new[] { ("A", MoveMode.Highlight, "") }, 50, 1, out _);
+                    tg.State.Players[0].TrainerBag.Add(GameProcessor.FishingRod);
                     return tg.Validate(new Fish { Player = 0 }) == null;
                 }
-                Check(log, "海上マス：なみのりを覚えた人だけ行き先に選べる（ひでんマシンは袋に入らない）、止まると水上の野生、2マス以内なら だれでも つりができる", closed && learned && reach.Contains(seaId) && fished && waterTable && FishAt(2) && FishAt(3) && !FishAt(4));
+                Check(log, "海上マス：なみのりを覚えた人だけ行き先に選べる（ひでんマシンは袋に入らない）、止まると水上の野生、2マス以内なら つりざおを1本使って つりができる", closed && learned && reach.Contains(seaId) && noRod && fished && rodUsed && waterTable && FishAt(2) && FishAt(3) && !FishAt(4));
             }
             {
                 // 伝説のシンボル（4.x）：空マスを一時的に「ミュウツーのシンボル」にして試す。止まるとバトル、倒すと消えて 次はもういない
