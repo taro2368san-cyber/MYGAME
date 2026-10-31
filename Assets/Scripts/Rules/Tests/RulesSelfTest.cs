@@ -456,20 +456,66 @@ namespace Sugoroku.Rules
             if (giftSq != null)
             {
                 var giftRow = data.EventSquares.First(x => x.Square == giftSq.Name);
-                string species = GameData.TradeList(giftRow.Effect.Value)[0].species;
+                var (species, giftLv) = GameData.TradeList(giftRow.Effect.Value)[0];
+                string once = "once:" + giftRow.Square;
                 var (eg, _) = LandEvents(giftSq, "ヒトカゲ");
-                var (_, ev2) = LandEvents(giftSq, "ヒトカゲ", s => s.EventsGone.Add(giftRow.Square));
-                Check(log, "タマムシマンション：イーブイがもらえる（ゲーム中に先着1名）", eg.State.Players[0].Party.Any(m => m.Species == species) && eg.State.EventsGone.Contains(giftRow.Square) && !ev2.OfType<PokemonReceived>().Any());
+                var (_, ev2) = LandEvents(giftSq, "ヒトカゲ", s => s.Players[0].RocketUsed.Add(once));
+                Check(log, "タマムシマンション：イーブイ（Lv18）がもらえる。プレイヤーごとに1回", eg.State.Players[0].Party.Any(m => m.Species == species && m.Level == giftLv) && giftLv == 18
+                    && eg.State.Players[0].RocketUsed.Contains(once) && !eg.State.EventsGone.Contains(giftRow.Square) && !ev2.OfType<PokemonReceived>().Any());
                 string mk = giftRow.Effect.TextKey;
                 if (mk != "" && data.HasDialog(mk + "_eevee_gone"))
                 {
                     // 図鑑の登録数で セリフが変わる（条件に合う いちばん下の行）
-                    var (dg2, dev2) = LandEvents(giftSq, "ヒトカゲ", s => { s.EventsGone.Add(giftRow.Square); foreach (var x in data.Species.Take(120)) s.Players[0].Dex.Add(x.Name); });
+                    var (dg2, dev2) = LandEvents(giftSq, "ヒトカゲ", s => { s.Players[0].RocketUsed.Add(once); foreach (var x in data.Species.Take(120)) s.Players[0].Dex.Add(x.Name); });
                     var result = dev2.OfType<Dialog>().LastOrDefault();
                     var shown = result == null ? null : new Narrator(data, board, dg2.State).DialogLines(result);
                     Check(log, "施設のセリフ：イーブイがいないマンションでは 図鑑を見せる（120種類なら 100の行）",
                         dev2.OfType<Dialog>().Select(d => d.Key).SequenceEqual(new[] { mk, mk + "_eevee_gone", mk + "_dex", mk + "_dex_result" })
                         && shown != null && shown[0].Text == data.Dialogs.First(d => d.Key == mk + "_dex_result" && d.CondValue == "100").Text);
+                }
+            }
+            var leagueSq = EventSquareOf(EffectKind.League);
+            if (leagueSq != null && data.League.Count > 0)
+            {
+                // ポケモンリーグ：挑戦すると 1人目から順に フルバトル。勝つたびに 次の手番で次の相手。全員に勝つと チャンピオン入り
+                var (lg, _) = LandEvents(leagueSq, "ヒトカゲ", s => Pokemons.SetLevel(data, s.Players[0].Party[0], 100));
+                var lp = lg.State.Players[0];
+                bool asked = lg.State.Facility?.Options.Count == 2;
+                if (asked) Apply(lg, new ChooseOption { Index = 0 });
+                lg.DebugEnabled = true;
+                // フルバトルは 選出とカードのあとで コマンドになる（即勝ち・即負けは そこから）
+                void ToCommands(GameProcessor g)
+                {
+                    for (int k = 0; k < 5 && g.State.Battle != null && g.State.Battle.Step != BattleStep.Commands; k++)
+                    {
+                        var b = g.State.Battle;
+                        if (b.Step == BattleStep.Select) Apply(g, new SelectPokemon { Player = b.Sides[0].Player, Slot = b.Sides[0].Team.FindIndex(m => !m.Fainted) });
+                        else if (b.Step == BattleStep.Initiative) Apply(g, new PickCard { Player = b.Sides[0].Player, Card = 0 });
+                        else break;
+                    }
+                }
+                var foes = new List<string>();
+                for (int i = 0; i < 10 && lg.State.Battle?.Kind == BattleKind.League && !lp.Champion; i++)
+                {
+                    foes.Add(lg.State.Battle.Sides[1].Name);
+                    ToCommands(lg);
+                    Apply(lg, new DebugCommand { Player = lp.Id, Action = DebugAction.WinBattle });
+                }
+                // 負けたら 挑戦は終わり
+                var (xg, _) = LandEvents(leagueSq, "ヒトカゲ");
+                if (xg.State.Facility != null) Apply(xg, new ChooseOption { Index = 0 });
+                xg.DebugEnabled = true;
+                ToCommands(xg);
+                if (xg.State.Battle != null) Apply(xg, new DebugCommand { Player = 0, Action = DebugAction.LoseBattle });
+                Check(log, "ポケモンリーグ：四天王から チャンピオンまで 順に勝つと チャンピオン入り。負けたら 挑戦は終わり",
+                    asked && foes.SequenceEqual(data.League.Select(x => x.Name)) && lp.Champion && lp.LeagueBeaten == -1 && !xg.State.Players[0].Champion && xg.State.Players[0].LeagueBeaten == -1);
+                var caveDoor = board.Squares.Values.FirstOrDefault(x => x.WarpPartner >= 0 && x.Place != "ハナダの洞窟" && board[x.WarpPartner].Place == "ハナダの洞窟" && x.Neighbors.Count > 0);
+                if (caveDoor != null)
+                {
+                    void Eight(GameState s) { for (int i = 0; i < 8; i++) s.Players[0].Gyms.Add("ジム" + i); } // 入口の通行バッジ（8個）は 足りている
+                    var (cg1, _) = LandEvents(caveDoor, "ヒトカゲ", Eight);
+                    var (cg2, _) = LandEvents(caveDoor, "ヒトカゲ", s => { Eight(s); s.Players[0].Champion = true; });
+                    Check(log, "ハナダの洞窟：チャンピオン入りした人だけ 入れる", board[cg1.State.Players[0].Square].Place != "ハナダの洞窟" && board[cg2.State.Players[0].Square].Place == "ハナダの洞窟");
                 }
             }
             var snorSq = board.Squares.Values.FirstOrDefault(x => x.Type == "シンボル" && x.Symbol == "カビゴン" && x.Neighbors.Count > 0);

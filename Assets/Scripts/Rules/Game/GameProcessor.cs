@@ -329,7 +329,9 @@ namespace Sugoroku.Rules
                     State.Move = null;
                     // ワープは止まったときだけ。着いた先ではもう一度ワープしない
                     int partner = board[to].WarpPartner;
-                    if (partner >= 0 && Movement.CanEnter(board, partner, player.Badges, TopBadges, player.Surf))
+                    bool championOnly = partner >= 0 && board[partner].Place == ChampionOnlyPlace && !player.Champion; // ハナダの洞窟は チャンピオン入りした人だけ（6.3.1）
+                    if (championOnly) events.Add(new NothingHappened { Player = player.Id, Reason = $"{ChampionOnlyPlace}には チャンピオンに なった人しか 入れない" });
+                    if (partner >= 0 && !championOnly && Movement.CanEnter(board, partner, player.Badges, TopBadges, player.Surf))
                     {
                         if (board[to].MapId == "") player.LastMainWarp = to;
                         player.Square = partner;
@@ -369,6 +371,7 @@ namespace Sugoroku.Rules
             }
             if (player.Party.Count > 0) player.Party[0].LeadTurns++;
             if (player.PendingBattle != null) ResumeBattle(player, events); // バトルの続きから
+            else if (player.LeagueBeaten >= 0) StartLeagueBattle(player, events); // ポケモンリーグの 次の相手
         }
 
         // 手番を終えて次の人へ。全員が1回ずつ動いたら1週進む（仕様書5.1）

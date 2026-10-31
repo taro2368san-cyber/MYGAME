@@ -81,6 +81,7 @@ namespace Sugoroku.Rules
                 case Fished x: return $"{Name(x.Player)}は つりざおを たらした…";
                 case GymKeyFound x: return $"{Name(x.Player)}は {x.Gym}の カギを 見つけた！\nジムトレーナーが 残っていても {x.Gym}に 挑めるように なった";
                 case SnorlaxPlaced x: return $"{Name(x.Player)}は アマイ三ツで カビゴンを よびよせた！ {board[x.Square].Place}の このマスは {x.Weeks}週 通れない";
+                case ChampionCrowned x: return $"{Name(x.Player)}は チャンピオンに なった！";
                 case SymbolGone x: return $"{x.Pokemon}は {Name(x.Player)}が {(x.Caught ? "捕まえた" : "倒した")}ので、{board[x.Square].Place}から いなくなった";
                 case SnorlaxRemoved x: return (x.Player >= 0 ? $"{Name(x.Player)}は ポケモンのふえを ふいた！ " : "") + $"{board[x.Square].Place}の カビゴンが 目をさまして 去っていった";
                 case TrapSet x: return $"{Name(x.Player)}は {board[x.Square].Name}に ワナを しかけた";

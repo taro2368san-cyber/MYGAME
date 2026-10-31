@@ -171,8 +171,8 @@ public static class SpecialMapBuilder
             Edges = "01-02 02-03 03-04 04-05 05-06 06-07 07-08 08-09 09-10 10-11 11-12 12-13 13-14 14-15 15-16 16-17 17-18 18-19 19-20 20-21 19-22 23-24 24-25 25-26 26-27 02-28" },
         // セキエイ高原：23番道路の上から。ポケモンセンター・ショップ・ライバル
         new MapDef { Key = "IP", Name = "Indigo Plateau", Image = "Assets/maps/Indigo Plateau/1.png", Place = "セキエイ高原", MapId = "", Parent = "IndigoPlateau", Prefix = "IP_", Main = true, Floor = "12,12;12,15;9,9",
-            Nodes = "01:12,18:空 02:12,12:空 03:9,8:セ 04:15,8:店shop_sekiei 05:12,7:ラ",
-            Edges = "01-02 02-03 02-04 03-05 04-05" },
+            Nodes = "01:12,18:空 02:12,12:空 03:9,8:セ 04:15,8:店shop_sekiei 05:12,7:ラ 06:12,3:イ", // 06：ポケモンリーグ（建物の上。3.3.2）
+            Edges = "01-02 02-03 02-04 03-05 04-05 05-06" },
         // 19番水道の南：セキチクの浜から 海を南へ（なみのり）。下で 20番水道へ
         new MapDef { Key = "R19S", Name = "Route 19 South", Image = "Assets/maps/Route 19/1.png", Place = "19番水道", MapId = "", Parent = "Route19South", Prefix = "R19S_", Main = true, Floor = "12,3",
             Nodes = "01:12,16:海 02:8,26:海 03:14,38:海 04:8,48:海 05:4,55:海",

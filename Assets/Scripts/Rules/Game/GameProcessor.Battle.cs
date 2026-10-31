@@ -619,6 +619,7 @@ namespace Sugoroku.Rules
             }
             CureAfterBattle(events);
             events.Add(new BattleEnded { Winner = -1 });
+            if (b.Kind == BattleKind.League) LeagueOver(State.Players[b.Sides[side].Player]); // リーグから逃げたら 挑戦は終わり
             if (b.Full) Rest(State.Players[b.Sides[side].Player], events); // フルバトルから逃げたら1回休み
             FinishBattle(events);
         }
@@ -669,7 +670,7 @@ namespace Sugoroku.Rules
             if (winner < 0)
             {
                 // 引き分け：プレイヤーは全員1回休み、報酬も奪取もなし
-                foreach (var s in b.Sides.Where(s => s.Player >= 0)) Rest(State.Players[s.Player], events);
+                foreach (var s in b.Sides.Where(s => s.Player >= 0)) { Rest(State.Players[s.Player], events); if (b.Kind == BattleKind.League) LeagueOver(State.Players[s.Player]); }
                 AfterBattle(events);
                 FinishBattle(events);
                 return;
@@ -698,7 +699,7 @@ namespace Sugoroku.Rules
             var p = State.Players[win.Player];
             // お金（7.7）：相手の一番高いレベル×種類ごとの値。プレイヤー戦は負けた人が落としたお金
             int topLevel = lose.Team.Max(m => m.Level);
-            string key = b.Kind == BattleKind.Wild ? "wild_win_money" : b.Kind == BattleKind.Trainer ? "trainer_win_money" : b.Kind == BattleKind.Gym ? "gym_win_money" : b.Kind == BattleKind.Rival ? "rival_win_money" : b.Kind == BattleKind.Event ? "event_win_money" : b.Kind == BattleKind.Rocket ? "rocket_win_money" : b.Kind == BattleKind.Job ? "trainer_win_money" : null;
+            string key = b.Kind == BattleKind.Wild ? "wild_win_money" : b.Kind == BattleKind.Trainer ? "trainer_win_money" : b.Kind == BattleKind.Gym ? "gym_win_money" : b.Kind == BattleKind.Rival ? "rival_win_money" : b.Kind == BattleKind.Event ? "event_win_money" : b.Kind == BattleKind.Rocket ? "rocket_win_money" : b.Kind == BattleKind.Job ? "trainer_win_money" : b.Kind == BattleKind.League ? "gym_win_money" : null;
             if (key != null) AddMoney(p, TuneInt(key) * topLevel * (p.Party.Any(m => m.HeldItem == "おまもりこばん") ? TuneInt("amulet_coin_mult") : 1), "賞金", events);
 
             // 経験値（6.6）：倒した相手ごとに 係数×Lv²。出たポケモンは1.0倍、出ていないポケモンは0.6倍
@@ -732,6 +733,7 @@ namespace Sugoroku.Rules
             if (b.Kind == BattleKind.Rocket) RocketCleared(p, events);
             if (b.Kind == BattleKind.Job) { UnlockJob(p, b.Job, events); OfferJob(p, b.Job, events); } // 勝つと解放、その場で就ける（9.2）
             if (b.Kind == BattleKind.Event) EventBattleWon(p, events);
+            if (b.Kind == BattleKind.League) LeagueWon(p, events);
             // 共通報酬のアイテム（7.7）：NPC戦に勝つと確率で、ボールマスと同じ表（バッジの段階）から1つ。もらったポケモンの入れ先を選んでいる最中なら出さない
             if (b.IsNpc && State.Phase != Phase.Facility && Chance(Tune("win_item_rate")))
             {
@@ -763,6 +765,7 @@ namespace Sugoroku.Rules
             AddMoney(p, -loss, "負けて落とした", events);
             if (Chance(Tune("defeat_rest_rate"))) Rest(p, events);
             if (b.Kind == BattleKind.Rival) Say(b.DialogKey + "_lose", events, p);
+            if (b.Kind == BattleKind.League) { Say(b.DialogKey + "_lose", events, p); LeagueOver(p); } // 挑戦は終わり。次は1人目から
             if (b.Kind == BattleKind.Trainer || b.Kind == BattleKind.Rocket) Say(b.DialogKey + "_lose", events, p, ("名前", win.Name), ("ポケモン", win.Current.Species));
         }
 

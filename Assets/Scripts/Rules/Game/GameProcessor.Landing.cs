@@ -74,6 +74,7 @@ namespace Sugoroku.Rules
                     if (e.Effect.Kind == EffectKind.BoxUp) return LandBoxUp(e.Effect, events);
                     if (e.Effect.Kind == EffectKind.Trade) return LandNpcTrade(sq, true, events);
                     if (e.Effect.Kind == EffectKind.DayCare) return LandDayCare(events);
+                    if (e.Effect.Kind == EffectKind.League) return LandLeague(e.Effect, events);
                     if (e.Effect.Kind == EffectKind.Dojo && EventOnceOpen(e.Effect, player) && DojoChoices(player, e.Effect).Count == 0) return Nothing($"{e.Content}では いま 教われることが ない", events);
                     return StartEvent(e.Effect, events);
                 default: // ワープ（着いた先）、ゴールなど
@@ -624,6 +625,7 @@ namespace Sugoroku.Rules
                     if (f.EventId == PortId) { if (PortChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == NpcTradeId) { if (NpcTradeChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == DayCareId) { if (DayCareChosen(f, o.Index, events)) return; EndTurn(events); return; }
+                    if (f.EventId == LeagueId) { if (LeagueChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == DojoId) { if (DojoChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == PagerId)
                     {

@@ -44,6 +44,8 @@ namespace Sugoroku.Rules
         public int LastMainWarp = -1;                                        // 最後に止まったメインマップのワープマス（あなぬけひもで戻る先）
         public bool Surf;                                                    // なみのりを覚えた（ひでんマシン なみのり。海上マスに入れる、4.1.2）
         public bool InSafari;                                                // サファリゾーンに 入場料を払って 入っている（出ると サファリボールは なくなる）
+        public bool Champion;                                                // チャンピオン入りした（ポケモンリーグで 四天王とチャンピオンに勝った、3.3.2）。ハナダの洞窟に入れる
+        public int LeagueBeaten = -1;                                        // ポケモンリーグに挑戦中なら 勝った人数（0〜）。挑戦していなければ -1
 
         // この手番の準備フェーズで決めたこと
         public bool UsedItem;
@@ -163,6 +165,7 @@ namespace Sugoroku.Rules
     public sealed class GymKeyFound : GameEvent { public int Player; public string Gym; }      // ジムのカギを踏んだ（その人だけ ジムトレーナーが残っていても挑める）
     public sealed class SnorlaxPlaced : GameEvent { public int Player, Square, Weeks; }
     public sealed class SnorlaxRemoved : GameEvent { public int Square, Player; } // Player は ふえを吹いた人（週がたって去ったときは -1）
+    public sealed class ChampionCrowned : GameEvent { public int Player; } // ポケモンリーグで チャンピオン入りした（殿堂入り）
     public sealed class SymbolGone : GameEvent { public int Square, Player; public string Pokemon; public bool Caught; } // 伝説のシンボルが盤面から消えた
     public sealed class TrapSet : GameEvent { public int Player, Square; }
     public sealed class TrapSprung : GameEvent { public int Player, Owner, Square; }

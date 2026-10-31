@@ -27,13 +27,13 @@ public partial class GameRunner
             case DiceRolled _: sound.PlaySe("dice"); break;
             case BattleStarted b:
                 if (b.Kind == BattleKind.Wild) sound.PlayBgm("wild");
-                else if (b.Kind == BattleKind.Gym || b.Kind == BattleKind.Rival) sound.PlayBgm("gym", "trainer");
+                else if (b.Kind == BattleKind.Gym || b.Kind == BattleKind.Rival || b.Kind == BattleKind.League) sound.PlayBgm("gym", "trainer");
                 else if (b.Kind == BattleKind.Event) sound.PlayBgm("legend", "gym", "trainer");
                 else sound.PlayBgm("trainer");
                 break;
             case BattleResumed b:
                 if (b.Kind == BattleKind.Wild) sound.PlayBgm("wild");
-                else if (b.Kind == BattleKind.Gym || b.Kind == BattleKind.Rival) sound.PlayBgm("gym", "trainer");
+                else if (b.Kind == BattleKind.Gym || b.Kind == BattleKind.Rival || b.Kind == BattleKind.League) sound.PlayBgm("gym", "trainer");
                 else sound.PlayBgm("trainer");
                 break;
             case BattleEnded _: case Caught _: case BattleSuspended _: BoardBgm(); break;

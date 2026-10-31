@@ -433,7 +433,7 @@ public partial class GameRunner : MonoBehaviour
                 case SentToCenter c: pieces[c.Player].position = PiecePosition(c.Player, c.Square); break;
                 case BattleStarted b:
                     // ジムリーダー・職業マスのトレーナーは、バトルの前に イベント画面で しょうぶを しかけてくる
-                    if (b.Kind == BattleKind.Gym || b.Kind == BattleKind.Job)
+                    if (b.Kind == BattleKind.Gym || b.Kind == BattleKind.Job || b.Kind == BattleKind.League)
                     {
                         yield return OpenEvent(b.Opponent, b.Players[0]);
                         yield return EventLines(new List<(string, string)> { ("", text ?? $"{b.Opponent}との バトル！") }); // セリフは文言CSVにないので、ふつうの知らせの文

@@ -102,7 +102,7 @@ namespace Sugoroku.Rules
     // ---- ここから下は 設計メモ のCSV（xlsx に同じ名前のシートを作ればそちらが使われる。書き方は 設計メモ/CSVの書き方.md）----
 
     // マスやイベントの効果の型（仕様書13.2）。「効果の型」列の言葉で見分ける
-    public enum EffectKind { None, Money, Item, ExtraMove, CureStatus, HealAll, Points, Battle, UnlockJob, Museum, Errand, BoxUp, Trade, DayCare, Lab, GymKey, Dojo, Pokemon } // Museum: 化石を預ける博物館（3.2.2）。Lab: 研究所（化石＋交換）。GymKey: そのジムに すぐ挑める（踏んだ人だけ）。Errand 以降は町の人のイベントマス（GameProcessor.Town.cs）
+    public enum EffectKind { None, Money, Item, ExtraMove, CureStatus, HealAll, Points, Battle, UnlockJob, Museum, Errand, BoxUp, Trade, DayCare, Lab, GymKey, Dojo, Pokemon, League } // Museum: 化石を預ける博物館（3.2.2）。Lab: 研究所（化石＋交換）。GymKey: そのジムに すぐ挑める（踏んだ人だけ）。Errand 以降は町の人のイベントマス（GameProcessor.Town.cs）
     // Dojo: 格闘道場（値のバトル相手に勝つと、報酬の 職に就く か ポケモンと交換 を1つ選ぶ）。Pokemon: 値のポケモンをもらう（タマムシマンションのイーブイ）
 
     // ランダムイベント・イベントマスの1件
@@ -184,6 +184,7 @@ namespace Sugoroku.Rules
         public readonly List<TrainerEntry> Trainers = new List<TrainerEntry>();
         public readonly List<TrainerClass> TrainerClasses = new List<TrainerClass>();
         public readonly List<EventParty> EventParties = new List<EventParty>();
+        public readonly List<EventParty> League = new List<EventParty>(); // ポケモンリーグ.csv（3.3.2）：四天王とチャンピオン。順番どおりに並べる
         public readonly List<DialogLine> Dialogs = new List<DialogLine>();
         public readonly List<RivalEntry> Rivals = new List<RivalEntry>();
         public readonly List<JobSquareRule> JobSquares = new List<JobSquareRule>();
@@ -401,6 +402,14 @@ namespace Sugoroku.Rules
                     if (parties.Get(r, $"ポケモン{i}") != "") p.Members.Add((parties.Get(r, $"ポケモン{i}"), Int(parties, r, $"Lv{i}", problems) ?? 1));
                 data.EventParties.Add(p);
             }
+            var league = Optional(dir, "ポケモンリーグ", problems);
+            foreach (var r in Rows(league).OrderBy(r => Int(league, r, "順番", problems) ?? 0))
+            {
+                var p = new EventParty { Id = league.Get(r, "id"), Name = league.Get(r, "名前"), Title = league.Get(r, "肩書き"), Full = true };
+                for (int i = 1; i <= 3; i++)
+                    if (league.Get(r, $"ポケモン{i}") != "") p.Members.Add((league.Get(r, $"ポケモン{i}"), Int(league, r, $"Lv{i}", problems) ?? 1));
+                data.League.Add(p);
+            }
 
             var trainers = Optional(dir, "トレーナー", problems);
             foreach (var r in Rows(trainers))
@@ -514,6 +523,7 @@ namespace Sugoroku.Rules
             else if (kind.StartsWith("研究所")) e.Kind = EffectKind.Lab;
             else if (kind.StartsWith("ジムのカギ")) e.Kind = EffectKind.GymKey;
             else if (kind.StartsWith("道場")) e.Kind = EffectKind.Dojo;
+            else if (kind.StartsWith("ポケモンリーグ") || kind.StartsWith("リーグ")) e.Kind = EffectKind.League;
             else if (kind.StartsWith("ポケモン")) e.Kind = EffectKind.Pokemon;
             else problems.Add($"[警告] {t.Name}: 「{e.Id}」の効果の型「{kind}」はまだ作っていません（何も起きません）");
             bool numeric = e.Kind == EffectKind.Money || e.Kind == EffectKind.ExtraMove || e.Kind == EffectKind.Points || e.Kind == EffectKind.Errand || e.Kind == EffectKind.BoxUp;
@@ -661,7 +671,7 @@ namespace Sugoroku.Rules
             foreach (var c in d.TrainerClasses.Where(c => !d.HasDialog(c.TextId)))
                 Warn($"トレーナーの職: 「{c.Class}」の文言id「{c.TextId}」のセリフがトレーナー文言.csvにありません");
 
-            foreach (var p in d.EventParties)
+            foreach (var p in d.EventParties.Concat(d.League))
                 foreach (var (species, _) in p.Members.Where(m => d.FindSpecies(m.species) == null))
                     Error($"イベント_バトル相手: {p.Id} のポケモン「{species}」がポケモンシートにありません");
 
