@@ -43,6 +43,7 @@ namespace Sugoroku.Rules
         public int BikeUses;                                                 // 自転車を使った回数（サイクリングの解放）
         public int LastMainWarp = -1;                                        // 最後に止まったメインマップのワープマス（あなぬけひもで戻る先）
         public bool Surf;                                                    // なみのりを覚えた（ひでんマシン なみのり。海上マスに入れる、4.1.2）
+        public bool InSafari;                                                // サファリゾーンに 入場料を払って 入っている（出ると サファリボールは なくなる）
 
         // この手番の準備フェーズで決めたこと
         public bool UsedItem;

@@ -99,6 +99,114 @@ namespace Sugoroku.Rules
             return OpenFacility(tf, events);
         }
 
+        // ---- 格闘道場（効果の型「道場」）----
+        // 値のバトル相手（からておう）に勝つと、報酬から1つ選ぶ：職（からておう）に就く／ポケモン（エビワラー・サワムラー）と交換
+        // 交換はライバルマスと同じく コストが足りる子を出す。どの子もゲーム中に1体。職は 職業マス.csv の条件（バッジ6個など）を満たすときだけ
+        // 「1人1回」は 受け取ったときに数える（勝っても選べなかったら また来られる）
+        const string DojoId = "格闘道場";
+
+        int DojoLevel => TuneInt("event_reward_level");
+        double DojoNeed(string species) => Pokemons.Cost10(data, Pokemons.Create(data, species, DojoLevel, "", "", 0)) * Tune("rival_trade_cost") / 10.0;
+
+        // いま選べるもの（職の名前か ポケモンの名前）
+        List<string> DojoChoices(PlayerState p, Effect e) => e.Reward.Split('|').Where(r =>
+        {
+            if (data.FindSpecies(r) != null) return !State.EventsGone.Contains("dojo:" + r);
+            var rule = data.JobSquares.FirstOrDefault(x => x.Job == r);
+            return p.Job != r && (rule == null || JobConditionsMet(p, rule));
+        }).ToList();
+
+        bool DojoWon(PlayerState p, Effect e, List<GameEvent> events)
+        {
+            var list = DojoChoices(p, e);
+            if (list.Count == 0) return false;
+            var f = new FacilityState { Kind = FacilityKind.Event, Player = p.Id, Square = p.Square, EventId = DojoId, PendingItem = e.Id, Prompt = "どちらかを えらぶ（1人1回）" };
+            foreach (var r in list)
+            {
+                f.Goods.Add(r);
+                f.Options.Add(data.FindSpecies(r) != null ? $"{r} Lv{DojoLevel}と 交換（コスト{DojoNeed(r):0.#}以上の子と。ゲーム中に1体）" : $"{r}の 職に 就く");
+            }
+            f.Goods.Add(""); f.Options.Add("やめておく");
+            return OpenFacility(f, events);
+        }
+
+        // 選んだ。交換なら 渡す子を選ぶ画面へ（TradeOption が受ける）。まだ操作待ちなら true
+        bool DojoChosen(FacilityState f, int index, List<GameEvent> events)
+        {
+            var p = State.Players[f.Player];
+            var e = FindEffect(f.PendingItem);
+            string pick = f.Goods[index];
+            if (pick == "") return false;
+            if (data.FindSpecies(pick) == null)
+            {
+                EventOnceDone(e, p);
+                UnlockJob(p, pick, events);
+                SetJob(p, pick, events);
+                return false;
+            }
+            double need = DojoNeed(pick);
+            if (TradeCandidates(p, need).Count == 0) { Say("ev_trade_short", events, p, ("コスト", need.ToString("0.#"))); return DojoWon(p, e, events); }
+            var t = new FacilityState { Kind = FacilityKind.Trade, Player = p.Id, Square = f.Square, EventId = "dojo:" + e.Id, PendingItem = pick, Price = DojoLevel, Prompt = $"{pick}と 交換する子を えらぶ（コスト{need:0.#}以上）" };
+            FillTradeOptions(t, p, need);
+            return OpenFacility(t, events);
+        }
+
+        // ---- サファリゾーン（別マップ safari）----
+        // 止まったマスで出入りを見る。入るときに入場料 safari_fee を払い、サファリボールを safari_balls 個もらう。出ると 余ったボールは なくなる
+        // 中の草むらでは 入るたびに1回だけ 野生に会える。戦わずに サファリボールを投げ、はずれると safari_flee_rate で にげられる
+        const string SafariMap = "safari", SafariBall = "サファリボール";
+
+        // 入場料が払えず 外へ出したなら true
+        bool SafariGate(PlayerState p, BoardSquare sq, List<GameEvent> events)
+        {
+            bool inside = sq.MapId == SafariMap;
+            if (inside == p.InSafari) return false;
+            p.InSafari = inside;
+            if (!inside) { p.Balls.Remove(SafariBall); return false; } // 余ったボールは持ち出せない
+            int fee = TuneInt("safari_fee");
+            var gate = board.Squares.Values.FirstOrDefault(s => s.MapId == SafariMap && s.WarpPartner >= 0 && board[s.WarpPartner].MapId != SafariMap);
+            if (p.Money < fee && gate != null)
+            {
+                p.InSafari = false;
+                events.Add(new NothingHappened { Player = p.Id, Reason = $"サファリゾーンの 入場料（{fee:#,0}円）が 足りないので 入れなかった" });
+                int from = p.Square;
+                p.Square = gate.WarpPartner;
+                events.Add(new Warped { Player = p.Id, From = from, To = p.Square });
+                return true;
+            }
+            AddMoney(p, -fee, "サファリゾーンの入場料", events);
+            int n = TuneInt("safari_balls");
+            p.Balls[SafariBall] = n;
+            events.Add(new ItemGained { Player = p.Id, Item = $"{SafariBall}{n}個" });
+            return false;
+        }
+
+        void SafariPrompt(List<GameEvent> events)
+        {
+            B.Step = BattleStep.Ball;
+            events.Add(new BallPrompt { Player = B.Sides[0].Player });
+        }
+
+        // はずれた：ボールがなければ おしまい、あれば にげられるか もう1球
+        void SafariMissed(List<GameEvent> events)
+        {
+            var p = State.Players[B.Sides[0].Player];
+            string wild = B.Sides[1].Current.Species;
+            if (!(p.Balls.TryGetValue(SafariBall, out int n) && n > 0)) { SafariOver($"サファリボールが なくなった。{wild}は どこかへ いってしまった", events); return; }
+            if (Chance(Tune("safari_flee_rate"))) { SafariOver($"野生の{wild}は にげだした！", events); return; }
+            SafariPrompt(events);
+        }
+
+        void SafariOver(string reason, List<GameEvent> events)
+        {
+            var p = State.Players[B.Sides[0].Player];
+            p.Balls.Remove(SafariBall); // 遭遇は 入るたびに1回
+            events.Add(new NothingHappened { Player = p.Id, Reason = reason });
+            CureAfterBattle(events);
+            events.Add(new BattleEnded { Winner = -1 });
+            FinishBattle(events);
+        }
+
         // ---- 育て屋 ----
 
         // 引き取るときのLv（あずけてからの週数で育つ）

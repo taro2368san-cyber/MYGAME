@@ -918,8 +918,8 @@ public partial class GameRunner : MonoBehaviour
             {
                 var p = S.Players[b.Sides[0].Player];
                 foreach (var kv in p.Balls.Where(x => x.Value > 0)) { var c = new ThrowBall { Player = p.Id, Ball = kv.Key }; Add($"{kv.Key}（{kv.Value}個）", () => Send(c), KeyCode.None, Ok(c)); }
-                Add("投げない", () => Send(new ThrowBall { Player = p.Id }), KeyCode.Escape);
-                return "ボールを 投げる？";
+                Add(b.Safari ? "にげる" : "投げない", () => Send(new ThrowBall { Player = p.Id }), KeyCode.Escape);
+                return b.Safari ? "サファリボールを 投げる？（はずれると にげられることがある）" : "ボールを 投げる？";
             }
             default:
             {

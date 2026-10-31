@@ -406,25 +406,80 @@ namespace Sugoroku.Rules
                 var (kg, kev) = LandEvents(keySq, "ヒトカゲ");
                 Check(log, "ジムのカギ：踏んだ人だけ カギを持つ", kev.OfType<GymKeyFound>().Any() && GameProcessor.HasGymKey(kg.State.Players[0], gymName));
             }
-            // ステップ2：格闘道場（勝つと 2体から1体。どの子も ゲーム中に1体）、大好きクラブ（1人1回）、サカキ（フル）
-            var dojoRow = data.EventSquares.FirstOrDefault(x => x.Effect.Kind == EffectKind.Battle && x.Effect.Reward.Contains("|"));
-            var dojoSq = dojoRow == null ? null : board.Squares.Values.FirstOrDefault(x => x.Name == dojoRow.Square && x.Neighbors.Count > 0);
+            // ステップ2：格闘道場（勝つと 職に就く か ポケモンと交換）、大好きクラブ（1人1回）、サカキ（フル）
+            var dojoSq = EventSquareOf(EffectKind.Dojo);
             if (dojoSq != null)
             {
-                var (dg, dev) = LandEvents(dojoSq, "ヒトカゲ", s => Pokemons.SetLevel(data, s.Players[0].Party[0], 60));
+                var dojoRow = data.EventSquares.First(x => x.Square == dojoSq.Name);
+                // 職の条件（バッジ6個など）を満たさない：交換だけ。コストが足りる子を出して交換
+                var (dg, dev) = LandEvents(dojoSq, "ヒトカゲ", s => { var pl = s.Players[0]; Pokemons.SetLevel(data, pl.Party[0], 60); pl.Party.Add(Pokemons.Create(data, "リザードン", 60, "", "", 1)); });
                 dg.DebugEnabled = true;
                 Apply(dg, new DebugCommand { Player = 0, Action = DebugAction.WinBattle });
-                var gf = dg.State.Facility;
-                bool two = gf != null && gf.Goods.Count == 2;
-                if (gf != null) Apply(dg, new ChooseOption { Index = 0 });
-                string got = two ? gf.Goods[0] : "";
+                var df = dg.State.Facility;
+                var mons = df == null ? new List<string>() : df.Goods.Where(x => x != "").ToList();
+                bool tradesOnly = mons.Count == 2 && mons.All(x => data.FindSpecies(x) != null);
+                string want = tradesOnly ? mons[0] : "";
+                if (tradesOnly) Apply(dg, new ChooseOption { Index = 0 });
+                bool picking = dg.State.Facility?.Kind == FacilityKind.Trade;
+                if (picking) Apply(dg, new ChooseOption { Index = 0 });
+                var dp = dg.State.Players[0];
+                bool traded = dp.Party.Concat(dp.Box).Any(m => m.Species == want) && dg.State.EventsGone.Contains("dojo:" + want) && dp.RocketUsed.Contains("once:" + dojoRow.Square);
+                // 条件を満たすと 職も選べる。交換された子は もう出ない。職を選ぶと その場で就く
+                var (jg, _) = LandEvents(dojoSq, "ヒトカゲ", s => { var pl = s.Players[0]; Pokemons.SetLevel(data, pl.Party[0], 60); for (int i = 0; i < 8; i++) pl.Gyms.Add("ジム" + i); foreach (var sp in data.Species) pl.Dex.Add(sp.Name); s.EventsGone.Add("dojo:" + want); });
+                jg.DebugEnabled = true;
+                Apply(jg, new DebugCommand { Player = 0, Action = DebugAction.WinBattle });
+                var jf = jg.State.Facility;
+                string job = jf?.Goods.FirstOrDefault(x => x != "" && data.FindSpecies(x) == null);
+                bool oneLeft = jf != null && jf.Goods.Count(x => x != "" && data.FindSpecies(x) != null) == 1 && !jf.Goods.Contains(want);
+                if (job != null) Apply(jg, new ChooseOption { Index = jf.Goods.IndexOf(job) });
+                bool jobSet = job != null && jg.State.Players[0].Job == job && !jg.State.JobSquares.Values.Contains(job); // 町のトレーナーマスには出ない
                 var (_, again) = LandEvents(dojoSq, "ヒトカゲ", s => s.Players[0].RocketUsed.Add("once:" + dojoRow.Square));
-                var (og, _) = LandEvents(dojoSq, "ヒトカゲ", s => { Pokemons.SetLevel(data, s.Players[0].Party[0], 60); s.EventsGone.Add("gift:" + got); });
-                og.DebugEnabled = true;
-                Apply(og, new DebugCommand { Player = 0, Action = DebugAction.WinBattle });
-                Check(log, "格闘道場：勝つと 2体から1体もらえる。1人1回。もらわれた子は もう出ない",
-                    dev.OfType<BattleStarted>().Any(b => b.Kind == BattleKind.Event) && two && dg.State.Players[0].Party.Any(m => m.Species == got) && dg.State.EventsGone.Contains("gift:" + got)
-                    && !again.OfType<BattleStarted>().Any() && og.State.Facility != null && og.State.Facility.Goods.Count == 1 && og.State.Facility.Goods[0] != got);
+                Check(log, "格闘道場：勝つと 職に就くか ポケモンと交換を1つ（職は条件を満たすときだけ。ポケモンは ゲーム中に各1体）。1人1回",
+                    dev.OfType<BattleStarted>().Any(b => b.Kind == BattleKind.Event) && tradesOnly && picking && traded && oneLeft && jobSet && !again.OfType<BattleStarted>().Any());
+            }
+            var fujiRow = data.EventSquares.FirstOrDefault(x => x.Effect.Kind == EffectKind.HealAll && x.Effect.Value != "");
+            var fujiSq = fujiRow == null ? null : board.Squares.Values.FirstOrDefault(x => x.Name == fujiRow.Square && x.Neighbors.Count > 0);
+            if (fujiSq != null)
+            {
+                var (fg, _) = LandEvents(fujiSq, "ヒトカゲ", s => { var pl = s.Players[0]; pl.Ailments.Add(new PlayerAilment { Name = fujiRow.Effect.Value, Weeks = 5 }); pl.Party[0].Hp = 1; });
+                var fp = fg.State.Players[0];
+                Check(log, "フジ老人の家：回復して のろいも解く", !fp.Has(fujiRow.Effect.Value) && fp.Party[0].Hp == Pokemons.MaxHp(data, fp.Party[0]));
+            }
+            var giftSq = EventSquareOf(EffectKind.Pokemon);
+            if (giftSq != null)
+            {
+                var giftRow = data.EventSquares.First(x => x.Square == giftSq.Name);
+                string species = GameData.TradeList(giftRow.Effect.Value)[0].species;
+                var (eg, _) = LandEvents(giftSq, "ヒトカゲ");
+                var (_, ev2) = LandEvents(giftSq, "ヒトカゲ", s => s.EventsGone.Add(giftRow.Square));
+                Check(log, "タマムシマンション：イーブイがもらえる（ゲーム中に先着1名）", eg.State.Players[0].Party.Any(m => m.Species == species) && eg.State.EventsGone.Contains(giftRow.Square) && !ev2.OfType<PokemonReceived>().Any());
+            }
+            var snorSq = board.Squares.Values.FirstOrDefault(x => x.Type == "シンボル" && x.Symbol == "カビゴン" && x.Neighbors.Count > 0);
+            if (snorSq != null)
+            {
+                var (g, me, _) = Two("ポケモンのふえ");
+                bool blocked = g.State.Blocked.ContainsKey(snorSq.Id);
+                me.Square = snorSq.Neighbors[0];
+                g.Apply(new UseItem { Player = me.Id, Item = "ポケモンのふえ", Target = snorSq.Id }, out string ferr);
+                bool fight = ferr == null && g.State.Battle?.Symbol == true && g.State.Battle.Sides[1].Team[0].Species == "カビゴン";
+                g.DebugEnabled = true;
+                if (fight) g.Apply(new DebugCommand { Player = me.Id, Action = DebugAction.WinBattle }, out _);
+                Check(log, "カビゴン（12番・16番道路）：はじめから道をふさぎ、ポケモンのふえでバトル。倒すと いなくなる", blocked && fight && !g.State.Blocked.ContainsKey(snorSq.Id) && g.State.SymbolsGone.Contains(snorSq.Id));
+            }
+            var safariSq = board.Squares.Values.FirstOrDefault(x => x.MapId == "safari" && x.Type == "草むら" && !x.Sea && x.Neighbors.Any(n => board[n].MapId == "safari") && data.Encounters.Any(e => e.Place == x.Place && e.Method == "草むら"));
+            if (safariSq != null)
+            {
+                // 入場料がないと 外へ出される。払うと サファリボール3個、戦わずに投げるだけ、遭遇は1回
+                var (kg, _) = LandEvents(safariSq, "ヒトカゲ", s => s.Players[0].Money = 0);
+                bool kicked = board[kg.State.Players[0].Square].MapId != "safari";
+                int fee = (int)data.Required("safari_fee"), balls = (int)data.Required("safari_balls");
+                GameProcessor sg2 = null;
+                for (ulong seed = 1; seed < 30 && sg2?.State.Battle == null; seed++) sg2 = LandEvents(safariSq, "ヒトカゲ", s => s.Players[0].Money = fee + 100, seed).g; // ランダムイベントが起きない種を探す
+                var sp2 = sg2.State.Players[0];
+                bool entered = sp2.InSafari && sp2.Money == 100 && sp2.Balls.TryGetValue("サファリボール", out int nb) && nb == balls;
+                bool throwOnly = sg2.State.Battle?.Safari == true && sg2.State.Battle.Step == BattleStep.Ball && sg2.Validate(new ThrowBall { Player = sp2.Id, Ball = "モンスターボール" }) != null;
+                for (int i = 0; i < 10 && sg2.State.Battle != null; i++) Apply(sg2, new ThrowBall { Player = sp2.Id, Ball = "サファリボール" });
+                Check(log, "サファリゾーン：入場料でサファリボール3個、投げるだけ、遭遇は1回。お金がないと入れない", kicked && entered && throwOnly && sg2.State.Battle == null && !sp2.Balls.ContainsKey("サファリボール"));
             }
             var clubRow = data.EventSquares.FirstOrDefault(x => x.Effect.Kind == EffectKind.Item && x.Effect.CondKind == "1人1回");
             var clubSq = clubRow == null ? null : board.Squares.Values.FirstOrDefault(x => x.Name == clubRow.Square && x.Neighbors.Count > 0);
@@ -761,7 +816,8 @@ namespace Sugoroku.Rules
                 // 職業マス（9.2）：ゲーム開始時にトレーナーマスへ置かれる。条件を満たして止まると職業トレーナーとバトル、勝つと解放して就くか聞かれる
                 var jg0 = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
                 int trainerSquares = board.Squares.Values.Count(x => x.Type == "トレーナー");
-                bool placed = jg0.State.JobSquares.Count == Math.Min(data.JobSquares.Count, trainerSquares) && jg0.State.JobSquares.Keys.All(k => board[k].Type == "トレーナー");
+                int onTrainers = data.JobSquares.Count(r => !data.EventSquares.Any(x => x.Effect.Kind == EffectKind.Dojo && x.Effect.Reward.Split('|').Contains(r.Job))); // 道場で就く職は出ない
+                bool placed = jg0.State.JobSquares.Count == Math.Min(onTrainers, trainerSquares) && jg0.State.JobSquares.Keys.All(k => board[k].Type == "トレーナー");
                 var fire = data.JobSquares.FirstOrDefault(x => x.Job == "ひふきやろう");
                 int fireSq = jg0.State.JobSquares.FirstOrDefault(kv => kv.Value == "ひふきやろう").Key;
                 if (fire != null && fireSq > 0 && board[fireSq].Neighbors.Count > 0)

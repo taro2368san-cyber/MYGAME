@@ -102,7 +102,8 @@ namespace Sugoroku.Rules
     // ---- ここから下は 設計メモ のCSV（xlsx に同じ名前のシートを作ればそちらが使われる。書き方は 設計メモ/CSVの書き方.md）----
 
     // マスやイベントの効果の型（仕様書13.2）。「効果の型」列の言葉で見分ける
-    public enum EffectKind { None, Money, Item, ExtraMove, CureStatus, HealAll, Points, Battle, UnlockJob, Museum, Errand, BoxUp, Trade, DayCare, Lab, GymKey } // Museum: 化石を預ける博物館（3.2.2）。Lab: 研究所（化石＋交換）。GymKey: そのジムに すぐ挑める（踏んだ人だけ）。Errand 以降は町の人のイベントマス（GameProcessor.Town.cs）
+    public enum EffectKind { None, Money, Item, ExtraMove, CureStatus, HealAll, Points, Battle, UnlockJob, Museum, Errand, BoxUp, Trade, DayCare, Lab, GymKey, Dojo, Pokemon } // Museum: 化石を預ける博物館（3.2.2）。Lab: 研究所（化石＋交換）。GymKey: そのジムに すぐ挑める（踏んだ人だけ）。Errand 以降は町の人のイベントマス（GameProcessor.Town.cs）
+    // Dojo: 格闘道場（値のバトル相手に勝つと、報酬の 職に就く か ポケモンと交換 を1つ選ぶ）。Pokemon: 値のポケモンをもらう（タマムシマンションのイーブイ）
 
     // ランダムイベント・イベントマスの1件
     public sealed class Effect
@@ -512,6 +513,8 @@ namespace Sugoroku.Rules
             else if (kind.StartsWith("育て屋")) e.Kind = EffectKind.DayCare;
             else if (kind.StartsWith("研究所")) e.Kind = EffectKind.Lab;
             else if (kind.StartsWith("ジムのカギ")) e.Kind = EffectKind.GymKey;
+            else if (kind.StartsWith("道場")) e.Kind = EffectKind.Dojo;
+            else if (kind.StartsWith("ポケモン")) e.Kind = EffectKind.Pokemon;
             else problems.Add($"[警告] {t.Name}: 「{e.Id}」の効果の型「{kind}」はまだ作っていません（何も起きません）");
             bool numeric = e.Kind == EffectKind.Money || e.Kind == EffectKind.ExtraMove || e.Kind == EffectKind.Points || e.Kind == EffectKind.Errand || e.Kind == EffectKind.BoxUp;
             if (numeric && !int.TryParse(e.Value, out _)) { problems.Add($"[エラー] {t.Name}: 「{e.Id}」の値「{e.Value}」は数字にしてください"); e.Kind = EffectKind.None; }
@@ -665,8 +668,10 @@ namespace Sugoroku.Rules
             foreach (var e in d.RandomEvents.Concat(d.EventSquares.Select(x => x.Effect)))
             {
                 if (e.Kind == EffectKind.Item && e.Value.Split('|').FirstOrDefault(i => d.FindItem(i) == null) is string bad) Error($"イベント: {e.Id} のアイテム「{bad}」がアイテム一覧・ポケモンの道具シートにありません");
-                if (e.Kind == EffectKind.Battle && d.FindParty(e.Value) == null) Error($"イベント: {e.Id} のバトル相手「{e.Value}」がイベント_バトル相手.csvにありません");
-                if (e.Kind == EffectKind.Battle && e.Reward != "" && e.Reward.Split('|').FirstOrDefault(r => d.FindSpecies(r) == null) is string badR) Error($"イベント: {e.Id} の報酬「{badR}」がポケモンシートにありません");
+                if ((e.Kind == EffectKind.Battle || e.Kind == EffectKind.Dojo) && d.FindParty(e.Value) == null) Error($"イベント: {e.Id} のバトル相手「{e.Value}」がイベント_バトル相手.csvにありません");
+                if (e.Kind == EffectKind.Battle && e.Reward != "" && d.FindSpecies(e.Reward) == null) Error($"イベント: {e.Id} の報酬「{e.Reward}」がポケモンシートにありません");
+                if (e.Kind == EffectKind.Dojo && e.Reward.Split('|').FirstOrDefault(r => d.FindSpecies(r) == null && !d.Jobs.Any(j => j.Name == r)) is string badD) Error($"イベント: {e.Id} の報酬「{badD}」がポケモンシートにも職シートにもありません");
+                if (e.Kind == EffectKind.Pokemon && (TradeList(e.Value).Count != 1 || d.FindSpecies(TradeList(e.Value)[0].species) == null)) Error($"イベント: {e.Id} の値「{e.Value}」は ポケモンシートのポケモン1体（「イーブイ」か「イーブイ Lv25」）にしてください");
                 if (e.Kind == EffectKind.UnlockJob)
                     foreach (var j in e.Value.Split('|').Where(j => !d.Jobs.Any(x => x.Name == j))) Error($"イベント: {e.Id} の職業「{j}」が職シートにありません");
                 if (!Conditions.IsKnown(e.CondKind)) Warn($"イベント: {e.Id} の条件の種類「{e.CondKind}」は知らない言葉です（満たさない扱い）");

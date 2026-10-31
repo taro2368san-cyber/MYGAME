@@ -38,6 +38,7 @@ namespace Sugoroku.Rules
         public int Attacker, Rounds;
         public int TurnRounds;
         public bool Legend;     // チケットの島の伝説（勝つか捕まえると いなくなる）
+        public bool Safari;     // サファリゾーンの野生：戦わずに サファリボールを投げるだけ（遭遇は 入るたびに1回）
         public bool Symbol;     // 盤面の伝説のシンボル（勝つか捕まえると Square から消える。早い者勝ち）  // この番に戦ったラウンド数（2で1往復。1往復したら番を終える）
         public int First;                          // 先攻・後攻のカードで先攻になった側
         public List<int> Cards;                    // 選ぶのを待っている 先攻・後攻のカード（混ぜたあとの並び。値はそのカードで先攻になる側）

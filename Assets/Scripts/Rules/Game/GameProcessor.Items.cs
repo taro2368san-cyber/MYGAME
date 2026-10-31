@@ -159,6 +159,7 @@ namespace Sugoroku.Rules
                     break;
                 }
                 case ItemUse.PokeFlute:
+                    if (SymbolHere(target) == Snorlax) { WakeSnorlax(target, events); break; } // 12番・16番道路の カビゴン：起こすとバトル
                     State.Blocked.Remove(target);
                     events.Add(new SnorlaxRemoved { Square = target, Player = p.Id });
                     break;

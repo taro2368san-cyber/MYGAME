@@ -53,6 +53,7 @@ namespace Sugoroku.Rules
             state.EventRule = rule?.Id ?? "";
             if (rule != null) events.Add(new EventRuleDecided { Name = rule.Name, Description = rule.Description });
             game.PlaceJobSquares();
+            game.PlaceSnorlax();
             events.Add(new TurnOrderDecided { Order = state.TurnOrder.ToList() });
             game.StartTurn(events);
             return game;

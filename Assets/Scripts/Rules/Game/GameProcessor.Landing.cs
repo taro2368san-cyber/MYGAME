@@ -15,6 +15,7 @@ namespace Sugoroku.Rules
             var sq = board[player.Square];
             var other = State.Players.FirstOrDefault(p => p != player && p.Square == player.Square && p.Party.Any(m => !m.Fainted) && p.PendingBattle == null && !OnIsland(player)); // バトルの途中の人とは戦わない。島はその人だけのエリア
             if (other != null && player.Party.Any(m => !m.Fainted)) return StartPlayerBattle(other, events);
+            if (SafariGate(player, sq, events)) return false;
             SpringTrap(player, events);
 
             switch (sq.Type)
@@ -31,6 +32,7 @@ namespace Sugoroku.Rules
                 case "草むら":
                     if (RandomEvent(events, out bool w2)) return w2;
                     if (player.Has("ゴールドスプレー")) return Nothing("ゴールドスプレーで 野生のポケモンが よってこない", events);
+                    if (sq.MapId == SafariMap && !(player.Balls.TryGetValue(SafariBall, out int sb) && sb > 0)) return Nothing("サファリボールが もうない（入りなおすと また もらえる）", events);
                     // 海上の草むらは出現表の「水上」（4.1.2）
                     return StartWild(sq, events, sq.Sea ? "水上" : "草むら") || Nothing("野生のポケモンは出てこなかった", events);
                 case "トレーナー": return LandTrainer(sq, events);
@@ -71,6 +73,7 @@ namespace Sugoroku.Rules
                     if (e.Effect.Kind == EffectKind.BoxUp) return LandBoxUp(e.Effect, events);
                     if (e.Effect.Kind == EffectKind.Trade) return LandNpcTrade(sq, true, events);
                     if (e.Effect.Kind == EffectKind.DayCare) return LandDayCare(events);
+                    if (e.Effect.Kind == EffectKind.Dojo && EventOnceOpen(e.Effect, player) && DojoChoices(player, e.Effect).Count == 0) return Nothing($"{e.Content}では いま 教われることが ない", events);
                     return StartEvent(e.Effect, events);
                 default: // ワープ（着いた先）、ゴールなど
                     return Nothing("何も起きなかった", events);
@@ -142,13 +145,23 @@ namespace Sugoroku.Rules
         bool ApplyEffect(Effect e, List<GameEvent> events)
         {
             var p = Current;
-            if (e.Kind != EffectKind.Battle) EventOnceDone(e, p); // バトルは 勝ったときに（EventBattleWon）
+            if (e.Kind != EffectKind.Battle && e.Kind != EffectKind.Dojo) EventOnceDone(e, p); // バトルは 勝ったときに（EventBattleWon）。道場は 選んで受け取ったときに
             switch (e.Kind)
             {
                 case EffectKind.Money: AddMoney(p, int.Parse(e.Value), e.Name, events); return false;
                 case EffectKind.Points: p.Points += int.Parse(e.Value); events.Add(new PointsChanged { Player = p.Id, Amount = int.Parse(e.Value) }); return false;
                 case EffectKind.Item: { var items = e.Value.Split('|'); return GiveItem(p, items[Roll(0, items.Length - 1)], events); } // 「a|b|c」なら どれか1つ
-                case EffectKind.HealAll: HealParty(p, events); return false;
+                case EffectKind.HealAll:
+                    HealParty(p, events);
+                    if (e.Value != "" && p.Has(e.Value)) { p.Ailments.RemoveAll(a => a.Name == e.Value); events.Add(new AilmentCured { Player = p.Id, Name = e.Value }); } // 値の状態も解く（フジ老人の家：のろい）
+                    return false;
+                case EffectKind.Pokemon:
+                {
+                    var (species, level) = GameData.TradeList(e.Value)[0];
+                    var mon = Pokemons.Create(data, species, level, $"{e.Name}で もらった", board[p.Square].Place, State.Week);
+                    events.Add(new PokemonReceived { Player = p.Id, Pokemon = species, From = e.Name, ToBox = p.Party.Count >= TuneInt("party_size") });
+                    return AddPokemon(p, mon, events);
+                }
                 case EffectKind.CureStatus:
                     foreach (var m in p.Party) m.Status = Status.None;
                     events.Add(new PartyHealed { Player = p.Id });
@@ -159,6 +172,7 @@ namespace Sugoroku.Rules
                     events.Insert(events.Count - 1, new ExtraMoveStarted { Player = p.Id, Steps = State.Move.Dice, Reachable = State.Move.Reachable.ToList() });
                     return true;
                 case EffectKind.Battle:
+                case EffectKind.Dojo:
                     var party = data.FindParty(e.Value);
                     if (party == null || party.Members.Count == 0) return false;
                     if (!StartBattle(BattleKind.Event, party.Full, Npc(party.Name, party.Members), events)) return false;
@@ -593,7 +607,7 @@ namespace Sugoroku.Rules
                     if (f.EventId == PortId) { if (PortChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == NpcTradeId) { if (NpcTradeChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == DayCareId) { if (DayCareChosen(f, o.Index, events)) return; EndTurn(events); return; }
-                    if (f.EventId == GiftId) { if (GiftChosen(f, o.Index, events)) return; EndTurn(events); return; }
+                    if (f.EventId == DojoId) { if (DojoChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == PagerId)
                     {
                         bool wait = PagerChosen(f, o.Index, events, out bool back);

@@ -195,6 +195,12 @@ namespace Sugoroku.Rules
                 case FacilityKind.Event when f.EventId == "交換":
                     yield return new ChooseOption { Player = p.Id, Index = f.Options.Count - 1 }; // ponytail: CPU は町の人と交換しない。強さを比べて選ぶなら ここで
                     break;
+                case FacilityKind.Event when f.EventId == "格闘道場": // 職に就けるなら就く。交換は しない（町の人と同じ）
+                {
+                    int job = f.Goods.FindIndex(x => x != "" && d.FindSpecies(x) == null);
+                    yield return new ChooseOption { Player = p.Id, Index = job >= 0 ? job : f.Options.Count - 1 };
+                    break;
+                }
                 case FacilityKind.Event when f.EventId == "博物館": // 化石は あずける。研究所の交換は しない（町の人と同じ）
                     yield return new ChooseOption { Player = p.Id, Index = f.Goods.Count > 0 && !f.Goods[0].StartsWith("交換:") ? 0 : f.Options.Count - 1 };
                     break;
@@ -248,7 +254,8 @@ namespace Sugoroku.Rules
                 case BattleStep.Ball:
                 {
                     var wild = other.Current;
-                    if (Hurt(d, wild, 0.6))
+                    if (b.Safari) yield return new ThrowBall { Player = p.Id, Ball = "サファリボール" };
+                    else if (Hurt(d, wild, 0.6))
                         foreach (var ball in new[] { "マスターボール", "ハイパーボール", "スーパーボール", "モンスターボール" })
                             yield return new ThrowBall { Player = p.Id, Ball = ball };
                     yield return new ThrowBall { Player = p.Id };

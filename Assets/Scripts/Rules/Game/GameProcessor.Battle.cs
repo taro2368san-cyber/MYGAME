@@ -36,7 +36,7 @@ namespace Sugoroku.Rules
         bool StartBattle(BattleKind kind, bool full, BattleSide opponent, List<GameEvent> events, string gym = null, int first = -1)
         {
             var p = first >= 0 ? State.Players[first] : Current;
-            var b = State.Battle = new BattleState { Kind = kind, Full = full, Square = p.Square, Gym = gym };
+            var b = State.Battle = new BattleState { Kind = kind, Full = full, Square = p.Square, Gym = gym, Safari = kind == BattleKind.Wild && board[p.Square].MapId == SafariMap };
             b.Sides[0] = new BattleSide { Player = p.Id, Name = p.Name, Team = p.Party };
             b.Sides[1] = opponent;
             State.Phase = Phase.Battle;
@@ -101,6 +101,7 @@ namespace Sugoroku.Rules
             for (int i = 0; i < 2; i++)
                 if (Transforms(B.Sides[i])) events.Add(new Transformed { Side = i, Pokemon = B.Sides[i].Current.Species, Into = B.Sides[1 - i].Current.Species });
             OnEnter(events);
+            if (B.Safari) { SafariPrompt(events); return; } // サファリゾーン：戦わずに サファリボールを投げるだけ
             if (DrawInitiative(events)) BeginCommands(events);
         }
 
@@ -224,6 +225,7 @@ namespace Sugoroku.Rules
                     if (b.Step != BattleStep.Ball) return "今はボールを投げられません";
                     if (b.Sides[0].Player != c.Player) return "ボールを投げるのはあなたではありません";
                     if (t.Ball == null) return null;
+                    if ((t.Ball == SafariBall) != b.Safari) return b.Safari ? "サファリゾーンでは サファリボールしか 投げられません" : "サファリボールは サファリゾーンでしか 使えません";
                     var p = State.Players[c.Player];
                     if (!p.Balls.TryGetValue(t.Ball, out int n) || n <= 0) return "そのボールを持っていません";
                     return null;
@@ -276,7 +278,8 @@ namespace Sugoroku.Rules
                     PickInitiative(pc.Card, events);
                     return;
                 case ThrowBall t:
-                    if (t.Ball == null) BeginCommands(events);
+                    if (t.Ball == null && b.Safari) SafariOver($"{State.Players[c.Player].Name}は にげだした", events); // サファリでは 投げない＝立ち去る
+                    else if (t.Ball == null) BeginCommands(events);
                     else Throw(t.Ball, events);
                     return;
                 case ChooseReward r:
@@ -629,7 +632,9 @@ namespace Sugoroku.Rules
             double difficulty = Pokemons.Of(data, wild).Total / 10.0 * wild.Hp / Pokemons.MaxHp(data, wild) + Roll(0, TuneInt("capture_random_max"));
             bool caught = ball == "マスターボール" || difficulty <= BallThreshold(ball) + p.Badges * Tune("badge_capture_bonus") + JobCaptureBonus(p);
             events.Add(new BallThrown { Player = p.Id, Ball = ball, Caught = caught, Pokemon = wild.Species });
+            if (!caught && B.Safari) { SafariMissed(events); return; }
             if (!caught) { BeginCommands(events); return; }
+            if (B.Safari) p.Balls.Remove(SafariBall); // 遭遇は 入るたびに1回
             if (B.Legend) p.IslandLegend = ""; // チケットの伝説を捕まえた
             if (B.Symbol) SymbolBeaten(p.Id, wild.Species, true, events); // 盤面の伝説を捕まえた
 
@@ -643,7 +648,7 @@ namespace Sugoroku.Rules
         }
 
         double BallThreshold(string ball) =>
-            ball == "モンスターボール" ? Tune("ball_threshold_monster") : ball == "スーパーボール" ? Tune("ball_threshold_super") : ball == "ハイパーボール" ? Tune("ball_threshold_hyper") : 0;
+            ball == "モンスターボール" ? Tune("ball_threshold_monster") : ball == "スーパーボール" || ball == SafariBall ? Tune("ball_threshold_super") : ball == "ハイパーボール" ? Tune("ball_threshold_hyper") : 0; // ponytail: サファリボールは スーパーボールと同じ。分けるなら調整値を1つ足す
 
         // ---- 終わり ----
 
@@ -804,28 +809,15 @@ namespace Sugoroku.Rules
         }
 
         // イベントのバトルに勝った：相手の「報酬」のポケモンをもらう（Lvは調整値 event_reward_level）
-        // 報酬を「エビワラー|サワムラー」と書くと 1体えらぶ。そのときは どの子も ゲーム中に1体だけ（かくとう道場）
+        // 格闘道場（効果の型「道場」）は、職に就くか ポケモンと交換するかを選ぶ（DojoWon）
         void EventBattleWon(PlayerState p, List<GameEvent> events)
         {
             var e = FindEffect(B.EventId);
             if (e == null) return;
-            EventOnceDone(e, p);
             Say(e.TextKey + "_win", events, p);
-            bool pick = e.Reward.Contains("|");
-            var gifts = e.Reward.Split('|').Where(s => data.FindSpecies(s) != null && !(pick && State.EventsGone.Contains("gift:" + s))).ToList();
-            if (gifts.Count == 0) return;
-            if (!pick) { GiveEventPokemon(p, e, gifts[0], events); return; }
-            var f = new FacilityState { Kind = FacilityKind.Event, Player = p.Id, Square = p.Square, EventId = GiftId, PendingItem = e.Id, Prompt = "どの ポケモンを もらう？（どの子も ゲーム中に1体だけ）" };
-            foreach (var s in gifts) { f.Options.Add($"{s} Lv{TuneInt("event_reward_level")}"); f.Goods.Add(s); }
-            OpenFacility(f, events);
-        }
-
-        const string GiftId = "もらうポケモン";
-
-        bool GiftChosen(FacilityState f, int index, List<GameEvent> events)
-        {
-            State.EventsGone.Add("gift:" + f.Goods[index]);
-            return GiveEventPokemon(State.Players[f.Player], FindEffect(f.PendingItem), f.Goods[index], events);
+            if (e.Kind == EffectKind.Dojo) { DojoWon(p, e, events); return; }
+            EventOnceDone(e, p);
+            if (data.FindSpecies(e.Reward) != null) GiveEventPokemon(p, e, e.Reward, events);
         }
 
         bool GiveEventPokemon(PlayerState p, Effect e, string species, List<GameEvent> events)

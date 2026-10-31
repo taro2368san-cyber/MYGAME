@@ -34,6 +34,7 @@ namespace Sugoroku.Rules
             var trainers = board.Squares.Values.Where(s => s.Type == "トレーナー").OrderBy(s => s.Id).ToList();
             foreach (var rule in data.JobSquares)
             {
+                if (data.EventSquares.Any(x => x.Effect.Kind == EffectKind.Dojo && x.Effect.Reward.Split('|').Contains(rule.Job))) continue; // 格闘道場で就く職（からておう）は トレーナーマスに出さない
                 var free = trainers.Where(s => !State.JobSquares.ContainsKey(s.Id)).ToList();
                 var places = rule.Places.Where(pl => free.Any(s => s.Place == pl)).ToList();
                 string place = places.Count > 0 ? places[Roll(0, places.Count - 1)] : null; // くじは1回だけ（Where の中で引くと マスごとに引き直してしまう）

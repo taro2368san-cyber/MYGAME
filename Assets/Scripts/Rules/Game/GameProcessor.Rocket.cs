@@ -131,23 +131,30 @@ namespace Sugoroku.Rules
             t.Goods.Add(""); t.Options.Add("やめる");
         }
 
-        // 渡す子を選んだ（拠点の交換・ライバルの交換・町の人の交換）。EventId が "rival:" ならライバルマス、"npc:" なら交換のイベントマス
+        // 渡す子を選んだ（拠点の交換・ライバルの交換・町の人の交換・格闘道場）。EventId が "rival:" ならライバルマス、"npc:" なら交換のイベントマス、"dojo:" なら道場
         bool TradeOption(FacilityState f, int index, List<GameEvent> events)
         {
             var p = State.Players[f.Player];
             var sq = board[f.Square];
-            bool rival = f.EventId.StartsWith("rival:"), npc = f.EventId.StartsWith("npc:");
+            bool rival = f.EventId.StartsWith("rival:"), npc = f.EventId.StartsWith("npc:"), dojo = f.EventId.StartsWith("dojo:");
+            var dojoEvent = dojo ? FindEffect(f.EventId.Substring(5)) : null;
             string pick = index < f.Goods.Count ? f.Goods[index] : "";
-            bool Back() => npc ? LandNpcTrade(sq, false, events) : rival ? OpenRival(p, sq, f.Owner, false, events) : OpenRocketBase(p, sq, f.Owner, false, events);
+            bool Back() => dojo ? DojoWon(p, dojoEvent, events) : npc ? LandNpcTrade(sq, false, events) : rival ? OpenRival(p, sq, f.Owner, false, events) : OpenRocketBase(p, sq, f.Owner, false, events);
             if (pick == "") return Back(); // やめる
             var list = pick.StartsWith("box:") ? p.Box : p.Party;
             var give = list[int.Parse(pick.Substring(pick.IndexOf(':') + 1))];
             list.Remove(give);
             if (give.HeldItem != "") { p.PokemonBag.Add(give.HeldItem); give.HeldItem = ""; } // もちものは外れて残る（8.2）
-            string from = npc ? (IsLab(sq) ? EventTitle(sq, "研究所") : sq.Place + "の 人") : rival ? RivalOf(sq).Name : RocketRows(sq)[0].BaseName;
+            string from = dojo ? dojoEvent.Name : npc ? (IsLab(sq) ? EventTitle(sq, "研究所") : sq.Place + "の 人") : rival ? RivalOf(sq).Name : RocketRows(sq)[0].BaseName;
             events.Add(new PokemonGiven { Player = p.Id, Pokemon = give.Species, To = from });
             var got = Pokemons.Create(data, f.PendingItem, f.Price, $"{from}と 交換", sq.Place, State.Week);
-            if (npc)
+            if (dojo)
+            {
+                State.EventsGone.Add("dojo:" + f.PendingItem); // どの子も ゲーム中に1体
+                EventOnceDone(dojoEvent, p);
+                Say("ev_trade_ok", events, p, ("ポケモン", f.PendingItem));
+            }
+            else if (npc)
             {
                 p.RocketUsed.Add(NpcTradeKey(sq, f.PendingItem)); // 1人1回ずつ
                 Say(IsLab(sq) ? "ev_lab_trade_ok" : "ev_trade_ok", events, p, ("ポケモン", f.PendingItem));
@@ -167,7 +174,7 @@ namespace Sugoroku.Rules
             p.Dex.Add(f.PendingItem);
             events.Add(new PokemonReceived { Player = p.Id, Pokemon = f.PendingItem, From = from, ToBox = p.Party.Count >= TuneInt("party_size") });
             if (AddPokemon(p, got, events)) return true;
-            return Back();
+            return !dojo && Back();
         }
 
         // 選択肢が選べるか（CheckFacility の ChooseOption から）

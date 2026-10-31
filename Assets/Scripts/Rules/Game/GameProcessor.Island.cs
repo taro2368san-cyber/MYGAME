@@ -102,6 +102,22 @@ namespace Sugoroku.Rules
             return string.IsNullOrEmpty(species) ? null : species;
         }
 
+        // ねむっているカビゴン（シンボルのマスで ポケモンがカビゴン）：ゲームのはじめから道をふさぐ（アマイ三ツと同じ State.Blocked、週では去らない）
+        // ポケモンのふえで起こすとバトル（捕まえられる）。倒すか捕まえると いなくなる。逃げたり負けたりしたら また ねむる
+        const string Snorlax = "カビゴン";
+
+        void PlaceSnorlax()
+        {
+            foreach (var s in board.Squares.Values.Where(s => SymbolHere(s.Id) == Snorlax)) State.Blocked[s.Id] = int.MaxValue;
+        }
+
+        void WakeSnorlax(int square, List<GameEvent> events)
+        {
+            StartBattle(BattleKind.Wild, false, Npc($"野生の{Snorlax}", new[] { (Snorlax, SymbolLevel(board[square], Snorlax)) }), events);
+            B.Symbol = true;
+            B.Square = square; // 戦うのは となりのマスの カビゴン
+        }
+
         // 伝説のLv：出現表に その場所の シンボルの行があれば そのLv、なければ その場所の野生の最高Lv＋5
         int SymbolLevel(BoardSquare sq, string species)
         {
@@ -115,6 +131,7 @@ namespace Sugoroku.Rules
         void SymbolBeaten(int player, string species, bool caught, List<GameEvent> events)
         {
             State.SymbolsGone.Add(B.Square);
+            State.Blocked.Remove(B.Square); // ねむっていたカビゴンなら 道が通れるようになる
             events.Add(new SymbolGone { Square = B.Square, Player = player, Pokemon = species, Caught = caught });
         }
 
