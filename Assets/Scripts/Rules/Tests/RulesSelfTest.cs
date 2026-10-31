@@ -436,14 +436,21 @@ namespace Sugoroku.Rules
                 var (_, again) = LandEvents(dojoSq, "ヒトカゲ", s => s.Players[0].RocketUsed.Add("once:" + dojoRow.Square));
                 Check(log, "格闘道場：勝つと 職に就くか ポケモンと交換を1つ（職は条件を満たすときだけ。ポケモンは ゲーム中に各1体）。1人1回",
                     dev.OfType<BattleStarted>().Any(b => b.Kind == BattleKind.Event) && tradesOnly && picking && traded && oneLeft && jobSet && !again.OfType<BattleStarted>().Any());
+                string dk = dojoRow.Effect.TextKey;
+                if (dk != "" && data.HasDialog(dk + "_cleared"))
+                    Check(log, "施設のセリフ：道場は すませた人には dojo_cleared だけ。職の条件を満たさない人には dojo_ok を出さない",
+                        again.OfType<Dialog>().Select(d => d.Key).SequenceEqual(new[] { dk + "_cleared" }) && !dev.OfType<Dialog>().Any(d => d.Key == dk + "_ok"));
             }
             var fujiRow = data.EventSquares.FirstOrDefault(x => x.Effect.Kind == EffectKind.HealAll && x.Effect.Value != "");
             var fujiSq = fujiRow == null ? null : board.Squares.Values.FirstOrDefault(x => x.Name == fujiRow.Square && x.Neighbors.Count > 0);
             if (fujiSq != null)
             {
-                var (fg, _) = LandEvents(fujiSq, "ヒトカゲ", s => { var pl = s.Players[0]; pl.Ailments.Add(new PlayerAilment { Name = fujiRow.Effect.Value, Weeks = 5 }); pl.Party[0].Hp = 1; });
+                var (fg, fev) = LandEvents(fujiSq, "ヒトカゲ", s => { var pl = s.Players[0]; pl.Ailments.Add(new PlayerAilment { Name = fujiRow.Effect.Value, Weeks = 5 }); pl.Party[0].Hp = 1; });
                 var fp = fg.State.Players[0];
                 Check(log, "フジ老人の家：回復して のろいも解く", !fp.Has(fujiRow.Effect.Value) && fp.Party[0].Hp == Pokemons.MaxHp(data, fp.Party[0]));
+                string fk = fujiRow.Effect.TextKey;
+                if (fk != "" && data.HasDialog(fk + "_curse"))
+                    Check(log, "施設のセリフ：フジ老人の家は あいさつ → 話 → のろいを解く の順", fev.OfType<Dialog>().Select(d => d.Key).SequenceEqual(new[] { fk, fk + "_talk", fk + "_curse" }));
             }
             var giftSq = EventSquareOf(EffectKind.Pokemon);
             if (giftSq != null)
@@ -453,6 +460,17 @@ namespace Sugoroku.Rules
                 var (eg, _) = LandEvents(giftSq, "ヒトカゲ");
                 var (_, ev2) = LandEvents(giftSq, "ヒトカゲ", s => s.EventsGone.Add(giftRow.Square));
                 Check(log, "タマムシマンション：イーブイがもらえる（ゲーム中に先着1名）", eg.State.Players[0].Party.Any(m => m.Species == species) && eg.State.EventsGone.Contains(giftRow.Square) && !ev2.OfType<PokemonReceived>().Any());
+                string mk = giftRow.Effect.TextKey;
+                if (mk != "" && data.HasDialog(mk + "_eevee_gone"))
+                {
+                    // 図鑑の登録数で セリフが変わる（条件に合う いちばん下の行）
+                    var (dg2, dev2) = LandEvents(giftSq, "ヒトカゲ", s => { s.EventsGone.Add(giftRow.Square); foreach (var x in data.Species.Take(120)) s.Players[0].Dex.Add(x.Name); });
+                    var result = dev2.OfType<Dialog>().LastOrDefault();
+                    var shown = result == null ? null : new Narrator(data, board, dg2.State).DialogLines(result);
+                    Check(log, "施設のセリフ：イーブイがいないマンションでは 図鑑を見せる（120種類なら 100の行）",
+                        dev2.OfType<Dialog>().Select(d => d.Key).SequenceEqual(new[] { mk, mk + "_eevee_gone", mk + "_dex", mk + "_dex_result" })
+                        && shown != null && shown[0].Text == data.Dialogs.First(d => d.Key == mk + "_dex_result" && d.CondValue == "100").Text);
+                }
             }
             var snorSq = board.Squares.Values.FirstOrDefault(x => x.Type == "シンボル" && x.Symbol == "カビゴン" && x.Neighbors.Count > 0);
             if (snorSq != null)

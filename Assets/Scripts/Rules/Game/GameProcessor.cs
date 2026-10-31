@@ -521,12 +521,15 @@ namespace Sugoroku.Rules
         }
 
         // 文言CSVのセリフ（キーがなければ何も出さない）。表示は Narrator が行にする
-        void Say(string key, List<GameEvent> events, PlayerState p = null, params (string name, string value)[] values)
+        // セリフを出す。そのキーに 出せる行がなければ（全部の行の条件が合わないときも）何もしないで false
+        bool Say(string key, List<GameEvent> events, PlayerState p = null, params (string name, string value)[] values)
         {
-            if (string.IsNullOrEmpty(key) || !data.HasDialog(key)) return;
+            p = p ?? Current;
+            if (string.IsNullOrEmpty(key) || !data.Dialogs.Any(d => d.Key == key && (d.CondKind == "" || Conditions.Met(d.CondKind, d.CondValue, p, State)))) return false;
             var dict = new Dictionary<string, string>();
             foreach (var (name, value) in values) dict[name] = value;
-            events.Add(new Dialog { Player = (p ?? Current).Id, Key = key, Values = dict });
+            events.Add(new Dialog { Player = p.Id, Key = key, Values = dict });
+            return true;
         }
 
         static void RemoveItem(PlayerState p, string item)

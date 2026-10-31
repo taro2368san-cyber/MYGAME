@@ -109,11 +109,20 @@ namespace Sugoroku.Rules
         bool StartEvent(Effect e, List<GameEvent> events)
         {
             var p = Current;
+            bool open = EventOnceOpen(e, p);
             events.Add(new EventStarted { Player = p.Id, Id = e.Id, Name = e.Name });
-            if (e.TextKey != "" && data.HasDialog(e.TextKey)) Say(e.TextKey, events);
-            else events.Add(new RandomEventHappened { Player = p.Id, Name = e.Name, Text = e.Text });
+            if (!open && Say(e.TextKey + "_cleared", events, p)) return false; // 1人1回を すませた人へ（道場の dojo_cleared）
+            if (!Say(e.TextKey, events, p)) events.Add(new RandomEventHappened { Player = p.Id, Name = e.Name, Text = e.Text });
+            // 話しかける（施設文言.csv の _member は条件つき、なければ _talk）。{ポケモン} は手持ちの先頭の子
+            string lead = (p.Party.FirstOrDefault(m => !m.Fainted) ?? p.Party.FirstOrDefault())?.Species ?? "";
+            bool talked = Say(e.TextKey + "_member", events, p, ("ポケモン", lead)) || Say(e.TextKey + "_talk", events, p, ("ポケモン", lead));
 
-            if (!EventOnceOpen(e, p)) return Nothing(e.CondKind == "先着1名" ? "もう ほかの人が すませていた" : "もう すませてある", events);
+            if (!open)
+            {
+                // タマムシマンション：イーブイが もういなければ、ゲームを つくる人に 図鑑を見せる（セリフだけ）
+                if (Say(e.TextKey + "_eevee_gone", events, p)) { Say(e.TextKey + "_dex", events, p, ("数", p.Dex.Count.ToString())); Say(e.TextKey + "_dex_result", events, p); return false; }
+                return talked ? false : Nothing(e.CondKind == "先着1名" ? "もう ほかの人が すませていた" : "もう すませてある", events);
+            }
             if (e.CondKind != "" && !Conditions.Met(e.CondKind, e.CondValue, p, State))
             {
                 Say(e.TextKey + "_notyet", events);
@@ -153,11 +162,17 @@ namespace Sugoroku.Rules
                 case EffectKind.Item: { var items = e.Value.Split('|'); return GiveItem(p, items[Roll(0, items.Length - 1)], events); } // 「a|b|c」なら どれか1つ
                 case EffectKind.HealAll:
                     HealParty(p, events);
-                    if (e.Value != "" && p.Has(e.Value)) { p.Ailments.RemoveAll(a => a.Name == e.Value); events.Add(new AilmentCured { Player = p.Id, Name = e.Value }); } // 値の状態も解く（フジ老人の家：のろい）
+                    if (e.Value != "" && p.Has(e.Value)) // 値の状態も解く（フジ老人の家：のろい。セリフは fuji_curse）
+                    {
+                        Say(e.TextKey + "_curse", events, p);
+                        p.Ailments.RemoveAll(a => a.Name == e.Value);
+                        events.Add(new AilmentCured { Player = p.Id, Name = e.Value });
+                    }
                     return false;
                 case EffectKind.Pokemon:
                 {
                     var (species, level) = GameData.TradeList(e.Value)[0];
+                    Say(e.TextKey + "_eevee", events, p); // ponytail: タマムシマンションの mansion_eevee。もらえるポケモンが ほかにも できたら キーの決め方を変える
                     var mon = Pokemons.Create(data, species, level, $"{e.Name}で もらった", board[p.Square].Place, State.Week);
                     events.Add(new PokemonReceived { Player = p.Id, Pokemon = species, From = e.Name, ToBox = p.Party.Count >= TuneInt("party_size") });
                     return AddPokemon(p, mon, events);
@@ -173,6 +188,7 @@ namespace Sugoroku.Rules
                     return true;
                 case EffectKind.Battle:
                 case EffectKind.Dojo:
+                    if (e.Kind == EffectKind.Dojo && DojoChoices(p, e).Any(r => data.FindSpecies(r) == null)) Say(e.TextKey + "_ok", events, p); // 職を教えてもらえるとき（dojo_ok）
                     var party = data.FindParty(e.Value);
                     if (party == null || party.Members.Count == 0) return false;
                     if (!StartBattle(BattleKind.Event, party.Full, Npc(party.Name, party.Members), events)) return false;

@@ -47,7 +47,7 @@ namespace Sugoroku.Rules
             var patterns = all.Select(d => d.Pattern).Distinct().ToList();
             int pattern = patterns[random.Next(patterns.Count)];
             var lines = all.Where(d => d.Pattern == pattern).GroupBy(d => d.Order).OrderBy(g => g.Key)
-                .Select(g => g.FirstOrDefault(d => d.CondKind != "" && p != null && Conditions.Met(d.CondKind, d.CondValue, p, state)) ?? g.FirstOrDefault(d => d.CondKind == ""))
+                .Select(g => g.LastOrDefault(d => d.CondKind != "" && p != null && Conditions.Met(d.CondKind, d.CondValue, p, state)) ?? g.FirstOrDefault(d => d.CondKind == "")) // 条件に合う行が いくつもあれば 下の行（図鑑50・100・200 なら 200）
                 .Where(d => d != null);
             string Fill(string s)
             {
