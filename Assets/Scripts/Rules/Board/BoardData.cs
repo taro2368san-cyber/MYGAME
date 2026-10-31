@@ -83,7 +83,7 @@ namespace Sugoroku.Rules
                 problems.Add($"[警告] 盤面: ジム「{s.Name}」（{s.Place}）のジムがエリアシート・ジムシートにありません");
             foreach (var g in all.Where(s => s.Type == "ジム").Select(s => s.Place).Distinct().Where(p => !data.Trainers.Any(t => t.IsGymTrainer && t.Place == p)))
                 problems.Add($"[警告] 盤面: {g}にジムトレーナーがいません（トレーナー.csv の種類「ジムトレーナー」）。ジムにはすぐ挑めます");
-            foreach (var t in data.Trainers.Where(t => board.Squares.Values.FirstOrDefault(s => s.Name == t.Square) is BoardSquare s && (s.Type != "トレーナー" || s.Place != t.Place)))
+            foreach (var t in data.Trainers.Where(t => board.Squares.Values.FirstOrDefault(s => s.Name == t.Square) is BoardSquare s && (s.Type != "トレーナー" || s.Place != t.Place && !t.IsGymTrainer))) // ジムトレーナーは 町の外（グレンの屋敷など）に置いてもよい。場所の列は ジムの町
                 problems.Add($"[警告] トレーナー.csv: {t.Id} のマス「{t.Square}」は盤面では {board.Squares.Values.First(s => s.Name == t.Square).Place}の{board.Squares.Values.First(s => s.Name == t.Square).Type}です");
             // 伝説のシンボル（4.x）：島の外のシンボルのマスには、マスに書いたポケモンか、その場所の出現表「シンボル」が要る
             foreach (var s in all.Where(s => s.Type == "シンボル" && !data.IsIslandMap(s.MapId)))

@@ -170,6 +170,10 @@ namespace Sugoroku.Rules
             var nibiTrainerSquares = data.Trainers.Where(t => t.IsGymTrainer && t.Place == "ニビシティ").Select(t => board.Squares.Values.First(x => x.Name == t.Square).Id).ToList();
             if (nibi != null && nibi.Neighbors.Count > 0 && nibiTrainerSquares.Count > 0) Check(log, "ジムトレーナーがだれにも倒されていないとニビジムに挑めない", LandOn(nibi) == null);
             if (nibi != null && nibi.Neighbors.Count > 0) Check(log, "ジムトレーナーが全員（他人でも）倒されているとタケシとフルバトル", LandOn(nibi, s => { foreach (int id in nibiTrainerSquares) s.Owners[id] = 99; }) is BattleStarted gb && gb.Kind == BattleKind.Gym && gb.Full && gb.Opponent == "タケシ");
+            var guren = board.Squares.Values.FirstOrDefault(x => x.Type == "ジム" && x.Place == "グレンタウン");
+            if (guren != null && guren.Neighbors.Count > 0 && data.Trainers.Any(t => t.IsGymTrainer && t.Place == "グレンタウン"))
+                Check(log, "グレンジム：屋敷のジムトレーナーが残っていると挑めないが、ジムのカギを持つ人は挑める",
+                    LandOn(guren) == null && LandOn(guren, s => s.Players[0].RocketUsed.Add("gymkey:グレンジム")) is BattleStarted kb && kb.Kind == BattleKind.Gym);
             var gymTrainerSq = board.Squares.Values.FirstOrDefault(x => data.Trainers.Any(t => t.IsGymTrainer && t.Place == "ニビシティ" && t.Square == x.Name));
             if (gymTrainerSq != null && gymTrainerSq.Neighbors.Count > 0) Check(log, "ジムトレーナーのマスに止まるとトレーナー戦", LandOn(gymTrainerSq) is BattleStarted tb && tb.Kind == BattleKind.Trainer);
             if (gymTrainerSq != null && gymTrainerSq.Neighbors.Count > 0 && data.FindSpecies("メタモン") != null)
@@ -380,6 +384,27 @@ namespace Sugoroku.Rules
                 var (hg, _) = LandEvents(museum, "ヒトカゲ", s => { var pl = s.Players[0]; pl.Fossil = "こうらのかせき"; pl.FossilWeek = s.Week - 3; Pokemons.SetLevel(data, pl.Party[0], 30); });
                 var hp = hg.State.Players[0];
                 Check(log, "博物館：化石を預けると、3週あとに孵る（Lvは最高Lv−5）", asked && deposited && waiting && hp.Fossil == "" && hp.Party.Any(m => m.Species == "カブト" && m.Level == 25 && m.MetHow == "ニビ科学博物館で目覚めた"));
+            }
+            var labSq = EventSquareOf(EffectKind.Lab);
+            if (labSq != null && data.FindItem("こうらのかせき") != null)
+            {
+                // 研究所：化石（博物館で預けたものも受け取れる）と 交換が 1つの選択肢に並ぶ
+                var (lg, _) = LandEvents(labSq, "ヒトカゲ", s => { s.Players[0].PokemonBag.Add("こうらのかせき"); s.Players[0].Party.Add(Pokemons.Create(data, "リザードン", 60, "", "", 1)); });
+                var lf = lg.State.Facility;
+                var want = GameData.TradeList(data.EventSquares.First(x => x.Effect.Kind == EffectKind.Lab).Effect.Value).First();
+                bool both = lf?.Options[0].Contains("こうらのかせき") == true && lf.Options.Any(o => o.Contains(want.species));
+                if (both) Apply(lg, new ChooseOption { Index = lf.Goods.IndexOf("交換:" + want.species) });
+                bool choosing = lg.State.Facility?.Kind == FacilityKind.Trade;
+                var (hg, _) = LandEvents(labSq, "ヒトカゲ", s => { var pl = s.Players[0]; pl.Fossil = "こうらのかせき"; pl.FossilWeek = s.Week - 3; });
+                var hp = hg.State.Players[0];
+                Check(log, "研究所：化石を預けられて、交換もできる。博物館で預けた化石も ここで孵る", both && choosing && hp.Fossil == "" && hp.Party.Any(m => m.Species == "カブト" && m.MetHow == data.EventSquares.First(x => x.Square == labSq.Name).Content + "で目覚めた"));
+            }
+            var keySq = EventSquareOf(EffectKind.GymKey);
+            if (keySq != null)
+            {
+                string gymName = data.EventSquares.First(x => x.Effect.Kind == EffectKind.GymKey).Effect.Value;
+                var (kg, kev) = LandEvents(keySq, "ヒトカゲ");
+                Check(log, "ジムのカギ：踏んだ人だけ カギを持つ", kev.OfType<GymKeyFound>().Any() && GameProcessor.HasGymKey(kg.State.Players[0], gymName));
             }
 
             if (data.FindSpecies("カビゴン") != null)

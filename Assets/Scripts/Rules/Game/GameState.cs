@@ -158,6 +158,7 @@ namespace Sugoroku.Rules
     public sealed class AilmentCured : GameEvent { public int Player; public string Name; }
     public sealed class ItemBlocked : GameEvent { public int Player; public string Item, Attack; } // みがわりにんぎょう・かごのみで防いだ
     public sealed class Fished : GameEvent { public int Player; }
+    public sealed class GymKeyFound : GameEvent { public int Player; public string Gym; }      // ジムのカギを踏んだ（その人だけ ジムトレーナーが残っていても挑める）
     public sealed class SnorlaxPlaced : GameEvent { public int Player, Square, Weeks; }
     public sealed class SnorlaxRemoved : GameEvent { public int Square, Player; } // Player は ふえを吹いた人（週がたって去ったときは -1）
     public sealed class SymbolGone : GameEvent { public int Square, Player; public string Pokemon; public bool Caught; } // 伝説のシンボルが盤面から消えた

@@ -144,13 +144,13 @@ namespace Sugoroku.Rules
             var give = list[int.Parse(pick.Substring(pick.IndexOf(':') + 1))];
             list.Remove(give);
             if (give.HeldItem != "") { p.PokemonBag.Add(give.HeldItem); give.HeldItem = ""; } // もちものは外れて残る（8.2）
-            string from = npc ? sq.Place + "の 人" : rival ? RivalOf(sq).Name : RocketRows(sq)[0].BaseName;
+            string from = npc ? (IsLab(sq) ? EventTitle(sq, "研究所") : sq.Place + "の 人") : rival ? RivalOf(sq).Name : RocketRows(sq)[0].BaseName;
             events.Add(new PokemonGiven { Player = p.Id, Pokemon = give.Species, To = from });
             var got = Pokemons.Create(data, f.PendingItem, f.Price, $"{from}と 交換", sq.Place, State.Week);
             if (npc)
             {
                 p.RocketUsed.Add(NpcTradeKey(sq, f.PendingItem)); // 1人1回ずつ
-                Say("ev_trade_ok", events, p, ("ポケモン", f.PendingItem));
+                Say(IsLab(sq) ? "ev_lab_trade_ok" : "ev_trade_ok", events, p, ("ポケモン", f.PendingItem));
             }
             else if (rival)
             {

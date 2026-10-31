@@ -60,7 +60,7 @@ namespace Sugoroku.Rules
         public List<(string species, int level, double need)> NpcTrades(PlayerState p, BoardSquare sq)
         {
             var e = EffectOf(sq);
-            if (e == null || e.Kind != EffectKind.Trade) return new List<(string, int, double)>();
+            if (e == null || (e.Kind != EffectKind.Trade && e.Kind != EffectKind.Lab)) return new List<(string, int, double)>();
             return GameData.TradeList(e.Value).Where(t => data.FindSpecies(t.species) != null && !p.RocketUsed.Contains(NpcTradeKey(sq, t.species)))
                 .Select(t => (t.species, t.level, Pokemons.Cost10(data, Pokemons.Create(data, t.species, t.level, "", "", 0)) * Tune("rival_trade_cost") / 10.0)).ToList();
         }
@@ -86,7 +86,13 @@ namespace Sugoroku.Rules
             var p = State.Players[f.Player];
             var sq = board[f.Square];
             if (index >= f.Goods.Count) return false; // やめる
-            var t = NpcTrades(p, sq).First(x => x.species == f.Goods[index]);
+            return StartNpcTrade(p, sq, f.Goods[index], events);
+        }
+
+        // もらう子が決まった → 渡す子を選ぶ画面へ（研究所からも呼ぶ）
+        bool StartNpcTrade(PlayerState p, BoardSquare sq, string species, List<GameEvent> events)
+        {
+            var t = NpcTrades(p, sq).First(x => x.species == species);
             if (TradeCandidates(p, t.need).Count == 0) { Say("ev_trade_short", events, p, ("コスト", t.need.ToString("0.#"))); return false; }
             var tf = new FacilityState { Kind = FacilityKind.Trade, Player = p.Id, Square = sq.Id, EventId = "npc:" + sq.Id, PendingItem = t.species, Price = t.level, Prompt = $"{t.species}と 交換する子を えらぶ（コスト{t.need:0.#}以上）" };
             FillTradeOptions(tf, p, t.need);

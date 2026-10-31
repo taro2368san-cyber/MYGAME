@@ -65,7 +65,8 @@ namespace Sugoroku.Rules
                 case "イベントマス":
                     var e = data.EventSquares.FirstOrDefault(x => x.Square == sq.Name);
                     if (e == null || e.Effect.Kind == EffectKind.None) return Nothing(e?.Content is string c && c != "" ? c : "何も起きなかった", events);
-                    if (e.Effect.Kind == EffectKind.Museum) return LandMuseum(events);
+                    if (e.Effect.Kind == EffectKind.Museum || e.Effect.Kind == EffectKind.Lab) return LandMuseum(sq, events);
+                    if (e.Effect.Kind == EffectKind.GymKey) return LandGymKey(e.Effect.Value, events);
                     if (e.Effect.Kind == EffectKind.Errand) return LandErrand(e.Effect, events);
                     if (e.Effect.Kind == EffectKind.BoxUp) return LandBoxUp(e.Effect, events);
                     if (e.Effect.Kind == EffectKind.Trade) return LandNpcTrade(sq, true, events);
@@ -326,6 +327,18 @@ namespace Sugoroku.Rules
         // トキワジムはバッジ7個を取ったプレイヤーにだけ開く（3.3）。町のジムトレーナーも、開くまでは戦わない
         public static bool GymClosed(string gym, PlayerState p) => gym == "トキワジム" && p.Badges < 7;
 
+        // ジムのカギ（イベントマスの効果の型「ジムのカギ」）：踏んだ人は そのジムのジムトレーナーが残っていても挑める
+        public static bool HasGymKey(PlayerState p, string gym) => p.RocketUsed.Contains("gymkey:" + gym);
+
+        bool LandGymKey(string gym, List<GameEvent> events)
+        {
+            var p = Current;
+            if (HasGymKey(p, gym) || p.Gyms.Contains(gym)) return Nothing("何も起きなかった", events);
+            p.RocketUsed.Add("gymkey:" + gym);
+            events.Add(new GymKeyFound { Player = p.Id, Gym = gym });
+            return false;
+        }
+
         // ジム（3.3）。町のジムトレーナーが全員（だれかに）倒されてから。手持ちの数はジムシート、レベルはこのプレイヤーの何個目か
         bool LandGym(BoardSquare sq, List<GameEvent> events)
         {
@@ -337,7 +350,7 @@ namespace Sugoroku.Rules
             if (State.WeekEvent == "ストライキ") return Nothing("ストライキ中で休みだった", events);
             if (GymClosed(gym, p)) return Nothing("トキワジムは閉まっている（バッジ7個で開く）", events);
             var remaining = data.Trainers.Where(t => t.IsGymTrainer && t.Place == sq.Place && !(board.Squares.Values.FirstOrDefault(x => x.Name == t.Square) is BoardSquare ts && State.Owners.ContainsKey(ts.Id))).ToList();
-            if (remaining.Count > 0) return Nothing($"まず 町の ジムトレーナーを 倒そう（あと {remaining.Count}人：{string.Join("、", remaining.Select(t => t.Name))}）", events);
+            if (remaining.Count > 0 && !HasGymKey(p, gym)) return Nothing($"まず 町の ジムトレーナーを 倒そう（あと {remaining.Count}人：{string.Join("、", remaining.Select(t => t.Name))}）", events);
             int order = Math.Min(p.Badges + 1, 8);
             int ace = TuneInt($"gym_ace_level_{order}"), step = TuneInt("gym_level_step");
             int aceIndex = members.FindLastIndex(m => m.Role == "エース");
@@ -566,7 +579,7 @@ namespace Sugoroku.Rules
                         EndTurn(events);
                         return;
                     }
-                    if (f.EventId == MuseumId) { MuseumChosen(f, o.Index, events); EndTurn(events); return; }
+                    if (f.EventId == MuseumId) { if (MuseumChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == PortId) { if (PortChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == NpcTradeId) { if (NpcTradeChosen(f, o.Index, events)) return; EndTurn(events); return; }
                     if (f.EventId == DayCareId) { if (DayCareChosen(f, o.Index, events)) return; EndTurn(events); return; }

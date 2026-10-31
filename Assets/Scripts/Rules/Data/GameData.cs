@@ -102,7 +102,7 @@ namespace Sugoroku.Rules
     // ---- ここから下は 設計メモ のCSV（xlsx に同じ名前のシートを作ればそちらが使われる。書き方は 設計メモ/CSVの書き方.md）----
 
     // マスやイベントの効果の型（仕様書13.2）。「効果の型」列の言葉で見分ける
-    public enum EffectKind { None, Money, Item, ExtraMove, CureStatus, HealAll, Points, Battle, UnlockJob, Museum, Errand, BoxUp, Trade, DayCare } // Museum: 化石を預ける博物館（3.2.2）。Errand 以降は町の人のイベントマス（GameProcessor.Town.cs）
+    public enum EffectKind { None, Money, Item, ExtraMove, CureStatus, HealAll, Points, Battle, UnlockJob, Museum, Errand, BoxUp, Trade, DayCare, Lab, GymKey } // Museum: 化石を預ける博物館（3.2.2）。Lab: 研究所（化石＋交換）。GymKey: そのジムに すぐ挑める（踏んだ人だけ）。Errand 以降は町の人のイベントマス（GameProcessor.Town.cs）
 
     // ランダムイベント・イベントマスの1件
     public sealed class Effect
@@ -510,6 +510,8 @@ namespace Sugoroku.Rules
             else if (kind.StartsWith("控えの上限")) e.Kind = EffectKind.BoxUp;
             else if (kind.StartsWith("交換")) e.Kind = EffectKind.Trade;
             else if (kind.StartsWith("育て屋")) e.Kind = EffectKind.DayCare;
+            else if (kind.StartsWith("研究所")) e.Kind = EffectKind.Lab;
+            else if (kind.StartsWith("ジムのカギ")) e.Kind = EffectKind.GymKey;
             else problems.Add($"[警告] {t.Name}: 「{e.Id}」の効果の型「{kind}」はまだ作っていません（何も起きません）");
             bool numeric = e.Kind == EffectKind.Money || e.Kind == EffectKind.ExtraMove || e.Kind == EffectKind.Points || e.Kind == EffectKind.Errand || e.Kind == EffectKind.BoxUp;
             if (numeric && !int.TryParse(e.Value, out _)) { problems.Add($"[エラー] {t.Name}: 「{e.Id}」の値「{e.Value}」は数字にしてください"); e.Kind = EffectKind.None; }
@@ -591,12 +593,14 @@ namespace Sugoroku.Rules
             }
             foreach (var i in d.IslandMaps.Where(i => !places.Contains(i.Name))) Error($"島マップ: 「{i.Name}」がエリアシートの場所にありません");
 
-            foreach (var e in d.EventSquares.Where(x => x.Effect.Kind == EffectKind.Trade))
+            foreach (var e in d.EventSquares.Where(x => x.Effect.Kind == EffectKind.Trade || x.Effect.Kind == EffectKind.Lab))
             {
                 var list = TradeList(e.Effect.Value);
                 if (list.Count == 0) Error($"イベントマス: 「{e.Square}」の交換の値に、もらえるポケモンを「バリヤード Lv15、カモネギ Lv15」のように書いてください");
                 foreach (var (species, _) in list.Where(x => d.FindSpecies(x.species) == null)) Error($"イベントマス: 「{e.Square}」の交換の「{species}」がポケモンシートにありません");
             }
+            foreach (var e in d.EventSquares.Where(x => x.Effect.Kind == EffectKind.GymKey && !d.Places.Any(p => p.Gym == x.Effect.Value)))
+                Error($"イベントマス: 「{e.Square}」のジムのカギの値「{e.Effect.Value}」は エリアシートのジムの名前（グレンジム など）にしてください");
 
             foreach (var s in d.Shops)
             {

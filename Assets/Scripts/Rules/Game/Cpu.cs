@@ -88,7 +88,8 @@ namespace Sugoroku.Rules
         }
 
         // そのジムの町で、まだだれも倒していないジムトレーナーのマス（先に倒す必要がある）
-        static List<int> GymTrainersLeft(GameProcessor g, GameData d, BoardData board, BoardSquare gymSquare) =>
+        static List<int> GymTrainersLeft(GameProcessor g, GameData d, BoardData board, BoardSquare gymSquare, PlayerState p) =>
+            GameProcessor.HasGymKey(p, d.Places.FirstOrDefault(x => x.Name == gymSquare.Place)?.Gym ?? "") ? new List<int>() : // カギがあれば 残っていても挑める
             d.Trainers.Where(t => t.IsGymTrainer && t.Place == gymSquare.Place)
                 .Select(t => board.Squares.Values.FirstOrDefault(s => s.Name == t.Square)).Where(s => s != null && !g.State.Owners.ContainsKey(s.Id)).Select(s => s.Id).ToList();
 
@@ -96,7 +97,7 @@ namespace Sugoroku.Rules
         static Dictionary<int, int> DistanceToNextGym(GameProcessor g, GameData d, BoardData board, PlayerState p)
         {
             var gyms = board.Squares.Values.Where(s => s.Type == "ジム" && Movement.CanEnter(board, s.Id, p.Badges, g.TopBadges, p.Surf) && GymOpenFor(d, p, s))
-                .SelectMany(s => GymTrainersLeft(g, d, board, s) is var left && left.Count > 0 ? left : new List<int> { s.Id }).Distinct().ToList();
+                .SelectMany(s => GymTrainersLeft(g, d, board, s, p) is var left && left.Count > 0 ? left : new List<int> { s.Id }).Distinct().ToList();
             if (gyms.Count == 0) return null;
             var dist = gyms.ToDictionary(x => x, x => 0);
             var queue = new Queue<int>(gyms);
@@ -122,7 +123,7 @@ namespace Sugoroku.Rules
             bool owned = g.State.Owners.ContainsKey(id);
             switch (sq.Type)
             {
-                case "ジム": return GymOpenFor(d, p, sq) && GymTrainersLeft(g, d, board, sq).Count == 0 ? 50 : 0;
+                case "ジム": return GymOpenFor(d, p, sq) && GymTrainersLeft(g, d, board, sq, p).Count == 0 ? 50 : 0;
                 case "ライバル": return owned ? 3 : 40;
                 case "ロケット団": return !owned ? 25 : owner == p.Id ? 5 : 1; // 拠点の買い物はまだしない
                 case "ポケモンセンター": case "スタート": return hurt ? 35 : 2;
@@ -193,6 +194,9 @@ namespace Sugoroku.Rules
                     break;
                 case FacilityKind.Event when f.EventId == "交換":
                     yield return new ChooseOption { Player = p.Id, Index = f.Options.Count - 1 }; // ponytail: CPU は町の人と交換しない。強さを比べて選ぶなら ここで
+                    break;
+                case FacilityKind.Event when f.EventId == "博物館": // 化石は あずける。研究所の交換は しない（町の人と同じ）
+                    yield return new ChooseOption { Player = p.Id, Index = f.Goods.Count > 0 && !f.Goods[0].StartsWith("交換:") ? 0 : f.Options.Count - 1 };
                     break;
                 default: // イベントの「はい」、職業に就く、解放する職業は最初のもの、育て屋に あずける・引き取る
                     yield return new ChooseOption { Player = p.Id, Index = 0 };
