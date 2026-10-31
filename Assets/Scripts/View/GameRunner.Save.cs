@@ -130,8 +130,23 @@ public partial class GameRunner
         }
         var row = Row(col);
         Ui.Button(row, "エンドロールへ", () => ShowEndroll(0), 300, 70);
-        Ui.Button(row, "閉じる", CloseOverlay, 200, 70);
+        Ui.Button(row, "盤面を見る", CloseOverlay, 240, 70);
     }
+
+    // 終わりの流れの さいご（ロードマップ 3-2）：エンドロールのあと タイトルへ
+    void ShowFinal()
+    {
+        sound.PlayBgm("endroll");
+        var col = Overlay("Final");
+        Ui.Line(col, "おつかれさまでした", 64, new Color(1, 0.85f, 0.4f));
+        foreach (var p in S.Players.OrderByDescending(game.FinalScore)) Ui.Line(col, $"{p.Name}　{game.FinalScore(p):0.#}p", 34, PlayerColor(p));
+        var row = Row(col);
+        Ui.Button(row, "タイトルへ", ReturnToTitle, 300, 70);
+        Ui.Button(row, "結果発表を もう一度", ShowResults, 360, 70);
+    }
+
+    // ゲームの画面（コマ・盤面の飾り）ごと作り直して タイトルから
+    void ReturnToTitle() => UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
 
     // プレイヤーごとの旅を、下から上へ流す（1.5）。1人 endrollSeconds 秒、○（スペース）を押している間は早送り、START（Esc）で とばす
     public float endrollSeconds = 60;
@@ -142,7 +157,7 @@ public partial class GameRunner
         if (endrollRun != null) { StopCoroutine(endrollRun); endrollRun = null; }
         sound.PlayBgm("endroll");
         var players = S.TurnOrder.Select(id => S.Players[id]).ToList();
-        if (index >= players.Count) { ShowResults(); return; }
+        if (index >= players.Count) { ShowFinal(); return; }
         var p = players[index];
         var col = Overlay("Endroll");
         Ui.Line(col, narrator.Line("endroll_start", "{トレーナー}の たび", ("トレーナー", p.Name)), 52, PlayerColor(p));
@@ -191,7 +206,7 @@ public partial class GameRunner
     {
         if (endrollRun != null) StopCoroutine(endrollRun);
         endrollRun = null;
-        ShowResults();
+        ShowFinal();
     }
 
     string MetText(PokemonState m)

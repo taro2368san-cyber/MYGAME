@@ -4,7 +4,7 @@ using UnityEngine.UI;
 
 // 名前入力の五十音表（仕様書16.1 #7）。十字キー（矢印キー）で選んで Enter で入力、Backspace で1文字消す、Esc で終わり。マウスでも押せる
 // 文字はひらがな（濁点・半濁点・小さい字）と「ー」だけ。上限は調整値 name_max（6文字）
-// ponytail: コントローラー（十字キー・○・×）は Input System を入れるときにつなぐ
+// コントローラー：十字キーで選ぶ、○で入力、×で1文字けす、△かSTARTで けってい（GameRunner.Pad.cs）
 public partial class GameRunner
 {
     // 列ごとに5文字（空白は空きマス）
@@ -24,7 +24,7 @@ public partial class GameRunner
         names[player] = names[player] ?? "";
         var bg = Ui.Panel(canvas.transform, "Kana", Vector2.zero, Vector2.one, new Color(0.03f, 0.05f, 0.1f, 0.97f));
         var col = Ui.Stack(bg.transform, "Rows", new Vector2(0.03f, 0.08f), new Vector2(0.97f, 0.92f), true, 10, 0);
-        Ui.Line(col, $"P{player + 1}の なまえ（{(int)data.Required("name_max")}文字まで）", 40);
+        Ui.Line(col, $"P{player + 1}の なまえ（{(int)data.Required("name_max")}文字まで。空のままなら「{CharacterOf(player).Name}」）", 40);
         kanaName = Ui.Line(col, "", 54, new Color(1, 0.95f, 0.6f));
         kanaButtons = new Button[KanaColumns.Length, 5];
         for (int y = 0; y < 5; y++)
@@ -41,7 +41,8 @@ public partial class GameRunner
         }
         var tools = Row(col);
         Ui.Button(tools, "1文字けす（Backspace）", KanaBack, 360, 64);
-        Ui.Button(tools, "おわり（Esc）", CloseKana, 300, 64);
+        Ui.Button(tools, "けってい（Esc）", CloseKana, 300, 64);
+        Ui.Button(tools, "もどる（キャラクター）", () => { int i = kanaFor; kanaFor = -1; ShowCharacterPick(i); }, 360, 64);
         KanaRefresh();
     }
 
@@ -59,10 +60,12 @@ public partial class GameRunner
         KanaRefresh();
     }
 
+    // 名前が決まったら 最初のポケモンを選ぶ画面へ（始まりの流れ）
     void CloseKana()
     {
+        int i = kanaFor;
         kanaFor = -1;
-        ShowSetup();
+        ShowStarterPick(i);
     }
 
     void KanaRefresh()

@@ -103,7 +103,7 @@ public partial class GameRunner : MonoBehaviour
         Ui.Label(Ui.Rect(bg.transform, "Name", new Vector2(0, 0.6f), new Vector2(1, 0.85f)), gameTitle, 110, TextAnchor.MiddleCenter);
         var col = Ui.Stack(bg.transform, "Menu", new Vector2(0.38f, 0.12f), new Vector2(0.62f, 0.52f), true, 18, 0);
         Ui.Button(col, "はじめから", ShowSetup, 420, 76);
-        // ponytail: セーブ・ロードを作るまで押せない
+        // セーブが1つもなければ押せない
         Ui.Button(col, "つづきから", ShowLoad, 420, 76).interactable = SaveSlots().Any(x => x.summary != null);
         Ui.Button(col, "設定", ShowSettings, 420, 76);
     }
@@ -153,83 +153,115 @@ public partial class GameRunner : MonoBehaviour
     string EventRuleId => eventRuleIndex == 0 ? "random" : PickedRule?.Id ?? "";
     string EventRuleLabel => eventRuleIndex == 0 ? "ランダム" : PickedRule?.Name ?? "なし";
 
-    // 名前はひらがなと「ー」だけ（16.1）
-    static bool IsNameChar(char c) => (c >= '\u3041' && c <= '\u3096') || c == 'ー';
-
     // キャラクターの色（キャラクター.csv の「色」）。なければプレイヤーの番号の色（17.7）
     Color ColorOf(Character c, int fallback) => c != null && ColorUtility.TryParseHtmlString(c.Color, out var color) ? color : playerColors[fallback % playerColors.Length];
     Color PlayerColor(PlayerState p) => ColorOf(data.Characters.FirstOrDefault(x => x.Id == p.Character), p.Id);
     string StarterOf(int i) { var c = CharacterOf(i); return c.Starters[starterIndex[i] % c.Starters.Count]; }
     string NameOf(int i) => string.IsNullOrWhiteSpace(names[i]) ? CharacterOf(i).Name : names[i].Trim();
 
-    // 同じキャラクター・同じポケモンは選べない（1.1）。ほかの人とかぶっていたら次のものにずらす
-    void FixPicks()
-    {
-        for (int i = 0; i < playerCount; i++)
-            if (CharacterTaken(i)) NextCharacter(i);
-            else if (StarterTaken(i)) NextStarter(i);
-    }
+    // ---- 始まりの流れ（ロードマップ 3-1、仕様書1.1・16.1 #5〜#10）----
+    // ゲーム設定 → プレイヤーごとに キャラクター → 名前（CPU はキャラクターの名前）→ 最初のポケモン → 確認 → 手番の発表
+    // 同じキャラクター・同じポケモンは選べない（先に選んだ人のものは押せない）。× で1つ前の画面へ
 
-    bool CharacterTaken(int i) => Enumerable.Range(0, playerCount).Any(j => j != i && CharacterOf(j) == CharacterOf(i));
-    bool StarterTaken(int i) => Enumerable.Range(0, playerCount).Any(j => j != i && StarterOf(j) == StarterOf(i));
+    // 先に選んだ人（i より前）と かぶっているか
+    bool CharacterTakenBefore(int i, int k) => Enumerable.Range(0, i).Any(j => characterIndex[j] % data.Characters.Count == k);
+    bool StarterTakenBefore(int i, string species) => Enumerable.Range(0, i).Any(j => StarterOf(j) == species);
 
-    // 次のキャラクターへ（ほかの人のキャラクターは飛ばす）。ポケモンはその世代の最初の、だれも選んでいないものにする
-    void NextCharacter(int i)
-    {
-        for (int n = 0; n < data.Characters.Count; n++) { characterIndex[i] = (characterIndex[i] + 1) % data.Characters.Count; if (!CharacterTaken(i)) break; }
-        starterIndex[i] = 0;
-        for (int n = 0; n < CharacterOf(i).Starters.Count && StarterTaken(i); n++) starterIndex[i]++;
-    }
-
-    // 次のポケモンへ（同じ世代のほかの人が選んでいるものは飛ばす）。変えるのは自分だけ
-    void NextStarter(int i)
-    {
-        int count = CharacterOf(i).Starters.Count;
-        for (int n = 0; n < count; n++) { starterIndex[i] = (starterIndex[i] + 1) % count; if (!StarterTaken(i)) break; }
-    }
-
-    void SetupPlayerRow(Transform col, int i)
-    {
-        var row = Row(col);
-        Ui.Line(row, $"P{i + 1}", 30, ColorOf(CharacterOf(i), i));
-        if (CharacterSprite(CharacterOf(i)) is Sprite face) IconIn(row, face, 60); // キャラクターの絵
-        Ui.Button(row, "キャラ：" + CharacterOf(i).Name, () => { NextCharacter(i); ShowSetup(); }, 230);
-        Ui.Button(row, StarterOf(i), () => { NextStarter(i); ShowSetup(); }, 170);
-        var field = Ui.Input(row, names[i] ?? "", (int)data.Required("name_max"), 170, v => names[i] = v, IsNameChar);
-        field.placeholder.GetComponent<Text>().text = CharacterOf(i).Name;
-        Ui.Button(row, "かな", () => OpenKana(i), 90);
-        Ui.Button(row, cpus[i] ? "CPU" : "人", () => { cpus[i] = !cpus[i]; ShowSetup(); }, 90);
-        if (!cpus[i]) Ui.Button(row, modes[i] == MoveMode.Highlight ? "移動：まとめて" : "移動：1マスずつ", () => { modes[i] = modes[i] == MoveMode.Highlight ? MoveMode.Step : MoveMode.Highlight; ShowSetup(); }, 230);
-    }
-
+    // ゲーム設定（#5）：人数、週数、イベントルール、だれが CPU か
     void ShowSetup()
     {
         Ui.Clear(canvas.transform);
-        if (weeks == 0) weeks = (int)data.Required("weeks_min");
+        int wMin = (int)data.Required("weeks_min"), wMax = (int)data.Required("weeks_max");
+        if (weeks == 0) weeks = Mathf.Clamp(50, wMin, wMax); // ふつうは50週（1.1）
         var bg = Ui.Panel(canvas.transform, "Setup", Vector2.zero, Vector2.one, new Color(0.05f, 0.08f, 0.15f, 0.97f));
-        var col = Ui.Stack(bg.transform, "Rows", new Vector2(0.25f, 0.05f), new Vector2(0.75f, 0.95f), true, 14, 20);
-        Ui.Line(col, "ポケモンすごろく（エリア1 試作）", 44);
+        var col = Ui.Stack(bg.transform, "Rows", new Vector2(0.25f, 0.08f), new Vector2(0.75f, 0.92f), true, 16, 20);
+        Ui.Line(col, "ゲーム設定", 52);
         var row = Row(col);
         Ui.Line(row, $"人数 {playerCount}人", 30);
         for (int n = 2; n <= 4; n++) { int k = n; Ui.Button(row, $"{n}人", () => { playerCount = k; ShowSetup(); }, 110); }
         row = Row(col);
-        int wMin = (int)data.Required("weeks_min"), wMax = (int)data.Required("weeks_max");
         Ui.Line(row, $"週数 {weeks}週", 30);
         Ui.Button(row, "−10", () => { weeks = Math.Max(wMin, weeks - 10); ShowSetup(); }, 110);
         Ui.Button(row, "＋10", () => { weeks = Math.Min(wMax, weeks + 10); ShowSetup(); }, 110);
         row = Row(col);
         Ui.Line(row, "イベントルール", 30);
         Ui.Button(row, EventRuleLabel, () => { eventRuleIndex = (eventRuleIndex + 1) % (data.EventRules.Count + 2); ShowSetup(); }, 300);
-        if (PickedRule != null) Ui.Line(row, PickedRule.Description, 22);
-        if (data.Characters.Count == 0) { Ui.Line(col, "キャラクター.csv がありません（設計メモに置いてください）", 30, Color.red); return; }
-        FixPicks();
-        for (int i = 0; i < playerCount; i++) SetupPlayerRow(col, i);
+        if (PickedRule != null) Ui.Line(col, PickedRule.Description, 22, new Color(0.8f, 0.8f, 0.8f));
         row = Row(col);
-        Ui.Button(row, "つぎへ", ShowConfirm, 300, 70);
+        Ui.Line(row, "操作", 30);
+        for (int i = 0; i < playerCount; i++) { int k = i; Ui.Button(row, $"P{i + 1}：{(cpus[i] ? "CPU" : "人")}", () => { cpus[k] = !cpus[k]; ShowSetup(); }, 170); }
+        if (data.Characters.Count == 0) { Ui.Line(col, "キャラクター.csv がありません（設計メモに置いてください）", 30, Color.red); return; }
+        row = Row(col);
+        Ui.Button(row, "つぎへ", () => ShowCharacterPick(0), 300, 70);
         Ui.Button(row, "タイトルへ", ShowTitle, 220, 70);
 #if ENABLE_INPUT_SYSTEM
         Ui.Button(row, "コントローラー登録", StartPadRegister, 300, 70);
 #endif
+    }
+
+    string PlayerTitle(int i) => $"P{i + 1}" + (cpus[i] ? "（CPU）" : "");
+
+    // キャラクター選択（#6）：絵と名前。人なら 移動方式も
+    void ShowCharacterPick(int i)
+    {
+        int count = data.Characters.Count;
+        if (CharacterTakenBefore(i, characterIndex[i] % count))
+            for (int n = 0; n < count && CharacterTakenBefore(i, characterIndex[i] % count); n++) characterIndex[i] = (characterIndex[i] + 1) % count;
+        Ui.Clear(canvas.transform);
+        var bg = Ui.Panel(canvas.transform, "CharacterPick", Vector2.zero, Vector2.one, new Color(0.05f, 0.08f, 0.15f, 0.97f));
+        var col = Ui.Stack(bg.transform, "Rows", new Vector2(0.12f, 0.06f), new Vector2(0.88f, 0.94f), true, 14, 20);
+        Ui.Line(col, $"{PlayerTitle(i)}の キャラクター", 48, ColorOf(CharacterOf(i), i));
+        RectTransform row = null;
+        for (int k = 0; k < count; k++)
+        {
+            if (k % 4 == 0) { row = Row(col); row.GetComponent<LayoutElement>().preferredHeight = 120; }
+            var c = data.Characters[k];
+            int kk = k;
+            if (CharacterSprite(c) is Sprite face) IconIn(row, face, 100);
+            var b = Ui.Button(row, (characterIndex[i] % count == k ? "▶ " : "") + c.Name, () =>
+            {
+                characterIndex[i] = kk;
+                starterIndex[i] = 0;
+                for (int n = 0; n < CharacterOf(i).Starters.Count && StarterTakenBefore(i, StarterOf(i)); n++) starterIndex[i]++;
+                if (cpus[i]) ShowStarterPick(i); else OpenKana(i);
+            }, 200, 90);
+            b.interactable = !CharacterTakenBefore(i, k);
+            b.image.color = ColorOf(c, k);
+        }
+        if (!cpus[i])
+        {
+            row = Row(col);
+            Ui.Button(row, modes[i] == MoveMode.Highlight ? "移動：まとめて選ぶ" : "移動：1マスずつ", () => { modes[i] = modes[i] == MoveMode.Highlight ? MoveMode.Step : MoveMode.Highlight; ShowCharacterPick(i); }, 360);
+            Ui.Line(row, "（まとめて＝止まれるマスが光る／1マスずつ＝分かれ道で 方向を選ぶ）", 22, new Color(0.8f, 0.8f, 0.8f));
+        }
+        row = Row(col);
+        Ui.Button(row, "もどる", () => { if (i == 0) ShowSetup(); else ShowStarterPick(i - 1); }, 220, 70);
+    }
+
+    // 最初のポケモン（#8）：キャラクターの世代の御三家
+    void ShowStarterPick(int i)
+    {
+        var c = CharacterOf(i);
+        Ui.Clear(canvas.transform);
+        var bg = Ui.Panel(canvas.transform, "StarterPick", Vector2.zero, Vector2.one, new Color(0.05f, 0.08f, 0.15f, 0.97f));
+        var col = Ui.Stack(bg.transform, "Rows", new Vector2(0.15f, 0.1f), new Vector2(0.85f, 0.9f), true, 18, 20);
+        Ui.Line(col, $"{NameOf(i)}（{PlayerTitle(i)}）の 最初の ポケモン", 46, ColorOf(c, i));
+        var row = Row(col);
+        row.GetComponent<LayoutElement>().preferredHeight = 160;
+        for (int k = 0; k < c.Starters.Count; k++)
+        {
+            string sp = c.Starters[k];
+            int kk = k;
+            if (PokemonIcon(sp) is Sprite art) IconIn(row, art, 140);
+            var b = Ui.Button(row, $"{sp}\n{Pokemons.Of(data, Pokemons.Create(data, sp, 5, "", "", 0)).Type}タイプ", () =>
+            {
+                starterIndex[i] = kk;
+                if (i + 1 < playerCount) ShowCharacterPick(i + 1); else ShowConfirm();
+            }, 200, 100);
+            b.interactable = !StarterTakenBefore(i, sp);
+        }
+        row = Row(col);
+        Ui.Button(row, "もどる", () => { if (cpus[i]) ShowCharacterPick(i); else OpenKana(i); }, 220, 70);
     }
 
     // 確認画面：設定の一覧と「これで始める」（1.1、16.1 #9）
@@ -241,13 +273,38 @@ public partial class GameRunner : MonoBehaviour
         Ui.Line(col, "この設定で はじめますか？", 44);
         Ui.Line(col, $"{playerCount}人　{weeks}週　イベントルール：{EventRuleLabel}", 30);
         for (int i = 0; i < playerCount; i++)
-            Ui.Line(col, $"P{i + 1}　{NameOf(i)}{(NameOf(i) != CharacterOf(i).Name ? $"（{CharacterOf(i).Name}）" : "")}　{StarterOf(i)}　{(cpus[i] ? "CPU" : "移動：" + (modes[i] == MoveMode.Highlight ? "まとめて" : "1マスずつ"))}", 28, ColorOf(CharacterOf(i), i));
+        {
+            var row = Row(col);
+            if (CharacterSprite(CharacterOf(i)) is Sprite face) IconIn(row, face, 60);
+            if (PokemonIcon(StarterOf(i)) is Sprite art) IconIn(row, art, 56);
+            Ui.Line(row, $"P{i + 1}　{NameOf(i)}{(NameOf(i) != CharacterOf(i).Name ? $"（{CharacterOf(i).Name}）" : "")}　{StarterOf(i)}　{(cpus[i] ? "CPU" : "移動：" + (modes[i] == MoveMode.Highlight ? "まとめて" : "1マスずつ"))}", 28, ColorOf(CharacterOf(i), i));
+        }
         Ui.Line(col, "手番の順番は、はじめたあとにランダムで決まります", 24, new Color(0.8f, 0.8f, 0.8f));
-        var row = Row(col);
-        Ui.Button(row, "これで始める", StartGame, 300, 70);
-        Ui.Button(row, "もどる", ShowSetup, 220, 70);
+        var buttons = Row(col);
+        Ui.Button(buttons, "これで始める", StartGame, 300, 70);
+        Ui.Button(buttons, "もどる", () => ShowStarterPick(playerCount - 1), 220, 70);
+        Ui.Button(buttons, "ゲーム設定から やりなおす", ShowSetup, 380, 70);
     }
 
+    // 手番の発表（#10）：ランダムで決まった順番を見せてから ゲームを始める
+    void ShowTurnOrder(List<GameEvent> events)
+    {
+        var bg = FullScreen("TurnOrder");
+        var col = Ui.Stack(bg.transform, "Rows", new Vector2(0.25f, 0.1f), new Vector2(0.75f, 0.9f), true, 18, 20);
+        Ui.Line(col, "手番の 順番", 56, new Color(1, 0.85f, 0.4f));
+        int n = 0;
+        foreach (int id in S.TurnOrder)
+        {
+            var p = S.Players[id];
+            var row = Row(col);
+            Ui.Line(row, $"{++n}ばん", 36);
+            if (CharacterSprite(data.Characters.FirstOrDefault(c => c.Id == p.Character)) is Sprite face) IconIn(row, face, 64);
+            Ui.Line(row, p.Name + (p.IsCpu ? "（CPU）" : ""), 40, PlayerColor(p));
+        }
+        var rule = data.EventRules.FirstOrDefault(r => r.Id == S.EventRule);
+        if (rule != null) Ui.Line(col, $"今回のイベントルール：{rule.Name}（{rule.Description}）", 26);
+        Ui.Button(col, "はじめる", () => BeginPlay(events), 360, 76);
+    }
     static RectTransform Row(Transform parent)
     {
         var row = Ui.Stack(parent, "Row", Vector2.zero, Vector2.one, false, 12, 0);
@@ -263,7 +320,7 @@ public partial class GameRunner : MonoBehaviour
         var characters = Enumerable.Range(0, playerCount).Select(i => CharacterOf(i).Id).ToList();
         ulong s = seed != 0 ? (ulong)seed : (ulong)DateTime.Now.Ticks;
         game = GameProcessor.NewGame(board, data, list, weeks, s, out var events, characters, EventRuleId, cpus.Take(playerCount).ToList());
-        BeginPlay(events);
+        ShowTurnOrder(events);
     }
 
     // ゲーム画面を作ってコマを置く（はじめから・つづきから 共通）
@@ -488,7 +545,9 @@ public partial class GameRunner : MonoBehaviour
         AfterEventQueue(); // 選択肢を待っていなければ イベント画面を閉じる
         if (S.Phase == Phase.Prepare && S.Week != lastAutoSaveWeek) { lastAutoSaveWeek = S.Week; SaveTo(0); } // 週の終わりに自動セーブ（1.2）
         RefreshAll();
+        if (S.Phase == Phase.GameOver && !resultsShown) { resultsShown = true; ShowBattle(false); ShowResults(); } // 最後の週が終わったら 結果発表（ロードマップ 3-2）
     }
+    bool resultsShown;
 
     IEnumerator Wait(float seconds)
     {
@@ -652,7 +711,7 @@ public partial class GameRunner : MonoBehaviour
         {
             Add("結果発表", ShowResults, KeyCode.Return);
             Add("エンドロール", () => ShowEndroll(0));
-            Add("タイトルへもどる", () => SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex), KeyCode.Escape);
+            Add("タイトルへもどる", ReturnToTitle, KeyCode.Escape);
             DrawMenu("ゲーム終了");
             return;
         }
