@@ -15,6 +15,7 @@ public partial class GameRunner
     // コマンドの色（□ うすい橙・○ 水色・△ うすい緑・R1 灰色）。並びは □ ○ △ R1（攻撃・防御の enum の順と同じ）
     static readonly Color[] CommandColors = { new Color(1f, 0.76f, 0.5f), new Color(0.55f, 0.85f, 1f), new Color(0.62f, 0.92f, 0.6f), new Color(0.82f, 0.82f, 0.82f) };
     const float BigScale = 1.15f, SmallScale = 0.85f; // 攻撃側・防御側の大きさ
+    const float DefenderLift = 0.08f;                 // 防御側は 足場ごと上へ（奥に見せる。画面の高さの割合）
     const float PixelScale = 3.2f;                    // バトルの絵の 1ドットの大きさ（画面の単位）
 
     Image battleBg;
@@ -43,7 +44,7 @@ public partial class GameRunner
             plate.raycastTarget = false;
             var stage = Ui.Rect(battlePanel, $"Stage{i}", new Vector2(cx - 0.12f, 0.46f), new Vector2(cx + 0.12f, 0.8f));
             stage.pivot = new Vector2(0.5f, 0); // 大きさは 台座のところから変える
-            cards[i] = new BattleCard(info, stage, this);
+            cards[i] = new BattleCard(info, stage, plate.rectTransform, this);
             pads[i] = new CommandPad(Ui.Rect(battlePanel, $"Commands{i}", new Vector2(cx - 0.15f, 0.23f), new Vector2(cx + 0.15f, 0.42f)), this);
         }
         turnText = Ui.Label(Ui.Rect(battlePanel, "Turns", new Vector2(0.4f, 0.84f), new Vector2(0.6f, 0.98f)), "", 26, TextAnchor.MiddleCenter);
@@ -507,7 +508,8 @@ public partial class GameRunner
     {
         readonly Text title, hpText, flash;
         readonly Image circle, hpBar, expBack, expBar, ball, aura;
-        readonly RectTransform stage;
+        readonly RectTransform stage, plate;
+        readonly float stageY0, stageY1, plateY0, plateY1; // 上へずらす前の 舞台と足場の位置
         readonly GameRunner runner;
         int maxHp = 1, hp;
         float shownHp;     // バーに出しているHP（ゆっくり近づける）
@@ -518,9 +520,10 @@ public partial class GameRunner
         float shownExp;    // 経験値バーに出している経験値の合計
         float scale = 1;   // 攻撃側・防御側の大きさ
 
-        public BattleCard(RectTransform info, RectTransform stage, GameRunner runner)
+        public BattleCard(RectTransform info, RectTransform stage, RectTransform plate, GameRunner runner)
         {
-            this.runner = runner; this.stage = stage;
+            this.runner = runner; this.stage = stage; this.plate = plate;
+            stageY0 = stage.anchorMin.y; stageY1 = stage.anchorMax.y; plateY0 = plate.anchorMin.y; plateY1 = plate.anchorMax.y;
             title = Ui.Label(Ui.Rect(info, "Title", new Vector2(0.04f, 0.5f), new Vector2(0.96f, 0.98f)), "", 28, TextAnchor.MiddleLeft);
             Ui.Panel(info, "HpBack", new Vector2(0.04f, 0.34f), new Vector2(0.96f, 0.46f), new Color(0.15f, 0.15f, 0.15f));
             hpBar = Ui.Panel(info, "Hp", new Vector2(0.04f, 0.34f), new Vector2(0.96f, 0.46f), new Color(0.3f, 0.9f, 0.4f));
@@ -604,8 +607,14 @@ public partial class GameRunner
         // HPが赤い（2割以下）。プレイヤーのポケモンだけ（警告音）
         public bool Danger => Player >= 0 && species != "" && shownHp > 0 && shownHp <= maxHp * 0.2f;
 
-        // 攻撃側は大きく、防御側は小さく（台座のところから）
-        public void SetScale(float s) { scale = s; stage.localScale = Vector3.one * s; }
+        // 攻撃側は大きく、防御側は小さく（台座のところから）。防御側は 足場ごと上へずらして 奥に見せる
+        public void SetScale(float s)
+        {
+            scale = s; stage.localScale = Vector3.one * s;
+            float lift = s < 1 ? DefenderLift : 0;
+            stage.anchorMin = new Vector2(stage.anchorMin.x, stageY0 + lift); stage.anchorMax = new Vector2(stage.anchorMax.x, stageY1 + lift);
+            plate.anchorMin = new Vector2(plate.anchorMin.x, plateY0 + lift); plate.anchorMax = new Vector2(plate.anchorMax.x, plateY1 + lift);
+        }
 
         // 横へ出ていく（out）・横から入ってくる（dir：-1 左、1 右）
         public IEnumerator Slide(int dir, bool goOut, float seconds)
