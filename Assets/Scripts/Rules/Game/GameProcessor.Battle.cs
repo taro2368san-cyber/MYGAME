@@ -638,6 +638,7 @@ namespace Sugoroku.Rules
             if (B.Safari) p.Balls.Remove(SafariBall); // 遭遇は 入るたびに1回
             if (B.Legend) p.IslandLegend = ""; // チケットの伝説を捕まえた
             if (B.Symbol) SymbolBeaten(p.Id, wild.Species, true, events); // 盤面の伝説を捕まえた
+            if (!B.CatchUp) GiveExp(p, B.Sides[0], Tune("exp_coef") * wild.Level * wild.Level * Tune("exp_capture"), events); // 捕まえても 倒したときの7割（6.6）
 
             wild.MetHow = "捕獲"; wild.MetPlace = board[B.Square].Place; wild.MetWeek = State.Week; wild.MetSpecies = wild.Species;
             wild.Status = Status.None;
@@ -693,6 +694,19 @@ namespace Sugoroku.Rules
             FinishBattle(events);
         }
 
+        // 手持ち全員に入る（戦闘不能でも、6.6）。出たポケモンは1.0倍、出ていないポケモンは0.6倍
+        void GiveExp(PlayerState p, BattleSide side, double total, List<GameEvent> events)
+        {
+            if (total <= 0) return;
+            for (int i = 0; i < side.Team.Count; i++)
+            {
+                var m = side.Team[i];
+                int exp = (int)(total * Tune(side.Participated.Contains(i) ? "exp_selected" : "exp_bench"));
+                int up = Pokemons.GainExp(data, m, exp);
+                events.Add(new ExpGained { Player = p.Id, Pokemon = m.Species, Exp = exp, Levels = up, Level = m.Level, Total = m.Exp });
+            }
+        }
+
         void WinnerRewards(BattleSide win, BattleSide lose, List<GameEvent> events)
         {
             var b = B;
@@ -706,15 +720,7 @@ namespace Sugoroku.Rules
             if (!b.CatchUp)
             {
                 var levels = win == b.Sides[0] ? b.DefeatedLevels : lose.Team.Where(m => m.Fainted).Select(m => m.Level).ToList();
-                double total = levels.Sum(l => Tune("exp_coef") * l * l);
-                for (int i = 0; i < win.Team.Count; i++)
-                {
-                    var m = win.Team[i];
-                    if (total <= 0) continue; // 手持ち全員に入る（戦闘不能でも、6.6）
-                    int exp = (int)(total * Tune(win.Participated.Contains(i) ? "exp_selected" : "exp_bench"));
-                    int up = Pokemons.GainExp(data, m, exp);
-                    events.Add(new ExpGained { Player = p.Id, Pokemon = m.Species, Exp = exp, Levels = up, Level = m.Level, Total = m.Exp });
-                }
+                GiveExp(p, win, levels.Sum(l => Tune("exp_coef") * l * l), events);
             }
 
             if (b.Kind == BattleKind.Trainer)

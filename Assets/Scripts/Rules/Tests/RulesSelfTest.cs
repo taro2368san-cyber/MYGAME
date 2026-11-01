@@ -849,8 +849,20 @@ namespace Sugoroku.Rules
                 bool gone = wev.OfType<SymbolGone>().Any(x => x.Square == sq.Id && x.Pokemon == "ミュウツー") && sg.State.SymbolsGone.Contains(sq.Id) && sg.SymbolHere(sq.Id) == null;
                 var (_, sev2) = LandEvents(sq, "ヒトカゲ", s => s.SymbolsGone.Add(sq.Id));
                 bool empty = !sev2.OfType<BattleStarted>().Any();
+                // 捕まえても経験値（6.6）：倒したときの exp_capture 倍。先頭は出場したので1.0倍
+                var (cg, _) = LandEvents(sq, "ヒトカゲ", s => s.Players[0].Balls["マスターボール"] = 1);
+                var cev = new List<GameEvent>();
+                for (int k = 0; k < 5 && cg.State.Battle != null && !cev.OfType<Caught>().Any(); k++)
+                {
+                    var b = cg.State.Battle;
+                    if (b.Step == BattleStep.Select) Apply(cg, new SelectPokemon { Player = 0, Slot = 0 });
+                    else { b.Step = BattleStep.Ball; cev = Apply(cg, new ThrowBall { Player = 0, Ball = "マスターボール" }); } // 1往復を待たずに投げる
+                }
+                int lv = cev.OfType<Caught>().Any() ? cg.State.Players[0].Party.Last().Level : 0;
+                bool capExp = cev.OfType<ExpGained>().Any(x => x.Pokemon == "ヒトカゲ" && x.Exp == (int)(data.Required("exp_coef") * lv * lv * data.Required("exp_capture")));
                 (sq.Type, sq.Symbol) = keep;
                 Check(log, "伝説のシンボル：止まるとバトル、倒すと盤面から消えて、次に止まっても もういない", fought && gone && empty);
+                Check(log, "捕まえても経験値：倒したときの7割", capExp);
             }
             {
                 // 換金所（2.1・2.3）：1,000円で1p。最後の10週は閉まる。勝利ポイントには換えたポイントだけが入り、お金は入らない
