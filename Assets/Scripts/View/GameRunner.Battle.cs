@@ -153,11 +153,11 @@ public partial class GameRunner
         if (shownAttacker < 0) { shownAttacker = attacker; for (int i = 0; i < 2; i++) cards[i].SetScale(i == attacker ? BigScale : SmallScale); yield break; } // はじめは そのまま
         float t = shortBattle ? 0.2f : 0.4f;
         foreach (var p in pads) p.Show(false);
-        yield return Together(cards[0].Slide(-1, true, t), cards[1].Slide(1, true, t));
+        yield return Together(cards[0].Slide(-1, true, t, true), cards[1].Slide(1, true, t, true));
         shownAttacker = attacker;
         for (int i = 0; i < 2; i++) { cards[i].SetScale(i == attacker ? BigScale : SmallScale); cards[i].ClearAura(); }
         UpdateTurns();
-        yield return Together(cards[0].Slide(-1, false, t), cards[1].Slide(1, false, t));
+        yield return Together(cards[0].Slide(-1, false, t, true), cards[1].Slide(1, false, t, true));
     }
 
     // ---- ① 登場：野生は横からスライド、ほかはモンスターボールから ----
@@ -548,7 +548,7 @@ public partial class GameRunner
         {
             status = ""; title.text = hpText.text = flash.text = ""; circle.color = Color.clear; ball.enabled = false; species = ""; hp = 0; shownHp = 0;
             expBack.gameObject.SetActive(false); hpBar.rectTransform.anchorMax = new Vector2(0.96f, 0.46f);
-            SetScale(1); ClearAura(); stage.anchoredPosition = Vector2.zero;
+            SetScale(1); ClearAura(); SetX(0, true);
         }
 
         public void Show(string species, int level, int hp, int max, string type, string weakness, int exp)
@@ -616,17 +616,23 @@ public partial class GameRunner
             plate.anchorMin = new Vector2(plate.anchorMin.x, plateY0 + lift); plate.anchorMax = new Vector2(plate.anchorMax.x, plateY1 + lift);
         }
 
-        // 横へ出ていく（out）・横から入ってくる（dir：-1 左、1 右）
-        public IEnumerator Slide(int dir, bool goOut, float seconds)
+        // 横へ出ていく（out）・横から入ってくる（dir：-1 左、1 右）。withPlate なら 足場もいっしょに（攻守の交代）
+        public IEnumerator Slide(int dir, bool goOut, float seconds, bool withPlate = false)
         {
             float far = dir * 1100;
             for (float t = 0; t < seconds && !SkipHeld(); t += Time.deltaTime)
             {
                 float k = Mathf.SmoothStep(0, 1, t / seconds);
-                stage.anchoredPosition = new Vector2(goOut ? Mathf.Lerp(0, far, k) : Mathf.Lerp(far, 0, k), 0);
+                SetX(goOut ? Mathf.Lerp(0, far, k) : Mathf.Lerp(far, 0, k), withPlate);
                 yield return null;
             }
-            stage.anchoredPosition = new Vector2(goOut ? far : 0, 0);
+            SetX(goOut ? far : 0, withPlate);
+        }
+
+        void SetX(float x, bool withPlate)
+        {
+            stage.anchoredPosition = new Vector2(x, 0);
+            if (withPlate) plate.anchoredPosition = new Vector2(x, 0);
         }
 
         // モンスターボールから出てくる：ボールが光って開き、ポケモンがポンと出る
