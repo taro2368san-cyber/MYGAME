@@ -605,6 +605,32 @@ public partial class GameRunner : MonoBehaviour
         }
     }
 
+    // 手番の人のバッジでは入れないマスに ×。入れるマスのとなりのマスと、行き先が入れないワープだけ（エリアの中まで全部に付けると 盤面が × だらけになる）
+    readonly Dictionary<int, GameObject> lockMarks = new Dictionary<int, GameObject>();
+    void SyncLocks()
+    {
+        var p = S.CurrentPlayer;
+        bool Open(int id) => Movement.CanEnter(board, id, p.Badges, game.TopBadges);
+        var want = new HashSet<int>(board.Squares.Values.Where(s =>
+            Open(s.Id) ? s.WarpPartner >= 0 && !Open(s.WarpPartner) : s.Neighbors.Any(Open)).Select(s => s.Id));
+        foreach (int sq in lockMarks.Keys.Where(k => !want.Contains(k)).ToList()) { Destroy(lockMarks[sq]); lockMarks.Remove(sq); }
+        foreach (int sq in want.Where(k => !lockMarks.ContainsKey(k)))
+        {
+            var go = new GameObject("×");
+            go.transform.position = SquarePosition(sq) + Vector3.up * 0.4f;
+            foreach (float angle in new[] { 45f, -45f })
+            {
+                var bar = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                Destroy(bar.GetComponent<Collider>());
+                bar.transform.SetParent(go.transform, false);
+                bar.transform.localRotation = Quaternion.Euler(0, angle, 0);
+                bar.transform.localScale = new Vector3(1.1f, 0.08f, 0.18f);
+                bar.GetComponent<Renderer>().material.color = new Color(0.9f, 0.1f, 0.1f);
+            }
+            lockMarks[sq] = go;
+        }
+    }
+
     Vector3 SquarePosition(int id) =>
         squares.TryGetValue(id, out var sq) ? sq.transform.position : new Vector3(board[id].X, 0, board[id].Z);
 
@@ -627,6 +653,7 @@ public partial class GameRunner : MonoBehaviour
         RefreshBattleScene(); // コマンドの押せる・押せない は メニューを作ったあとで
         if (debugPanel != null) BuildDebugPanel();
         SyncSnorlax();
+        SyncLocks();
         TryCpu();
     }
 
