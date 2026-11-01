@@ -546,8 +546,13 @@ namespace Sugoroku.Rules
                 var sp2 = sg2.State.Players[0];
                 bool entered = sp2.InSafari && sp2.Money == 100 && sp2.Balls.TryGetValue("サファリボール", out int nb) && nb == balls;
                 bool throwOnly = sg2.State.Battle?.Safari == true && sg2.State.Battle.Step == BattleStep.Ball && sg2.Validate(new ThrowBall { Player = sp2.Id, Ball = "モンスターボール" }) != null;
-                for (int i = 0; i < 10 && sg2.State.Battle != null; i++) Apply(sg2, new ThrowBall { Player = sp2.Id, Ball = "サファリボール" });
+                int safLv = sg2.State.Battle?.Sides[1].Current.Level ?? 0;
+                var safEv = new List<GameEvent>();
+                for (int i = 0; i < 10 && sg2.State.Battle != null; i++) safEv.AddRange(Apply(sg2, new ThrowBall { Player = sp2.Id, Ball = "サファリボール" }));
+                // サファリで捕まえたら 倒したときの3割（6.6）
+                bool safExp = !safEv.OfType<Caught>().Any() || safEv.OfType<ExpGained>().Any(x => x.Exp == (int)(data.Required("exp_coef") * safLv * safLv * data.Required("exp_capture_safari")));
                 Check(log, "サファリゾーン：入場料でサファリボール3個、投げるだけ、遭遇は1回。お金がないと入れない", kicked && entered && throwOnly && sg2.State.Battle == null && !sp2.Balls.ContainsKey("サファリボール"));
+                Check(log, "サファリで捕まえたら 経験値は3割" + (safEv.OfType<Caught>().Any() ? "" : "（この種では捕まらなかった）"), safExp);
             }
             var clubRow = data.EventSquares.FirstOrDefault(x => x.Effect.Kind == EffectKind.Item && x.Effect.CondKind == "1人1回");
             var clubSq = clubRow == null ? null : board.Squares.Values.FirstOrDefault(x => x.Name == clubRow.Square && x.Neighbors.Count > 0);

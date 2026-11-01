@@ -638,7 +638,7 @@ namespace Sugoroku.Rules
             if (B.Safari) p.Balls.Remove(SafariBall); // 遭遇は 入るたびに1回
             if (B.Legend) p.IslandLegend = ""; // チケットの伝説を捕まえた
             if (B.Symbol) SymbolBeaten(p.Id, wild.Species, true, events); // 盤面の伝説を捕まえた
-            if (!B.CatchUp) GiveExp(p, B.Sides[0], Tune("exp_coef") * wild.Level * wild.Level * Tune("exp_capture"), events); // 捕まえても 倒したときの7割（6.6）
+            if (!B.CatchUp) GiveExp(p, B.Sides[0], Tune("exp_coef") * wild.Level * wild.Level * Tune(B.Safari ? "exp_capture_safari" : "exp_capture"), events); // 捕まえても 倒したときの7割、サファリは3割（6.6）
 
             wild.MetHow = "捕獲"; wild.MetPlace = board[B.Square].Place; wild.MetWeek = State.Week; wild.MetSpecies = wild.Species;
             wild.Status = Status.None;
