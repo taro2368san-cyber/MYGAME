@@ -495,6 +495,7 @@ namespace Sugoroku.Rules
                     }
                 }
                 var foes = new List<string>();
+                int pointsBefore = lp.Points;
                 for (int i = 0; i < 10 && lg.State.Battle?.Kind == BattleKind.League && !lp.Champion; i++)
                 {
                     foes.Add(lg.State.Battle.Sides[1].Name);
@@ -509,6 +510,7 @@ namespace Sugoroku.Rules
                 if (xg.State.Battle != null) Apply(xg, new DebugCommand { Player = 0, Action = DebugAction.LoseBattle });
                 Check(log, "ポケモンリーグ：四天王から チャンピオンまで 順に勝つと チャンピオン入り。負けたら 挑戦は終わり",
                     asked && foes.SequenceEqual(data.League.Select(x => x.Name)) && lp.Champion && lp.LeagueBeaten == -1 && !xg.State.Players[0].Champion && xg.State.Players[0].LeagueBeaten == -1);
+                Check(log, "チャンピオン入りで 勝利ポイント champion_point", lp.Points - pointsBefore == (int)data.Required("champion_point"));
                 var caveDoor = board.Squares.Values.FirstOrDefault(x => x.WarpPartner >= 0 && x.Place != "ハナダの洞窟" && board[x.WarpPartner].Place == "ハナダの洞窟" && x.Neighbors.Count > 0);
                 if (caveDoor != null)
                 {

@@ -47,6 +47,9 @@ namespace Sugoroku.Rules
             p.Champion = true;
             Say("league_hof", events, p);
             events.Add(new ChampionCrowned { Player = p.Id });
+            int points = (int)Tune("champion_point"); // チャンピオン入りの勝利ポイント（2.1）。1人1回、何人でも
+            p.Points += points;
+            events.Add(new PointsChanged { Player = p.Id, Amount = points });
         }
 
         // 負けた・逃げた・引き分け：挑戦は終わり
