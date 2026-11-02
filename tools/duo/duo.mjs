@@ -36,6 +36,7 @@ if (!process.env.ANTHROPIC_API_KEY) {
 const client = new Anthropic();
 const messages = [];
 let sessionId = null;
+let spent = 0; // 相談役に使ったお金（このあいだの合計）
 const log = join(here, "logs", new Date().toISOString().replace(/[:T]/g, "-").slice(0, 16) + ".md");
 mkdirSync(dirname(log), { recursive: true });
 const write = (who, text) => { console.log(`\n===== ${who} =====\n${text}`); appendFileSync(log, `\n## ${who}\n\n${text}\n`); };
@@ -56,8 +57,10 @@ async function consult(userText) {
   }).finalMessage();
   messages.push({ role: "assistant", content: res.content });
   if (res.stop_reason === "refusal") return "（相談役が答えられませんでした）";
+  // ponytail: Opus 5.5 の定価で計算（入力 $4・1時間キャッシュ書き $8・キャッシュ読み $0.2・出力 $20 / 100万トークン）。正しい額は Console で
   const u = res.usage;
-  console.log(`  [相談役] 入力 ${u.input_tokens} / キャッシュ読み ${u.cache_read_input_tokens ?? 0} / 出力 ${u.output_tokens}`);
+  spent += (u.input_tokens * 4 + (u.cache_creation_input_tokens ?? 0) * 8 + (u.cache_read_input_tokens ?? 0) * 0.2 + u.output_tokens * 20) / 1e6;
+  console.log(`  [相談役] 今回まで およそ $${spent.toFixed(2)}（キャッシュ読み ${u.cache_read_input_tokens ?? 0} トークン）`);
   return res.content.filter(b => b.type === "text").map(b => b.text).join("\n");
 }
 
@@ -66,7 +69,10 @@ function runCode(prompt) {
   const args = ["-p", "--output-format", "json", "--permission-mode", "acceptEdits"];
   if (sessionId) args.push("--resume", sessionId);
   return new Promise((resolve, reject) => {
-    const p = spawn(claudePath(), args, { cwd: root });
+    // API キーは渡さない：Claude Code は いつものログインで動かし、API のお金は相談役だけに使う
+    const env = { ...process.env };
+    delete env.ANTHROPIC_API_KEY;
+    const p = spawn(claudePath(), args, { cwd: root, env });
     let out = "", err = "";
     p.stdout.on("data", d => out += d);
     p.stderr.on("data", d => err += d);
@@ -76,7 +82,6 @@ function runCode(prompt) {
         const j = JSON.parse(out);
         sessionId = j.session_id;
         const denied = j.permission_denials?.length ? `\n（許可がなくて使えなかった道具：${j.permission_denials.map(d => d.tool_name).join(", ")}）` : "";
-        console.log(`  [Claude Code] $${(j.total_cost_usd ?? 0).toFixed(3)}`);
         resolve((j.result ?? "") + denied);
       } catch { reject(new Error("Claude Code の返事が読めません:\n" + out + err)); }
     });
