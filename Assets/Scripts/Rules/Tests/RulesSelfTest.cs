@@ -1088,6 +1088,23 @@ namespace Sugoroku.Rules
                 if (wg.State.Battle?.Step == BattleStep.Select) Apply(wg, new SelectPokemon { Player = 0, Slot = 0 });
                 var wev = Apply(wg, new DebugCommand { Player = 0, Action = DebugAction.WinBattle });
                 Check(log, "野生を倒して終わったバトルでも、進化レベルを越えた手持ちが進化する", wev.OfType<Evolved>().Count() == 1 && wlead.Species == "リザード");
+                // 野生戦から逃げても バトル後に進化の判定（6.5、相談.md 4）：Lv は足りているのに まだ進化していない子（Lv40 のヒトカゲ）が 1段階だけ進化する
+                var fg = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
+                var flead = fg.State.Players[0].Party[0];
+                Pokemons.SetLevel(data, flead, 40); // リザードン（Lv36）も越えているが、1段階だけ
+                fg.DebugEnabled = true;
+                Apply(fg, new DebugCommand { Player = 0, Action = DebugAction.Battle, Text = "カビゴン", Value = 60 }); // 倒さないうちに逃げる（こちらが先に攻撃しても倒れない相手）
+                var fev = new List<GameEvent>();
+                for (int k = 0; k < 20 && fg.State.Battle != null && !fev.OfType<Fled>().Any(); k++)
+                {
+                    var b = fg.State.Battle;
+                    if (b.Step == BattleStep.Initiative) fev.AddRange(Apply(fg, new PickCard { Player = 0, Card = 0 }));
+                    else if (b.Step == BattleStep.Ball) fev.AddRange(Apply(fg, new ThrowBall { Player = 0 }));
+                    else if (b.Step == BattleStep.Commands && b.Attacker == 0) fev.AddRange(Apply(fg, new ChooseAttack { Player = 0, Attack = Attack.Physical }));
+                    else if (b.Step == BattleStep.Commands) fev.AddRange(Apply(fg, new ChooseDefense { Player = 0, Defense = Defense.Flee }));
+                    else break;
+                }
+                Check(log, "野生戦から逃げても、進化の条件を満たした子が 1段階だけ進化する", fev.OfType<Fled>().Any() && fev.OfType<Evolved>().Count() == 1 && flead.Species == "リザード");
             }
             {
                 // プレイヤー戦のお金（7.7・7.9）：負けた人が落とした 所持金の1/3（切り上げ）が 勝った人に入る。2人ともスタートから、手番の人が相手のいるマスに1歩で止まる
@@ -1326,6 +1343,29 @@ namespace Sugoroku.Rules
                 var won = tev.OfType<TournamentWon>().FirstOrDefault();
                 Check(log, "突発バトルイベント：トーナメント（3人なら1人は不戦勝）、優勝でポケベル、そのあと手番", started && won != null && tg.State.Players[won.Player].TrainerBag.Contains("ポケベル")
                     && tev.OfType<BattleStarted>().Count(b => b.Kind == BattleKind.Tournament) == 2 && tg.State.Phase == Phase.Prepare && tg.State.Tournament == null);
+                // トーナメントの1試合ごとに 進化の判定（6.5、相談.md 4）：3人とも Lv40 で まだ進化していない御三家。1試合目の2人は その試合のあとで進化し、2試合目には進化した姿で出る
+                var eg = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ"), ("B", MoveMode.Highlight, "ゼニガメ"), ("C", MoveMode.Highlight, "フシギダネ") }, 50, 9, out _, null, "", new[] { true, true, true });
+                foreach (var pl in eg.State.Players) Pokemons.SetLevel(data, pl.Party[0], 40);
+                var eev = new List<GameEvent>();
+                bool eStarted = eg.StartTournament(eev);
+                var er = new Random(1);
+                for (int i = 0; i < 3000 && eg.State.Tournament != null; i++)
+                {
+                    eev.AddRange(eg.Apply(Cpu.Decide(eg, data, board, eg.WaitingFor().First(), er), out string err));
+                    if (err != null) throw new Exception("トーナメント中の命令が受け付けられない：" + err);
+                }
+                int end1 = eev.FindIndex(e => e is BattleEnded);
+                var starts = eev.Select((e, i) => (e, i)).Where(x => x.e is BattleStarted bs && bs.Kind == BattleKind.Tournament).Select(x => x.i).ToList();
+                var match1 = eStarted && starts.Count == 2 ? ((BattleStarted)eev[starts[0]]).Players : new int[0];
+                var evolved1 = end1 >= 0 && starts.Count == 2 ? eev.Skip(end1).Take(starts[1] - end1).OfType<Evolved>().ToList() : new List<Evolved>();
+                var enc2 = starts.Count == 2 ? eev.Skip(starts[1]).OfType<Encountered>().Take(2).ToList() : new List<Encountered>();
+                var match2 = starts.Count == 2 ? ((BattleStarted)eev[starts[1]]).Players : new int[0];
+                int bye = eg.State.Players.Select(x => x.Id).FirstOrDefault(id => !match1.Contains(id));
+                var advanced = match2.FirstOrDefault(id => id != bye);
+                string Lead(int id) => enc2.Where(x => match2[x.Side] == id).Select(x => x.Pokemon).FirstOrDefault();
+                Check(log, "トーナメント：1試合目が終わると その2人の 条件を満たした子が進化し、2試合目には 進化した姿で出る（不戦勝の人は まだ進化していない）",
+                    match1.Length == 2 && evolved1.Count == 2 && match1.All(id => evolved1.Any(v => v.Player == id))
+                    && Lead(advanced) == evolved1.First(v => v.Player == advanced).To && new[] { "ヒトカゲ", "ゼニガメ", "フシギダネ" }.Contains(Lead(bye)));
                 // 同じエリアに 2人いなければ 始まらない（エリアの違うマスに 1人ずつ）
                 string AreaOf(BoardSquare s) => data.Places.FirstOrDefault(x => x.Name == s.Place)?.Area ?? "";
                 var spots = board.Squares.Values.Where(s => AreaOf(s) != "").GroupBy(AreaOf).Select(gr => gr.First().Id).Take(3).ToList();

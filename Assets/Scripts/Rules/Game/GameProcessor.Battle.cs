@@ -643,6 +643,7 @@ namespace Sugoroku.Rules
             events.Add(new BattleEnded { Winner = -1 });
             if (b.Kind == BattleKind.League) LeagueOver(State.Players[b.Sides[side].Player]); // リーグから逃げたら 挑戦は終わり
             if (b.Full) Rest(State.Players[b.Sides[side].Player], events); // フルバトルから逃げたら1回休み
+            if (!b.Safari) foreach (var s in b.Sides.Where(s => s.Player >= 0)) EvolveParty(State.Players[s.Player], events); // 逃げても バトル後の進化の判定（6.5、相談.md 4。本家と同じ）
             FinishBattle(events);
         }
 

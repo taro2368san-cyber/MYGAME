@@ -126,6 +126,7 @@ namespace Sugoroku.Rules
         void TournamentMatchEnded(BattleState b, int winner, List<GameEvent> events)
         {
             State.Tournament.Advanced.Add(b.Sides[winner].Player);
+            foreach (var s in b.Sides) EvolveParty(State.Players[s.Player], events); // 1試合ごとに 進化の判定（6.5「1回の戦闘で1段階」。降参で終わった試合も）。次の試合には 進化した姿で出る
             foreach (var s in b.Sides) foreach (var m in s.Team) Pokemons.HealFull(data, m);
             State.Battle = null;
             State.Phase = Phase.Prepare;
