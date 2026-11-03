@@ -46,12 +46,24 @@ public partial class GameRunner
         string text = $"{sq.Place}の {sq.Type}";
         if (S.JobSquares.TryGetValue(id, out string job)) text += $"　{job}の 職業マス" + (game.JobChallengeOpen(p, id) != null ? "（いま 挑める）" : "");
         if (S.Owners.TryGetValue(id, out int owner)) text += $"　{S.Players[owner].Name}の" + (sq.Type == "ライバル" ? "ライバルマス" : "ファン");
-        string fish = board.CanFish(id) ? "\nつりができる" : ""; // 4.1.2
+        string fish = GymLine(p, sq) + (board.CanFish(id) ? "\nつりができる" : ""); // ジムトレーナーの人数（3.3.1）、つり（4.1.2）
         if (sq.RequiredBadges > p.Badges) return text + $"　まだ入れない（バッジ{sq.RequiredBadges}個で解放）" + fish;
         if (!Movement.CanEnter(board, id, p.Badges, game.TopBadges)) return text + $"　まだ通れない（バッジ{sq.GateBadges}個で通れる" + (sq.GateShared ? "。だれか1人が そろえれば 全員" : "") + "）" + fish;
         if (!Movement.CanEnter(board, id, p.Badges, game.TopBadges, p.Surf)) return text + "　なみのりを 覚えると 入れる" + fish;
         int d = game.DistanceFor(p, id);
         return text + (d < 0 ? "　いまは いけない" : d == 0 ? "　今いるマス" : $"　ここから {d}マス") + fish; // 行けないのは カビゴンでふさがれた先・ワープの先など（未解放・なみのりは 上で先に言う）
+    }
+
+    // ジムのマス（3.3.1）：「ジムトレーナー 2/3」。挑めるなら「（挑戦できる）」、カギで挑めるなら「（ひみつのカギで 挑戦できる）」。トキワジムが まだ出ていない人には 出さない
+    // 挑めるかは ジムに止まったときと同じ GymStatusFor（バッジを持っている・ストライキ中も 挑めない扱い）
+    string GymLine(PlayerState p, BoardSquare sq)
+    {
+        if (sq.Type != "ジム") return "";
+        var st = game.GymStatusFor(p, sq);
+        if (st.Gym == "" || st.Closed) return "";
+        string count = st.Total == 0 ? "ジムトレーナー なし" : $"ジムトレーナー {st.Beaten}/{st.Total}";
+        string can = !st.CanChallenge ? "" : st.Remaining.Count > 0 && st.HasKey ? "（ひみつのカギで 挑戦できる）" : "（挑戦できる）";
+        return "\n" + count + can;
     }
 
     void ExploreUpdate()

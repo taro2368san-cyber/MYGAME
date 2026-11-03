@@ -222,6 +222,25 @@ namespace Sugoroku.Rules
             if (guren != null && guren.Neighbors.Count > 0 && data.Trainers.Any(t => t.IsGymTrainer && t.Place == "グレンタウン"))
                 Check(log, "グレンジム：屋敷のジムトレーナーが残っていると挑めないが、ジムのカギを持つ人は挑める",
                     LandOn(guren) == null && LandOn(guren, s => s.Players[0].RocketUsed.Add("gymkey:グレンジム")) is BattleStarted kb && kb.Kind == BattleKind.Gym);
+            if (nibi != null && nibi.Neighbors.Count > 0 && nibiTrainerSquares.Count == 3 && guren != null && guren.Neighbors.Count > 0)
+            {
+                // 見渡しの「ジムトレーナー 2/3」と ジムに挑めるか（3.3.1）：数えるのは 持ち主がいるマス（倒された人）。GymStatusFor が「挑める」なら 止まると挑戦が始まる
+                (GameProcessor.GymStatus st, bool battle) At(BoardSquare gymSq, Action<GameState> setup)
+                {
+                    var g0 = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
+                    setup?.Invoke(g0.State);
+                    var st = g0.GymStatusFor(g0.State.Players[0], gymSq);
+                    return (st, LandOn(gymSq, setup) is BattleStarted b && b.Kind == BattleKind.Gym);
+                }
+                var two = At(nibi, s => { s.Owners[nibiTrainerSquares[0]] = 0; s.Owners[nibiTrainerSquares[1]] = 99; }); // 1人は自分が倒した、1人は ほかの人のファン
+                var three = At(nibi, s => { foreach (int id in nibiTrainerSquares) s.Owners[id] = 99; });
+                var noKey = At(guren, null);
+                var withKey = At(guren, s => s.Players[0].RocketUsed.Add("gymkey:グレンジム"));
+                Check(log, "ジムトレーナーの人数：2/3 では挑めず、3/3 で挑める。グレンジムは ひみつのカギを踏んだ人だけ 残っていても挑める。「挑める」と 止まって挑戦が始まるのが 一致する",
+                    two.st.Beaten == 2 && two.st.Total == 3 && !two.st.CanChallenge && !two.battle
+                    && three.st.Beaten == 3 && three.st.CanChallenge && three.battle
+                    && !noKey.st.CanChallenge && !noKey.battle && withKey.st.CanChallenge && withKey.st.HasKey && withKey.st.Remaining.Count > 0 && withKey.battle);
+            }
             var gymTrainerSq = board.Squares.Values.FirstOrDefault(x => data.Trainers.Any(t => t.IsGymTrainer && t.Place == "ニビシティ" && t.Square == x.Name));
             if (gymTrainerSq != null && gymTrainerSq.Neighbors.Count > 0) Check(log, "ジムトレーナーのマスに止まるとトレーナー戦", LandOn(gymTrainerSq) is BattleStarted tb && tb.Kind == BattleKind.Trainer);
             if (gymTrainerSq != null && gymTrainerSq.Neighbors.Count > 0 && data.FindSpecies("メタモン") != null)

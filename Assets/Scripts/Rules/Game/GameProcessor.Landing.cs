@@ -379,18 +379,35 @@ namespace Sugoroku.Rules
             return false;
         }
 
+        // ジムに挑めるか（3.3・3.3.1）。ジムに止まったとき（LandGym）と 見渡しの説明（「ジムトレーナー 2/3」）が 両方これを使う
+        // ジムトレーナーは その町の トレーナー.csv の「ジムトレーナー」。マスに持ち主がいれば 倒されたものとして数える（だれが倒してもよい）。盤面にマスがない人は 倒せないので 残る
+        // トレーナー.csv にジムトレーナーがいないジムは 0人なので すぐ挑める（盤面ができれば直る、データチェックが警告）
+        public sealed class GymStatus { public string Gym = "", Block; public int Beaten, Total; public bool HasKey, Closed; public List<TrainerEntry> Remaining = new List<TrainerEntry>(); public bool CanChallenge => Block == null; }
+        public GymStatus GymStatusFor(PlayerState p, BoardSquare sq)
+        {
+            var s = new GymStatus { Gym = data.Places.FirstOrDefault(x => x.Name == sq.Place)?.Gym ?? "" };
+            var trainers = data.Trainers.Where(t => t.IsGymTrainer && t.Place == sq.Place).ToList();
+            s.Remaining = trainers.Where(t => !(board.Squares.Values.FirstOrDefault(x => x.Name == t.Square) is BoardSquare ts && State.Owners.ContainsKey(ts.Id))).ToList();
+            s.Total = trainers.Count; s.Beaten = s.Total - s.Remaining.Count;
+            s.HasKey = HasGymKey(p, s.Gym);
+            s.Closed = GymClosed(s.Gym, p);
+            s.Block = !data.GymMembers.Any(m => m.Gym == s.Gym) ? "ジムはお休みだった"
+                : p.Gyms.Contains(s.Gym) ? "もうバッジを持っている"
+                : State.WeekEvent == "ストライキ" ? "ストライキ中で休みだった"
+                : s.Closed ? "トキワジムは閉まっている（バッジ7個で開く）"
+                : s.Remaining.Count > 0 && !s.HasKey ? $"まず 町の ジムトレーナーを 倒そう（あと {s.Remaining.Count}人：{string.Join("、", s.Remaining.Select(t => t.Name))}）"
+                : null;
+            return s;
+        }
+
         // ジム（3.3）。町のジムトレーナーが全員（だれかに）倒されてから。手持ちの数はジムシート、レベルはこのプレイヤーの何個目か
         bool LandGym(BoardSquare sq, List<GameEvent> events)
         {
             var p = Current;
-            string gym = data.Places.FirstOrDefault(x => x.Name == sq.Place)?.Gym ?? "";
+            var status = GymStatusFor(p, sq);
+            if (!status.CanChallenge) return Nothing(status.Block, events);
+            string gym = status.Gym;
             var members = data.GymMembers.Where(m => m.Gym == gym).ToList();
-            if (members.Count == 0) return Nothing("ジムはお休みだった", events);
-            if (p.Gyms.Contains(gym)) return Nothing("もうバッジを持っている", events);
-            if (State.WeekEvent == "ストライキ") return Nothing("ストライキ中で休みだった", events);
-            if (GymClosed(gym, p)) return Nothing("トキワジムは閉まっている（バッジ7個で開く）", events);
-            var remaining = data.Trainers.Where(t => t.IsGymTrainer && t.Place == sq.Place && !(board.Squares.Values.FirstOrDefault(x => x.Name == t.Square) is BoardSquare ts && State.Owners.ContainsKey(ts.Id))).ToList();
-            if (remaining.Count > 0 && !HasGymKey(p, gym)) return Nothing($"まず 町の ジムトレーナーを 倒そう（あと {remaining.Count}人：{string.Join("、", remaining.Select(t => t.Name))}）", events);
             int order = Math.Min(p.Badges + 1, 8);
             int ace = TuneInt($"gym_ace_level_{order}"), step = TuneInt("gym_level_step");
             int aceIndex = members.FindLastIndex(m => m.Role == "エース");
