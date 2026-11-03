@@ -53,7 +53,7 @@ namespace Sugoroku.Rules
         public bool Surrendered;                   // 降参で終わった（ポケモン交換は選べない、7.3）
         public bool CatchUp;                       // レベル追いつきが起きた（そのバトルの経験値はなし、7.8）
         public readonly List<(PokemonState thief, PokemonState victim, string item)> Stolen = new List<(PokemonState, PokemonState, string)>(); // わるいてぐせ
-        public readonly List<int> DefeatedLevels = new List<int>(); // 仕掛けた側が倒した相手のレベル（経験値用）
+        public readonly List<int>[] DefeatedLevels = { new List<int>(), new List<int>() }; // 側ごとに、このバトルで倒した相手のレベル（経験値用。仕掛けた側も守った側も同じ数え方、6.6）
 
         public bool IsNpc => Kind != BattleKind.Player && Kind != BattleKind.Tournament;
         public BattleSide Side(int i) => Sides[i];

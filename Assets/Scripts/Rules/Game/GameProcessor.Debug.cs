@@ -87,7 +87,7 @@ namespace Sugoroku.Rules
                     int me = b.Sides[0].Player == p.Id ? 0 : 1;
                     int loser = d.Action == DebugAction.WinBattle ? 1 - me : me;
                     var lose = b.Sides[loser];
-                    if (loser != 0) b.DefeatedLevels.AddRange(lose.Team.Where(m => !m.Fainted).Select(m => m.Level));
+                    b.DefeatedLevels[1 - loser].AddRange(lose.Team.Where(m => !m.Fainted).Select(m => m.Level));
                     foreach (var m in lose.Team) m.Hp = 0;
                     events.Add(new DebugDone { Text = d.Action == DebugAction.WinBattle ? "即勝利" : "即敗北" });
                     EndBattle(1 - loser, false, events);

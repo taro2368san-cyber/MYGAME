@@ -581,7 +581,7 @@ namespace Sugoroku.Rules
                 if (winner.Player < 0 || winner.Current.Fainted) continue;
                 var me = State.Players[winner.Player];
                 Register(me, m.Species, "たおした");
-                if (i == 1) b.DefeatedLevels.Add(m.Level);
+                b.DefeatedLevels[1 - i].Add(m.Level);
                 // レベル追いつき（7.8）：低いレベルで倒したら差分だけ上がる。そのバトルの経験値はなし
                 if (m.Level > winner.Current.Level)
                 {
@@ -724,6 +724,7 @@ namespace Sugoroku.Rules
             for (int i = 0; i < side.Team.Count; i++)
             {
                 var m = side.Team[i];
+                if (m.Fainted && !side.Participated.Contains(i)) continue; // バトルの前から戦闘不能の子には入らない（本家と同じ、相談.md 17）。出て途中で倒れた子は 1.0倍のまま
                 int exp = (int)(total * Tune(side.Participated.Contains(i) ? "exp_selected" : "exp_bench"));
                 int up = Pokemons.GainExp(data, m, exp);
                 events.Add(new ExpGained { Player = p.Id, Pokemon = m.Species, Exp = exp, Levels = up, Level = m.Level, Total = m.Exp });
@@ -742,7 +743,7 @@ namespace Sugoroku.Rules
             // 経験値（6.6）：倒した相手ごとに 係数×Lv²。出たポケモンは1.0倍、出ていないポケモンは0.6倍
             if (!b.CatchUp)
             {
-                var levels = win == b.Sides[0] ? b.DefeatedLevels : lose.Team.Where(m => m.Fainted).Select(m => m.Level).ToList();
+                var levels = b.DefeatedLevels[Array.IndexOf(b.Sides, win)]; // このバトルで倒した相手だけ（相手のバトル前から戦闘不能の子は数えない）
                 GiveExp(p, win, levels.Sum(l => Tune("exp_coef") * l * l), events);
             }
 

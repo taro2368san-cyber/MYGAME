@@ -1120,6 +1120,32 @@ namespace Sugoroku.Rules
                 var outs = secondPick.OfType<SentOut>().ToList();
                 Check(log, "プレイヤー戦：2人とも 相手の1番目が見える。先頭とちがう子を選んでも、場に出るのは 2人とも選んでから（そろう前は 選んだ子が出ない）",
                     bothSee && hidden && outs.Count == 2 && outs.Any(o => o.Side == 0 && o.Pokemon == "ピカチュウ") && outs.Any(o => o.Side == 1 && o.Pokemon == "イーブイ"));
+                // プレイヤー戦の経験値（6.6）：仕掛けた側が勝っても 守った側が勝っても 同じ配られ方。バトルの前から戦闘不能の子（ピカチュウ）には入らない
+                List<(string, int)> ExpWhenWins(bool attackerWins)
+                {
+                    var eg = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ"), ("B", MoveMode.Highlight, "ヒトカゲ") }, 50, 3, out _);
+                    var a = eg.State.CurrentPlayer; var d = eg.State.Players.First(x => x != a);
+                    foreach (var pl in new[] { a, d })
+                    {
+                        var down = Pokemons.Create(data, "ピカチュウ", 10, "", "", 1); down.Hp = 0;
+                        pl.Party.Add(down); pl.Party.Add(Pokemons.Create(data, "イーブイ", 10, "", "", 1));
+                    }
+                    eg.DebugEnabled = true;
+                    Apply(eg, new DebugCommand { Player = a.Id, Action = DebugAction.SetDice, Value = 1 });
+                    int dest = Apply(eg, new RollDice { Player = a.Id }).OfType<DiceRolled>().First().Reachable.First();
+                    d.Square = dest;
+                    Apply(eg, new ChooseDestination { Player = a.Id, Square = dest });
+                    Apply(eg, new ConfirmMove { Player = a.Id });
+                    if (eg.State.Battle?.Kind != BattleKind.Player) return null;
+                    foreach (var s in eg.State.Battle.Sides) if (s.NeedsSelect) Apply(eg, new SelectPokemon { Player = s.Player, Slot = 0 });
+                    var winner = attackerWins ? a : d; // デバッグは手番の人（仕掛けた側）の命令なので、守った側を勝たせるときは「即敗北」
+                    var dev = Apply(eg, new DebugCommand { Player = a.Id, Action = attackerWins ? DebugAction.WinBattle : DebugAction.LoseBattle });
+                    return dev.OfType<ExpGained>().Where(x => x.Player == winner.Id).Select(x => (x.Pokemon, x.Exp)).ToList();
+                }
+                var byAttacker = ExpWhenWins(true); var byDefender = ExpWhenWins(false);
+                Check(log, "プレイヤー戦の経験値：守った側が勝っても、バトル前から戦闘不能の子には入らず、仕掛けた側が勝ったときと 同じ配られ方",
+                    byAttacker != null && byDefender != null && byDefender.Count == 2 && !byDefender.Any(x => x.Item1 == "ピカチュウ") && byDefender.All(x => x.Item2 > 0)
+                    && byAttacker.OrderBy(x => x.Item1).SequenceEqual(byDefender.OrderBy(x => x.Item1)));
                 // 先頭固定のバトル（野生）でも 同じ形の遭遇が出る
                 var wg = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
                 wg.DebugEnabled = true;
