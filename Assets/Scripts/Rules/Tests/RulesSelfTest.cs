@@ -27,6 +27,36 @@ namespace Sugoroku.Rules
             Check(log, "未解放のマスは通れない", Same(Movement.Reachable(board, 5, 2, 0, false), 2, 4));
             Check(log, "バッジがあれば通れる", Same(Movement.Reachable(board, 5, 2, 1, false), 2, 4, 7));
             Check(log, "距離：1から4は3マス、未解放の7とワープの先の9は道では行けない", Movement.Distance(board, 1, 4, 0) == 3 && Movement.Distance(board, 1, 7, 0) == -1 && Movement.Distance(board, 1, 7, 1) == 5 && Movement.Distance(board, 1, 9, 0) == -1);
+            {
+                // 見渡しの距離は 移動と同じ 通れる・通れない（4.2・16.7）：1─2─3─4 の近道と、1─5─6─7─4 の回り道。2 をカビゴン（ふさぐ）か 海上マスにする
+                BoardData Short(bool detour, bool sea)
+                {
+                    var sq = Enumerable.Range(1, 7).Select(i => new BoardSquare { Id = i, Name = "d" + i, Type = i == 1 ? "スタート" : "空マス" }).ToList();
+                    if (sea) sq[1].GrassKind = "海上";
+                    var roads = new List<(int, int)> { (1, 2), (2, 3), (3, 4) };
+                    if (detour) roads.AddRange(new[] { (1, 5), (5, 6), (6, 7), (7, 4) });
+                    return BoardData.Create(sq, roads, new List<string>());
+                }
+                var block2 = new HashSet<int> { 2 };
+                bool detourOk = Movement.Distance(Short(true, false), 1, 4, 0, -1, true, block2) == 4 && Movement.Distance(Short(true, false), 1, 4, 0) == 3;
+                bool noWay = Movement.Distance(Short(false, false), 1, 4, 0, -1, true, block2) == -1 && Movement.Distance(Short(false, false), 1, 2, 0, -1, true, block2) == -1;
+                bool surfOk = Movement.Distance(Short(true, true), 1, 4, 0, -1, false) == 4 && Movement.Distance(Short(true, true), 1, 4, 0, -1, true) == 3;
+                // 移動と食い違わない：行けないマスは どの出目でも光らない。行けるマスは その歩数ちょうどで光る
+                bool Agrees(BoardData b, ICollection<int> blk, bool surf) => b.Squares.Keys.Where(id => id != 1).All(id =>
+                {
+                    int dd = Movement.Distance(b, 1, id, 0, -1, surf, blk);
+                    return dd < 0 ? Enumerable.Range(1, 8).All(k => !Movement.Reachable(b, 1, k, 0, false, blk, -1, surf).Contains(id) && !Movement.Reachable(b, 1, k, 0, true, blk, -1, surf).Contains(id))
+                                  : Movement.Reachable(b, 1, dd, 0, false, blk, -1, surf).Contains(id);
+                });
+                bool agree = Agrees(Short(true, false), block2, true) && Agrees(Short(false, false), block2, true) && Agrees(Short(true, true), null, false);
+                // 処理役の DistanceFor も ふさがれたマス（State.Blocked）を見る
+                var dg = GameProcessor.NewGame(Short(false, false), TestData(1, 1), new[] { ("A", MoveMode.Highlight, "") }, 50, 1, out _);
+                bool viaGame = dg.DistanceFor(dg.State.Players[0], 4) == 3;
+                dg.State.Blocked[2] = int.MaxValue;
+                viaGame &= dg.DistanceFor(dg.State.Players[0], 4) == -1;
+                Check(log, "見渡しの距離：カビゴンでふさがれた道は回り道の歩数、回り道がなければ行けない。なみのりがなければ海の近道は数えない。行けないマスは移動でも光らない",
+                    detourOk && noWay && surfOk && agree && viaGame);
+            }
 
             // 1マスずつ方式（出目3）
             var game = NewGame(board, 3, MoveMode.Step);

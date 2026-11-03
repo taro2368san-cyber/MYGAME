@@ -234,6 +234,9 @@ namespace Sugoroku.Rules
         // いちばんバッジの多い人の数（全員に開く通行条件のマスで使う）
         public int TopBadges => State.Players.Count == 0 ? 0 : State.Players.Max(p => p.Badges);
 
+        // その人から見た square までの歩数（移動と同じ 通れる・通れない：解放、なみのり、カビゴン）。行けなければ -1（見渡し 4.2・16.7）
+        public int DistanceFor(PlayerState p, int square) => Movement.Distance(board, p.Square, square, p.Badges, TopBadges, p.Surf, State.Blocked.Keys);
+
         void DoRoll(List<GameEvent> events)
         {
             var player = Current;

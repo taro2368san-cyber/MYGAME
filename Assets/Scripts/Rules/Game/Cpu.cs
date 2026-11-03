@@ -48,7 +48,7 @@ namespace Sugoroku.Rules
             if (p.Has("のろい") && Has("おふだ")) yield return Use("おふだ");
             // 弱っていて、行ったことのあるセンターへ飛べるなら飛ぶ（いちばん近いところ）
             if (p.Party.Any(m => Hurt(d, m)) && Has("アーマーガーチケット"))
-                foreach (int c in p.VisitedCenters.OrderBy(c => Movement.Distance(board, p.Square, c, p.Badges, g.TopBadges, p.Surf) is int n && n > 0 ? n : 999)) // 道で行けない所は後回し
+                foreach (int c in p.VisitedCenters.OrderBy(c => g.DistanceFor(p, c) is int n && n > 0 ? n : 999)) // 道で行けない所は後回し
                     yield return Use("アーマーガーチケット", c);
             // 妨害：同じエリアにいる人のうち、点数がいちばん高い人へ（8.3）
             foreach (var o in s.Players.Where(o => o != p).OrderByDescending(g.Score))

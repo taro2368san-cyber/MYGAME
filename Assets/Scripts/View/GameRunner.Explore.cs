@@ -50,8 +50,8 @@ public partial class GameRunner
         if (sq.RequiredBadges > p.Badges) return text + $"　まだ入れない（バッジ{sq.RequiredBadges}個で解放）" + fish;
         if (!Movement.CanEnter(board, id, p.Badges, game.TopBadges)) return text + $"　まだ通れない（バッジ{sq.GateBadges}個で通れる" + (sq.GateShared ? "。だれか1人が そろえれば 全員" : "") + "）" + fish;
         if (!Movement.CanEnter(board, id, p.Badges, game.TopBadges, p.Surf)) return text + "　なみのりを 覚えると 入れる" + fish;
-        int d = Movement.Distance(board, p.Square, id, p.Badges, game.TopBadges, p.Surf);
-        return text + (d < 0 ? "　道では 行けない（ワープの先）" : d == 0 ? "　今いるマス" : $"　ここから {d}マス") + fish;
+        int d = game.DistanceFor(p, id);
+        return text + (d < 0 ? "　いまは いけない" : d == 0 ? "　今いるマス" : $"　ここから {d}マス") + fish; // 行けないのは カビゴンでふさがれた先・ワープの先など（未解放・なみのりは 上で先に言う）
     }
 
     void ExploreUpdate()

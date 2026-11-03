@@ -14,6 +14,10 @@ namespace Sugoroku.Rules
             return s.RequiredBadges <= badges && s.GateBadges <= (s.GateShared ? System.Math.Max(badges, top) : badges) && (surf || !s.Sea);
         }
 
+        // 通れるか：入れる（CanEnter）うえに、カビゴン（道をふさぐ・アマイ三ツ）でふさがれていない。移動も 見渡しの距離も これで見る（4.2・16.7）
+        public static bool Passable(BoardData board, int square, int badges, int top, bool surf, ICollection<int> blocked) =>
+            CanEnter(board, square, badges, top, surf) && (blocked == null || !blocked.Contains(square));
+
         // start から、直前のマスに戻らずに（allowReverse なら戻ってもよい）ちょうど steps 歩で止まれるマス
         // blocked：ふさがれていて入れないマス（アマイ三ツのカビゴン）。省略できる
         public static HashSet<int> Reachable(BoardData board, int start, int steps, int badges, bool allowReverse, ICollection<int> blocked = null, int top = -1, bool surf = true)
@@ -53,7 +57,7 @@ namespace Sugoroku.Rules
                 }
                 foreach (int n in board[s.cur].Neighbors)
                 {
-                    if ((!allowReverse && n == s.prev) || !CanEnter(board, n, badges, top, surf) || (blocked != null && blocked.Contains(n))) continue;
+                    if ((!allowReverse && n == s.prev) || !Passable(board, n, badges, top, surf, blocked)) continue;
                     var next = (s.cur, n, s.left - 1);
                     if (parent.ContainsKey(next)) continue;
                     parent[next] = s;
@@ -63,8 +67,8 @@ namespace Sugoroku.Rules
             return null;
         }
 
-        // from から to まで、道をたどって何マスか（入れないマスは通らない。ワープは数えない）。行けなければ -1（見渡しモード、16.7）
-        public static int Distance(BoardData board, int from, int to, int badges, int top = -1, bool surf = true)
+        // from から to まで、道をたどって いちばん少ない歩数（移動と同じく Passable なマスだけ通る。ワープは数えない）。行けなければ -1（見渡しモード、16.7）
+        public static int Distance(BoardData board, int from, int to, int badges, int top = -1, bool surf = true, ICollection<int> blocked = null)
         {
             var dist = new Dictionary<int, int> { [from] = 0 };
             var queue = new Queue<int>();
@@ -74,7 +78,7 @@ namespace Sugoroku.Rules
                 int s = queue.Dequeue();
                 if (s == to) return dist[s];
                 foreach (int n in board[s].Neighbors)
-                    if (!dist.ContainsKey(n) && CanEnter(board, n, badges, top, surf)) { dist[n] = dist[s] + 1; queue.Enqueue(n); }
+                    if (!dist.ContainsKey(n) && Passable(board, n, badges, top, surf, blocked)) { dist[n] = dist[s] + 1; queue.Enqueue(n); }
             }
             return -1;
         }
@@ -92,7 +96,7 @@ namespace Sugoroku.Rules
                 visit(s.prev, s.cur, s.left);
                 if (s.left == 0) continue;
                 foreach (int n in board[s.cur].Neighbors)
-                    if ((allowReverse || n != s.prev) && CanEnter(board, n, badges, top, surf) && (blocked == null || !blocked.Contains(n)))
+                    if ((allowReverse || n != s.prev) && Passable(board, n, badges, top, surf, blocked))
                         stack.Push((s.cur, n, s.left - 1));
             }
         }
