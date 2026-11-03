@@ -1531,6 +1531,39 @@ namespace Sugoroku.Rules
 
             Check(log, "セーブ→ロードで同じ状態に戻る（3回）", SaveRoundTrip(data, board, 11) && SaveRoundTrip(data, board, 22) && SaveRoundTrip(data, board, 33));
             {
+                // 調整値のキー（13.6・17.4）：コードが使うキーがないとエラー（名前つき）、数でない値もエラー、本番はエラー0件。一覧（CodeTuningKeys）の足し忘れは ソースを探して見つける
+                var tp = new List<string>();
+                GameData.CheckTuningKeys(data, tp);
+                bool prodOk = !tp.Any(x => x.StartsWith("[エラー]"));
+                double kept = data.Tuning["champion_point"];
+                data.Tuning.Remove("champion_point");
+                var missing = new List<string>();
+                GameData.CheckTuningKeys(data, missing);
+                data.Tuning["champion_point"] = kept;
+                bool missingFound = missing.Any(x => x.StartsWith("[エラー]") && x.Contains("champion_point"));
+                var bad = new List<string>();
+                bool notNumber = GameData.ParseTuning("調整値", "champion_point", "にじゅう", bad) == null && bad.Any(x => x.StartsWith("[エラー]") && x.Contains("champion_point"));
+                // ソースの Tune("…")・TuneInt("…")・Required("…") のキーが 一覧に全部あるか（$"…" で組み立てるキーは 一覧に展開して書いてある）
+                string src = null;
+                for (var d = new System.IO.DirectoryInfo(System.IO.Directory.GetCurrentDirectory()); d != null && src == null; d = d.Parent)
+                    if (System.IO.Directory.Exists(System.IO.Path.Combine(d.FullName, "Assets", "Scripts"))) src = System.IO.Path.Combine(d.FullName, "Assets");
+                var notListed = new List<string>();
+                if (src != null)
+                {
+                    var call = new System.Text.RegularExpressions.Regex(@"\b(?:Tune|TuneInt|Required)\(\s*((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\)");
+                    var lit = new System.Text.RegularExpressions.Regex("\"([a-z0-9_]+)\"");
+                    var listed = new HashSet<string>(GameData.CodeTuningKeys);
+                    foreach (var f in System.IO.Directory.GetFiles(src, "*.cs", System.IO.SearchOption.AllDirectories).Where(f => !f.Replace('\\', '/').Contains("/Tests/")))
+                        foreach (System.Text.RegularExpressions.Match m in call.Matches(System.IO.File.ReadAllText(f)))
+                            if (!m.Groups[1].Value.TrimStart().StartsWith("$"))
+                                foreach (System.Text.RegularExpressions.Match k in lit.Matches(m.Groups[1].Value))
+                                    if (!listed.Contains(k.Groups[1].Value) && !notListed.Contains(k.Groups[1].Value)) notListed.Add(k.Groups[1].Value);
+                }
+                Check(log, "調整値のキー：コードが使うキーがないと名前つきでエラー、数でない値もエラー、本番はエラー0件" + (src == null ? "（ソースが見つからないので 一覧の足し忘れは見ていない）" : "、ソースのキーは全部 一覧にある")
+                    + (notListed.Count > 0 ? "。一覧にないキー：" + string.Join("、", notListed) : "") + (prodOk ? "" : "。本番のエラー：" + string.Join(" / ", tp.Where(x => x.StartsWith("[エラー]")))),
+                    prodOk && missingFound && notNumber && notListed.Count == 0);
+            }
+            {
                 // 結果発表の内訳（2.1・16.1 #11）：換金・チャンピオン入り・イベントの点・バッジ・最多討伐賞が混ざっても、行ごとに正しく、足すと合計
                 var sg = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ"), ("B", MoveMode.Highlight, "ゼニガメ"), ("C", MoveMode.Highlight, "フシギダネ") }, 50, 7, out _);
                 var addPoints = typeof(GameProcessor).GetMethod("AddPoints", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);

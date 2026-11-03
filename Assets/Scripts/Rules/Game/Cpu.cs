@@ -177,7 +177,7 @@ namespace Sugoroku.Rules
                 case FacilityKind.Exchange:
                 {
                     // 換金所：2,000円は手元に残して、残りをポイントに（1,000円単位）
-                    int n = (p.Money - 2000) / (int)d.Tuning["yen_per_point"];
+                    int n = (p.Money - 2000) / (int)d.Required("yen_per_point");
                     if (n >= 1) yield return new ExchangePoints { Player = p.Id, Points = n };
                     break;
                 }

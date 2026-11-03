@@ -221,6 +221,53 @@ namespace Sugoroku.Rules
         public double Required(string key) =>
             Tuning.TryGetValue(key, out double v) ? v : throw new KeyNotFoundException($"調整値シートにキー「{key}」がありません。xlsx の調整値シートに追加してください。");
 
+        // コードが使う調整値のキー（13.6・17.4）。起動のとき（Load → CheckTuningKeys）に そろっているか確かめる
+        // コードで Tune("…")・TuneInt("…")・Required("…") を足したら ここにも足す（足し忘れは ルールのテストが ソースを探して見つける）。組み立てて読むキーは 展開して書く
+        public static readonly string[] CodeTuningKeys =
+        {
+            "amulet_coin_mult", "assault_vest_mult", "badge_capture_bonus", "badge_point", "ball_threshold_hyper", "ball_threshold_monster", "ball_threshold_super", "ballmass_boost_weeks",
+            "bond_evasion_bonus", "bond_hp_threshold", "box_max", "bright_powder_evasion", "burn_damage", "capture_random_max", "champion_point", "choice_item_mult", "counter_miss_mult",
+            "crit_mult", "crit_rate", "crit_rate_scope", "curse_weeks_max", "curse_weeks_min", "cycling_bike_uses", "cycling_road_fans", "damage_flat_bonus", "damage_level_offset",
+            "damage_min", "damage_random_max", "damage_random_min", "dart_bike_max", "dart_bike_min", "dart_bike_weeks", "daycare_weeks_per_level", "defeat_money_ratio", "defeat_rest_rate",
+            "dice_max", "dice_min", "dice_zero_rate", "dividend_interval", "empty_money_spread", "empty_money_unit", "event_reward_level", "event_weeks", "eviolite_mult", "exchange_close_weeks",
+            "exp_bench", "exp_capture", "exp_capture_safari", "exp_coef", "exp_selected", "fan_heal_forced", "fan_heal_ratio", "flute_weeks", "fossil_hatch_weeks", "fossil_level_offset",
+            "gold_spray_weeks", "guard_success_mult", "guard_wrong_mult", "gym_level_step", "hit_rate_base", "initiative_ratio_large", "initiative_ratio_small", "job_level_bonus",
+            "key_prize_rate", "lab_evolve_price", "lab_researcher_dex", "leftovers_heal", "level_max", "life_orb_mult", "life_orb_recoil", "light_ball_mult", "name_max",
+            "news_legend_level_bonus", "news_legend_rate", "news_rare_mult", "owner_discount", "pager_candidates", "paralysis_skip_rate", "party_size", "poison_damage", "pokemon_bag",
+            "quick_claw_rate", "rank_down1", "rank_down2", "rank_up1", "rank_up2", "reflect_mult", "rival_level_offset", "rival_trade_cost", "rival_trade_cost_owner", "rocket_award",
+            "rocket_bridge_owner_rate", "rocket_reward_trainers", "rocket_scout_badges", "rocket_scout_weeks", "rocket_thief_shelf", "rocky_helmet_damage", "round_limit_full",
+            "round_limit_quick", "safari_balls", "safari_fee", "safari_flee_rate", "sale_discount", "sand_damage", "sell_ratio", "sitrus_heal", "sitrus_threshold", "sleep_max", "sleep_min",
+            "snorlax_level", "snorlax_weeks_max", "snorlax_weeks_min", "special_hit_rate", "special_through_mult", "speed_hit_clip", "speed_hit_coef", "start_balls", "start_level",
+            "start_money", "sweet_scent_level", "sweet_scent_weeks_max", "sweet_scent_weeks_min", "thick_club_mult", "ticket_change_weeks_max", "ticket_change_weeks_min",
+            "ticket_island_turns", "ticket_rescue_badges", "ticket_rescue_weeks", "trainer_bag", "trap_damage", "tribute_ratio", "weakness_mult", "weakness_policy_stages",
+            "weekly_event_max", "weekly_event_min", "weeks_max", "weeks_min", "wild_damage_mult", "wild_super_rate", "win_item_rate", "yen_per_point",
+            // 組み立てて読むキー：マスの換算額（GameProcessor.SquareValue、エリア1〜4）、空マスのお金（EmptyMoney）、ジムのエースのLv（何個目のバッジか 1〜8）
+            "trainer_value_area1", "trainer_value_area2", "trainer_value_area3", "trainer_value_area4", "rocket_value_area1", "rocket_value_area2", "rocket_value_area3", "rocket_value_area4",
+            "empty_money_area1", "empty_money_area2", "empty_money_area3", "empty_money_area4",
+            "gym_ace_level_1", "gym_ace_level_2", "gym_ace_level_3", "gym_ace_level_4", "gym_ace_level_5", "gym_ace_level_6", "gym_ace_level_7", "gym_ace_level_8",
+            // 変数に入れてから読むキー：勝ったときの賞金（GameProcessor.WinnerRewards の key）。ソースを探すテストでは見つからないので、ここに必ず書く
+            "wild_win_money", "trainer_win_money", "gym_win_money", "rival_win_money", "event_win_money", "rocket_win_money",
+        };
+
+        // コードが使うキーが そろっているか（17.4）。ないキーは [エラー]（起動を止める）、コードで使っていないキーは [警告]（仕様書のために書いてあるだけのこともある）
+        public static void CheckTuningKeys(GameData data, List<string> problems)
+        {
+            foreach (var k in CodeTuningKeys.Where(k => !data.Tuning.ContainsKey(k)))
+                problems.Add($"[エラー] 調整値: コードが使うキー「{k}」がありません（xlsx の調整値シートか 調整値の追加.csv に足してください）");
+            var used = new HashSet<string>(CodeTuningKeys);
+            var unused = data.Tuning.Keys.Where(k => !used.Contains(k)).OrderBy(k => k, StringComparer.Ordinal).ToList();
+            if (unused.Count > 0) problems.Add($"[警告] 調整値: コードで使っていないキーが{unused.Count}個あります：{string.Join("、", unused)}");
+        }
+
+        // 調整値の値を数として読む。数でなければ [エラー]（どのキーか分かるように）
+        public static double? ParseTuning(string source, string key, string raw, List<string> problems)
+        {
+            if (raw == "") return null;
+            if (double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)) return v;
+            problems.Add($"[エラー] {source}: キー「{key}」の値「{raw}」が 数ではありません");
+            return null;
+        }
+
         // dir の CSV をすべて読み込み、気になる点を problems に入れる（[エラー] は遊べない問題、[警告] は直したほうがよい点）
         public static GameData Load(string dir, List<string> problems)
         {
@@ -303,7 +350,7 @@ namespace Sugoroku.Rules
             foreach (var r in tuning.Rows)
             {
                 string key = tuning.Get(r, "キー");
-                double? v = Num(tuning, r, "値", problems);
+                double? v = ParseTuning(tuning.Name, key, tuning.Get(r, "値"), problems);
                 if (key == "" || v == null) continue;
                 if (data.Tuning.ContainsKey(key)) problems.Add($"[エラー] 調整値: キー「{key}」が2回出てきます");
                 else data.Tuning[key] = v.Value;
@@ -319,6 +366,7 @@ namespace Sugoroku.Rules
             }
 
             LoadMemoCsv(data, dir, problems);
+            CheckTuningKeys(data, problems); // コードが使う調整値のキー（17.4）
             Validate(data, problems);
             return data;
         }
@@ -338,7 +386,7 @@ namespace Sugoroku.Rules
                 foreach (var r in Rows(extra))
                 {
                     string key = extra.Get(r, "キー");
-                    double? v = Num(extra, r, "値", problems);
+                    double? v = ParseTuning(extra.Name, key, extra.Get(r, "値"), problems);
                     if (key == "" || v == null) continue;
                     if (fromSheet.Contains(key)) problems.Add($"[警告] {file}: キー「{key}」は調整値シートにもあるので、調整値シートの値を使います");
                     else if (seen.TryGetValue(key, out string first)) problems.Add($"[警告] {file}: キー「{key}」は {first}.csv にもあるので、{first}.csv の値を使います");

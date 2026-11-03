@@ -65,7 +65,8 @@ public static class GameDataTools
         else Debug.LogError($"スタートから止まれるマスがない出目: {string.Join(",", stuck)}");
         var layout = new List<string>();
         BoardData.CheckLayout(board, data, layout); // 盤面の抜け（ロードマップ 1-D-1）は警告として ここにも出す
-        foreach (var w in layout) Debug.LogWarning(w);
+        GameData.CheckTuningKeys(data, layout);     // コードが使う調整値のキー（17.4）。ないキーはエラー
+        foreach (var w in layout) { if (w.StartsWith("[エラー]")) Debug.LogError(w); else Debug.LogWarning(w); }
         foreach (var line in RulesSelfTest.RunWithData(data, board)) Debug.Log(line);
         Debug.Log("ルールのテスト完了");
     }
