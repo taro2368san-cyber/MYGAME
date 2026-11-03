@@ -160,7 +160,7 @@ namespace Sugoroku.Rules
             switch (e.Kind)
             {
                 case EffectKind.Money: AddMoney(p, int.Parse(e.Value), e.Name, events); return false;
-                case EffectKind.Points: p.Points += int.Parse(e.Value); events.Add(new PointsChanged { Player = p.Id, Amount = int.Parse(e.Value) }); return false;
+                case EffectKind.Points: AddPoints(p, int.Parse(e.Value), PointsEvent); events.Add(new PointsChanged { Player = p.Id, Amount = int.Parse(e.Value) }); return false;
                 case EffectKind.Item: { var items = e.Value.Split('|'); return GiveItem(p, items[Roll(0, items.Length - 1)], events); } // 「a|b|c」なら どれか1つ
                 case EffectKind.HealAll:
                     HealParty(p, events);

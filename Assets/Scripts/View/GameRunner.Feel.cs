@@ -173,14 +173,16 @@ public partial class GameRunner
         ("help_catch", "捕獲", "野生とのバトルでは、攻撃と防御が1往復するたびに ボールを投げられます。相手のHPが少ないほど、ボールが良いほど、バッジが多いほど 捕まえやすくなります。手持ちは3体まで、あふれた子は控えに入ります"),
         ("help_fan", "ファン", "トレーナーに勝つと そのトレーナーが ファンになります。7週ごとに年貢が入り、自分のファンのマスでは回復と道具、ほかの人のファンのマスでは回復代を払います。プレイヤーどうしのバトルの勝利報酬や バトルサーチャーで 奪い合えます"),
         ("help_job", "職業", "条件を満たすと職業が解放され、ポケモンセンターで就いたり変えたりできます。タイプの職業は そのタイプのポケモンが強くなるなど、職業ごとに得意なことがあります"),
-        ("help_win", "勝ち方", "最後の週が終わったときの 勝利ポイントが いちばん多い人の勝ちです。バッジ・お金・ファン・図鑑などが ポイントになります。いまの順位は「せってい → 順位」で見られます"),
+        ("help_win", "勝ち方", "最後の週が終わったときの 勝利ポイントが いちばん多い人の勝ちです。ポイントになるのは、バッジ（1個{badge}p）、換金所で換えたポイント（{yen}円で1p）、チャンピオン入り（{champion}p）、ロケット団を いちばん多く追いはらった人（{rocket}p、同じ数なら全員）と、今回のイベントルールの点です。お金と ファンは そのままでは ポイントに なりません。お金は 換金所で 換えておきましょう（最後の{close}週は 閉まります）。「せってい → 順位」の 途中の順位は、お金と ファンも 目安に入れて 並べています"),
     };
 
     void ShowHelp(int topic)
     {
         var col = Overlay("Help");
         Ui.Line(col, "あそびかた：" + HelpTopics[topic].title, 44);
-        Ui.Line(col, narrator.Line(HelpTopics[topic].key, HelpTopics[topic].text).Replace("{dice}", $"{data.Required("dice_min")}〜{data.Required("dice_max")}"), 28);
+        Ui.Line(col, narrator.Line(HelpTopics[topic].key, HelpTopics[topic].text).Replace("{dice}", $"{data.Required("dice_min")}〜{data.Required("dice_max")}")
+            .Replace("{badge}", $"{data.Required("badge_point"):0.#}").Replace("{yen}", $"{data.Required("yen_per_point"):#,0}").Replace("{champion}", $"{data.Required("champion_point"):0.#}")
+            .Replace("{rocket}", $"{data.Required("rocket_award"):0.#}").Replace("{close}", $"{data.Required("exchange_close_weeks"):0}"), 28); // 数字は調整値から（2.1）
         var row = Row(col);
         for (int i = 0; i < HelpTopics.Length; i++) { int k = i; Ui.Button(row, HelpTopics[i].title, () => ShowHelp(k), 150, 56); }
         Ui.Button(Row(col), "閉じる", CloseOverlay, 200, 64);

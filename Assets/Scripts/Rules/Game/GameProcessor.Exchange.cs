@@ -33,7 +33,7 @@ namespace Sugoroku.Rules
         void DoExchange(PlayerState p, int points, List<GameEvent> events)
         {
             AddMoney(p, -points * TuneInt("yen_per_point"), "換金", events);
-            p.Points += points;
+            AddPoints(p, points, PointsExchange);
             events.Add(new PointsChanged { Player = p.Id, Amount = points });
         }
 

@@ -1531,6 +1531,30 @@ namespace Sugoroku.Rules
 
             Check(log, "セーブ→ロードで同じ状態に戻る（3回）", SaveRoundTrip(data, board, 11) && SaveRoundTrip(data, board, 22) && SaveRoundTrip(data, board, 33));
             {
+                // 結果発表の内訳（2.1・16.1 #11）：換金・チャンピオン入り・イベントの点・バッジ・最多討伐賞が混ざっても、行ごとに正しく、足すと合計
+                var sg = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ"), ("B", MoveMode.Highlight, "ゼニガメ"), ("C", MoveMode.Highlight, "フシギダネ") }, 50, 7, out _);
+                var addPoints = typeof(GameProcessor).GetMethod("AddPoints", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var pa = sg.State.Players[0]; var pb = sg.State.Players[1]; var pc = sg.State.Players[2];
+                double badge = data.Required("badge_point"), champ = data.Required("champion_point"), award = data.Required("rocket_award");
+                addPoints.Invoke(sg, new object[] { pa, 3, GameProcessor.PointsExchange });
+                addPoints.Invoke(sg, new object[] { pa, (int)champ, GameProcessor.PointsChampion });
+                addPoints.Invoke(sg, new object[] { pa, 5, GameProcessor.PointsEvent });
+                pa.Gyms.Add("ニビジム"); pa.Gyms.Add("ハナダジム");
+                pa.RocketDefeats = 2; pb.RocketDefeats = 2; pc.RocketDefeats = 1; // 最多討伐が同じ数の2人
+                var la = sg.ScoreBreakdown(pa);
+                bool lines = la.Exchanged == 3 && la.Champion == champ && la.Other == 5 && la.Badges == 2 * badge && la.Rocket == award && la.Rule == 0
+                    && la.Total == la.Exchanged + la.Champion + la.Other + la.Badges + la.Rocket + la.Rule && la.Total == sg.FinalScore(pa) && pa.Points == 3 + champ + 5;
+                bool tie = sg.ScoreBreakdown(pb).Rocket == award && sg.ScoreBreakdown(pc).Rocket == 0;
+                // 残っているお金とファンは入らない（途中の順位 Score には入る）
+                double before = sg.FinalScore(pa), scoreBefore = sg.Score(pa);
+                pa.Money += 50000;
+                var trainerSq = board.Squares.Values.First(x => x.Type == "トレーナー").Id;
+                sg.State.Owners[trainerSq] = pa.Id;
+                bool noMoney = sg.FinalScore(pa) == before && sg.Score(pa) > scoreBefore;
+                Check(log, "結果発表の内訳：バッジ・換金所・チャンピオン入り・最多討伐賞・イベントの点が それぞれ正しく 足すと合計。最多討伐が同じ数なら両方に入る。残ったお金とファンは入らない",
+                    lines && tie && noMoney);
+            }
+            {
                 // ゲームを始める設定（1.1・16.1、15.3 約束4）：処理役でも断る
                 int w = (int)data.Required("weeks_min");
                 string V(params (string name, string ch, string starter)[] ps) =>

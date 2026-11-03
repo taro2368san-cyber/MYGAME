@@ -123,10 +123,15 @@ public partial class GameRunner
         int rank = 0;
         foreach (var p in S.Players.OrderByDescending(game.FinalScore))
         {
-            var (points, badges, ruleP, rocket) = game.ScoreBreakdown(p);
-            Ui.Line(col, $"{++rank}位　{p.Name}{CharacterLabel(p)}　{game.FinalScore(p):0.#}p", 36, PlayerColor(p));
-            Ui.Line(col, $"　バッジ {badges:0.#}p　換えたポイント {points:0.#}p" + (rule != null ? $"　{rule.Name} {ruleP:0.#}p" : "") + (rocket > 0 ? $"　ロケット団最多討伐賞 {rocket:0.#}p" : "")
-                + $"　（換えていないお金 {p.Money:#,0}円・ファン {S.Owners.Count(o => o.Value == p.Id)}人は 入りません）", 24);
+            // 内訳（16.1 #11）：グランドルール・イベントルール・そのほか。0p の行は出さない
+            var l = game.ScoreBreakdown(p);
+            string Part(string name, double v) => v != 0 ? $"　{name} {v:0.#}p" : "";
+            Ui.Line(col, $"{++rank}位　{p.Name}{CharacterLabel(p)}　{l.Total:0.#}p", 36, PlayerColor(p));
+            string grand = Part("バッジ", l.Badges) + Part("換金所", l.Exchanged) + Part("チャンピオン入り", l.Champion) + Part("ロケット団最多討伐賞", l.Rocket);
+            Ui.Line(col, "　グランドルール：" + (grand != "" ? grand : "　0p"), 24);
+            if (rule != null) Ui.Line(col, $"　イベントルール（{rule.Name}）：　{l.Rule:0.#}p", 24);
+            if (l.Other != 0) Ui.Line(col, $"　そのほか（イベントマスなど）：　{l.Other:0.#}p", 24);
+            Ui.Line(col, $"　（換えていないお金 {p.Money:#,0}円・ファン {S.Owners.Count(o => o.Value == p.Id)}人は 入りません）", 20, new Color(0.75f, 0.75f, 0.75f));
         }
         var row = Row(col);
         Ui.Button(row, "エンドロールへ", () => ShowEndroll(0), 300, 70);

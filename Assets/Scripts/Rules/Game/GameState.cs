@@ -14,6 +14,7 @@ namespace Sugoroku.Rules
         public bool IsCpu;                // CPU が操作する（1.4）
         public MoveMode MoveMode;
         public int Square, Money, Points;
+        public readonly Dictionary<string, int> PointsBy = new Dictionary<string, int>(); // Points の出どころごとの数（換金・チャンピオン入り・イベント。結果発表の内訳、16.1 #11）
         public readonly List<PlayerAilment> Ailments = new List<PlayerAilment>(); // プレイヤーの状態（1回休みなど）。残り週数つきのリスト（13.5、10章）
         public string Job = "";                                              // 今の職業（就けるのは1つだけ、9.2）
         public readonly HashSet<string> CaughtSpecies = new HashSet<string>(); // 捕まえた種類（イベントルール用）

@@ -474,13 +474,27 @@ namespace Sugoroku.Rules
             p.Points + p.Badges * Tune("badge_point")
             + (p.Money + OwnedSquares(p.Id, "トレーナー").Concat(OwnedSquares(p.Id, "ロケット団")).Sum(SquareValue)) / Tune("yen_per_point");
 
-        // 結果発表の内訳（16.1 #11）
-        public (double points, double badges, double rule, double rocket) ScoreBreakdown(PlayerState p) =>
-            (p.Points, p.Badges * Tune("badge_point"), EventRulePoints(p), RocketAward(p));
+        // 勝利ポイントを足す（2.1）：合計の Points と、出どころごとの PointsBy の両方に
+        public const string PointsExchange = "換金", PointsChampion = "チャンピオン入り", PointsEvent = "イベント";
+        void AddPoints(PlayerState p, int n, string source)
+        {
+            p.Points += n;
+            p.PointsBy[source] = (p.PointsBy.TryGetValue(source, out int v) ? v : 0) + n;
+        }
 
-        // 最終的な勝利ポイント（2章）＝所持ポイント（バッジ・換金所で換えたポイント）＋イベントルール＋ロケット団最多討伐賞
-        // 換えていないお金とファンは入らない（お金は換金所でポイントにする。最後の10週は閉まる）
-        public double FinalScore(PlayerState p) => p.Points + p.Badges * Tune("badge_point") + EventRulePoints(p) + RocketAward(p);
+        // 結果発表の内訳（16.1 #11）。グランドルール（バッジ・換金・チャンピオン入り・ロケット団最多討伐賞）、イベントルール、そのほか（イベントマスの点など）。足すと Total
+        public sealed class ScoreLines { public double Badges, Exchanged, Champion, Rocket, Rule, Other, Total; }
+        public ScoreLines ScoreBreakdown(PlayerState p)
+        {
+            int By(string s) => p.PointsBy.TryGetValue(s, out int v) ? v : 0;
+            var l = new ScoreLines { Badges = p.Badges * Tune("badge_point"), Exchanged = By(PointsExchange), Champion = By(PointsChampion), Rocket = RocketAward(p), Rule = EventRulePoints(p) };
+            l.Other = p.Points - l.Exchanged - l.Champion; // Points のうち 換金とチャンピオン入り以外（イベントマスの点など）
+            l.Total = l.Badges + l.Exchanged + l.Champion + l.Rocket + l.Rule + l.Other;
+            return l;
+        }
+
+        // 最終的な勝利ポイント（2章）＝内訳の合計。換えていないお金とファンは入らない（お金は換金所でポイントにする。最後の10週は閉まる）
+        public double FinalScore(PlayerState p) => ScoreBreakdown(p).Total;
 
         public double EventRulePoints(PlayerState p)
         {
