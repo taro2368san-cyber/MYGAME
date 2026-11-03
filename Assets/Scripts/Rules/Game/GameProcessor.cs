@@ -539,7 +539,8 @@ namespace Sugoroku.Rules
 
         static void RemoveItem(PlayerState p, string item)
         {
-            if (!p.PokemonBag.Remove(item)) p.TrainerBag.Remove(item);
+            if (p.PokemonBag.Remove(item) || p.TrainerBag.Remove(item)) return;
+            if (p.Balls.TryGetValue(item, out int n) && n > 0) p.Balls[item] = n - 1; // ボールは専用のカウンター（8.1）
         }
 
         void HealParty(PlayerState p, List<GameEvent> events)

@@ -1019,6 +1019,23 @@ namespace Sugoroku.Rules
                 Check(log, "プレイヤー戦のお金：勝った人が「許す」を選んでも、降参で負けても 334円が 勝った人に入る", forgiven && surrendered);
             }
             {
+                // ボールを売る（8.1・8.9）：ボールは専用のカウンターから1個減って、価格の半額が入る。マスターボールは売れない
+                var shopSq = board.Squares.Values.FirstOrDefault(x => x.Type == "ショップ");
+                bool sold = false;
+                if (shopSq != null)
+                {
+                    var (sg, _) = LandEvents(shopSq, "ヒトカゲ", s => { var pl = s.Players[0]; pl.Money = 0; pl.Balls["モンスターボール"] = 3; pl.Balls["マスターボール"] = 1; });
+                    var sp = sg.State.Players[0];
+                    if (sg.State.Facility?.Kind == FacilityKind.Shop)
+                    {
+                        bool masterNo = sg.Validate(new Sell { Player = sp.Id, Item = "マスターボール" }) != null;
+                        Apply(sg, new Sell { Item = "モンスターボール" });
+                        sold = masterNo && sp.Balls["モンスターボール"] == 2 && sp.Balls["マスターボール"] == 1 && sp.Money == sg.SellPrice("モンスターボール") && sp.Money == (int)(data.FindItem("モンスターボール").Price * data.Required("sell_ratio"));
+                    }
+                }
+                Check(log, "ボールを売る：1個減って 価格の半額が入る。マスターボールは売れない", sold);
+            }
+            {
                 // 換金所（2.1・2.3）：1,000円で1p。最後の10週は閉まる。勝利ポイントには換えたポイントだけが入り、お金は入らない
                 var sq = board.Squares.Values.First(x => x.Type == "空マス" && x.Neighbors.Count > 0);
                 string keep = sq.Type;

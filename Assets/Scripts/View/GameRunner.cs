@@ -919,7 +919,7 @@ public partial class GameRunner : MonoBehaviour
             }
             case FacilityKind.Shop:
                 foreach (var item in f.Goods) { var c = new Buy { Player = me, Item = item }; Add($"買う {item} {game.BuyPrice(item)}円", () => Send(c), KeyCode.None, Ok(c)); }
-                foreach (var item in p.PokemonBag.Concat(p.TrainerBag).Distinct()) { var c = new Sell { Player = me, Item = item }; if (Ok(c)) Add($"売る {item} {game.SellPrice(item)}円", () => Send(c)); }
+                foreach (var item in p.PokemonBag.Concat(p.TrainerBag).Concat(p.Balls.Where(x => x.Value > 0).Select(x => x.Key)).Distinct()) { var c = new Sell { Player = me, Item = item }; if (Ok(c)) Add($"売る {item}" + (p.Balls.TryGetValue(item, out int ballCount) ? $"（{ballCount}個）" : "") + $" {game.SellPrice(item)}円", () => Send(c)); } // ボールも（マスターボールは売れないので出ない、8.9）
                 Add("店を出る", () => Send(new LeaveFacility { Player = me }), KeyCode.Escape);
                 return $"{(f.Prompt != "" ? f.Prompt : "ショップ")}（所持金 {p.Money}円）" + (S.WeekEvent == "セール" ? "　セール中！" : "");
             case FacilityKind.Center:

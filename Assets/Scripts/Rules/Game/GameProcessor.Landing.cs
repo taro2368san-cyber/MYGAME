@@ -491,8 +491,8 @@ namespace Sugoroku.Rules
                     return HasRoomFor(p, b.Item) ? null : "袋がいっぱいです";
                 case Sell s:
                     if (f.Kind != FacilityKind.Shop) return "ここはショップではありません";
-                    if (!p.PokemonBag.Contains(s.Item) && !p.TrainerBag.Contains(s.Item)) return "その道具を持っていません";
-                    var info = data.FindItem(s.Item);
+                    if (!p.PokemonBag.Contains(s.Item) && !p.TrainerBag.Contains(s.Item) && !(p.Balls.TryGetValue(s.Item, out int balls) && balls > 0)) return "その道具を持っていません";
+                    var info = data.FindItem(s.Item); // ボールも 売れる○なら売れる（マスターボールは×、8.9）
                     return info != null && info.Sellable && info.Price != null ? null : "その道具は売れません";
                 case CenterSwap w:
                     if (f.Kind != FacilityKind.Center) return "ここではポケモンを入れ替えられません";
