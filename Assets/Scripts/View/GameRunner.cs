@@ -976,23 +976,17 @@ public partial class GameRunner : MonoBehaviour
             case BattleStep.Select:
             {
                 var side = b.Sides.First(s => s.NeedsSelect && !IsCpu(s.Player));
+                // プレイヤー戦は □○△（キーボードは A S D）で押した瞬間に決まる。ボタンは バトル画面に出す（BlindSelect、RefreshBattleScene）
+                bool blind = BlindSelect;
+                if (blind) promptSide = System.Array.IndexOf(b.Sides, side);
+                var keys = new[] { KeyCode.A, KeyCode.S, KeyCode.D };
                 for (int i = 0; i < side.Team.Count; i++)
                 {
                     var m = side.Team[i];
                     var c = new SelectPokemon { Player = side.Player, Slot = i };
-                    Add($"{m.Species} Lv{m.Level} {m.Hp}/{Pokemons.MaxHp(data, m)}", () => Send(c), KeyCode.None, Ok(c));
+                    Add($"{m.Species} Lv{m.Level} {m.Hp}/{Pokemons.MaxHp(data, m)}", () => Send(c), blind && i < keys.Length ? keys[i] : KeyCode.None, Ok(c));
                 }
-                // 相手は 先頭だけ見える（16.5・7.11）。プレイヤーの相手は 選び直すので 出てくるとは限らない（NPC は いつも先頭を出す）
-                // バトルの はじめ（まだ1体も出していない）だけ。倒れたあとの選び直しでは 相手の場の子が見えている
-                string foeLead = "";
-                if (side.Participated.Count == 0)
-                {
-                    var foe = b.Sides[1 - System.Array.IndexOf(b.Sides, side)];
-                    var lead = game.Lead(foe);
-                    var sp = Pokemons.Of(data, lead);
-                    foeLead = $"\nあいての せんとう：{lead.Species} Lv{lead.Level}（じゃくてん：{(sp.Weakness != "" ? sp.Weakness : "なし")}）" + (foe.Player >= 0 ? "　※あいても えらぶので、出てくるとは かぎらない" : "");
-                }
-                return $"{side.Name}さん、出すポケモンを えらんでください（相手には見えません）" + foeLead;
+                return $"{side.Name}さん、出すポケモンを えらんでください（相手には見えません）" + FoeLeadLine(side);
             }
             // コマンドは バトル画面の ポケモンの下で選ぶ（UI仕様書 7.2）。ここでは 押したときの動きとキーだけを決める（並びは □ ○ △ R1）
             // コントローラー：□ ○ △ R1。キーボード：A S D F（攻撃・防御とも同じ記号は同じキー）
@@ -1047,6 +1041,18 @@ public partial class GameRunner : MonoBehaviour
                 return $"{winner.Name}さん、ほうびを えらんでください";
             }
         }
+    }
+
+    // 相手は 先頭だけ見える（16.5・7.11）。プレイヤーの相手は 選び直すので 出てくるとは限らない（NPC は いつも先頭を出す）
+    // バトルの はじめ（まだ1体も出していない）だけ。倒れたあとの選び直しでは 相手の場の子が見えている
+    string FoeLeadLine(BattleSide side)
+    {
+        if (side.Participated.Count > 0) return "";
+        var b = S.Battle;
+        var foe = b.Sides[1 - System.Array.IndexOf(b.Sides, side)];
+        var lead = game.Lead(foe);
+        var sp = Pokemons.Of(data, lead);
+        return $"\nあいての せんとう：{lead.Species} Lv{lead.Level}（じゃくてん：{(sp.Weakness != "" ? sp.Weakness : "なし")}）" + (foe.Player >= 0 ? "　※あいても えらぶので、出てくるとは かぎらない" : "");
     }
 
     void FleeConfirm(int player, string flee)

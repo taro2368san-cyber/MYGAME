@@ -96,10 +96,22 @@ public partial class GameRunner
         bool commands = b.Step == BattleStep.Commands && b.Sides.All(s => s.Active >= 0);
         if (commands) { shownAttacker = b.Attacker; for (int i = 0; i < 2; i++) cards[i].SetScale(i == b.Attacker ? BigScale : SmallScale); }
         string flee = b.Kind == BattleKind.Player || b.Kind == BattleKind.Tournament ? "降参" : "にげる";
+        bool blind = BlindSelect;
+        if (b.Step != BattleStep.Initiative) cardHint.text = blind && promptSide >= 0 ? FoeLeadLine(b.Sides[promptSide]).Trim() : "";
         for (int i = 0; i < 2; i++)
         {
             var pad = pads[i];
-            pad.Show(commands);
+            pad.Show(commands || blind);
+            if (blind)
+            {
+                // プレイヤー戦の選出（15.6・16.5 #30・#33）：選ぶ人は □○△ で押した瞬間に決まる。カーソルは出さない。選び終えた側は「選択済み」だけ（どれを選んだかは見せない）
+                bool picking = i == promptSide && subMenu == null;
+                var team = b.Sides[i].Team;
+                pad.SetLabels(Enumerable.Range(0, 4).Select(k => picking && k < 3 && k < team.Count ? $"{team[k].Species} Lv{team[k].Level}" : "").ToArray());
+                pad.SetEnabled(k => picking && k < menu.Count && menu[k].enabled);
+                pad.SetState(picking ? "えらんでください（押したら 決まり）" : !b.Sides[i].NeedsSelect ? "選択済み" : "");
+                continue;
+            }
             if (!commands) continue;
             bool attack = i == b.Attacker;
             pad.SetRole(attack, flee);
@@ -120,14 +132,18 @@ public partial class GameRunner
         }
     }
 
-    // コマンドとカードは バトル画面で選ぶ（E メニューは隠す）
+    // コマンドとカード、プレイヤー戦の選出は バトル画面で選ぶ（E メニューは隠す）
     bool SceneInput => S != null && S.Phase == Phase.Battle && S.Battle != null && subMenu == null
-        && (S.Battle.Step == BattleStep.Commands || S.Battle.Step == BattleStep.Initiative);
+        && (S.Battle.Step == BattleStep.Commands || S.Battle.Step == BattleStep.Initiative || BlindSelect);
+
+    // プレイヤー戦（とトーナメント）の選出：カーソルのメニューだと 何を選んだか相手に見えるので、□○△ のボタンで選ぶ（15.6、相談.md 14）
+    bool BlindSelect => S?.Battle != null && S.Battle.Step == BattleStep.Select && (S.Battle.Kind == BattleKind.Player || S.Battle.Kind == BattleKind.Tournament);
 
     // 画面のコマンドを押した（□ ○ △ R1 = 0〜3。メニューの行と同じ並び）
     void PressCommand(int k)
     {
-        if (playing || !SceneInput || S.Battle.Step != BattleStep.Commands || menu.Count != 4 || !menu[k].enabled) return;
+        bool ready = S?.Battle != null && (S.Battle.Step == BattleStep.Commands ? menu.Count == 4 : BlindSelect && k < menu.Count);
+        if (playing || !SceneInput || !ready || !menu[k].enabled) return;
         menu[k].action();
     }
 
@@ -472,11 +488,18 @@ public partial class GameRunner
 
         public void Show(bool on) => root.gameObject.SetActive(on);
 
-        public void SetRole(bool attack, string flee)
+        public void SetRole(bool attack, string flee) =>
+            SetLabels(attack ? new[] { "こうげき", "とくこう", "必殺", "どうぐ" } : new[] { "ぼうぎょ", "とくぼう", "カウンター", flee });
+
+        // ボタンの文字（□ ○ △ R1 の順）。空のボタンは出さない（プレイヤー戦の選出は □○△ だけ、選び終えた側は なし）
+        public void SetLabels(string[] names)
         {
-            var names = attack ? new[] { "こうげき", "とくこう", "必殺", "どうぐ" } : new[] { "ぼうぎょ", "とくぼう", "カウンター", flee };
             var marks = new[] { "□", "○", "△", "R1" };
-            for (int i = 0; i < 4; i++) labels[i].text = i == 3 ? $"R1 {names[i]}" : $"<size=36><b>{marks[i]}</b></size> {names[i]}"; // 記号は大きく
+            for (int i = 0; i < 4; i++)
+            {
+                buttons[i].gameObject.SetActive(names[i] != "");
+                labels[i].text = i == 3 ? $"R1 {names[i]}" : $"<size=36><b>{marks[i]}</b></size> {names[i]}"; // 記号は大きく
+            }
         }
 
         // 押せるボタンは はっきり、押せないボタン（相手の番・クールダウン中の必殺など）は うすく

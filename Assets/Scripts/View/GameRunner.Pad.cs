@@ -103,7 +103,8 @@ public partial class GameRunner
             if (stick.sqrMagnitude > 0.04f) exploreFocus.position += new Vector3(stick.x, 0, stick.y).normalized * 15f * zoom * Time.deltaTime;
         }
         // バトルのコマンド（UI仕様書 7.2）：□ ○ △ R1 を、そのコマンドのキー（A S D F）として押す。攻撃も防御も同じ記号は同じボタン
-        if (S.Phase == Phase.Battle && S.Battle.Step == BattleStep.Commands && subMenu == null)
+        // プレイヤー戦の選出も同じ：□ ○ △ が 手持ちの1・2・3番目（A S D）。押した人のコントローラーは ActingPad（1＝仕掛けた側、2＝仕掛けられた側）
+        if (S.Phase == Phase.Battle && (S.Battle.Step == BattleStep.Commands || BlindSelect) && subMenu == null)
         {
             KeyCode key = Down(g, x => x.buttonWest) ? KeyCode.A : Down(g, x => x.buttonEast) ? KeyCode.S
                         : Down(g, x => x.buttonNorth) ? KeyCode.D : Down(g, x => x.rightShoulder) ? KeyCode.F : KeyCode.None;
