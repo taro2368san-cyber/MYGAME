@@ -124,6 +124,24 @@ namespace Sugoroku.Rules
             var ab = AbilityInfo.Parse("しんりょく：HPが最大HPの1/3以下のとき、攻撃のダメージが1.5倍"); var ab2 = AbilityInfo.Parse("はりきり：攻撃がガードされなかったとき、20%で物理攻撃のダメージが1.5倍");
             Check(log, "特性の文から名前と数字を読む", ab.Name == "しんりょく" && Math.Abs(ab.Frac - 1.0 / 3) < 1e-9 && ab.Mult == 1.5 && ab2.Rate == 0.2 && ab2.Mult == 1.5);
             Check(log, "同じ種なら手番の順番とサイコロが同じ", DiceSequence(board, 12345) == DiceSequence(board, 12345) && DiceSequence(board, 12345) != DiceSequence(board, 999));
+
+            // データチェック（ロードマップ 1-D-1）：1スタート─2─3カビゴン─4ニビジム。回り道ありなら 2─5─4 も。6 は どこにもつながらない
+            {
+                BoardSquare Lsq(int id, string type, string place, string symbol = "") => new BoardSquare { Id = id, Name = "l" + id, Type = type, Place = place, Symbol = symbol };
+                BoardData Layout(bool detour) => BoardData.Create(
+                    new[] { Lsq(1, "スタート", "マサラタウン"), Lsq(2, "空マス", "1番道路"), Lsq(3, "シンボル", "12番道路", "カビゴン"), Lsq(4, "ジム", "ニビシティ"), Lsq(5, "空マス", "1番道路"), Lsq(6, "空マス", "2番道路") },
+                    detour ? new[] { (1, 2), (2, 3), (3, 4), (2, 5), (5, 4) } : new[] { (1, 2), (2, 3), (3, 4) }, new List<string>());
+                var ld = TestData(1, 1);
+                ld.Places.Add(new Place { Name = "ニビシティ", Gym = "ニビジム" });
+                ld.Places.Add(new Place { Name = "ハナダシティ", Gym = "ハナダジム" });
+                var withDetour = BoardData.Unreachable(Layout(true), ld);
+                var noDetour = BoardData.Unreachable(Layout(false), ld);
+                var warns = new List<string>();
+                BoardData.CheckLayout(Layout(true), ld, warns);
+                Check(log, "データチェック：どこにもつながっていないマスは スタートから行けないと出る", withDetour.SequenceEqual(new[] { 6 }) && warns.Any(w => w.Contains("行けないマス") && w.Contains("6 2番道路")));
+                Check(log, "データチェック：カビゴンでふさいだ道に回り道があれば その先は行ける、なければ行けないと出る（カビゴンのマス自身は数えない）", !withDetour.Contains(4) && noDetour.Contains(4) && !noDetour.Contains(3));
+                Check(log, "データチェック：ジムが1つ足りないと そのジムの名前が出る", warns.Any(w => w.Contains("ないジム：ハナダジム")) && !warns.Any(w => w.Contains("ないジム") && w.Contains("ニビジム")));
+            }
             return log;
         }
 

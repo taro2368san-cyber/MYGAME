@@ -97,9 +97,7 @@ namespace Sugoroku.Rules
         public string SymbolHere(int square)
         {
             var sq = board[square];
-            if (sq.Type != "シンボル" || data.IsIslandMap(sq.MapId) || State.SymbolsGone.Contains(square)) return null;
-            string species = sq.Symbol != "" ? sq.Symbol : data.Encounters.FirstOrDefault(e => e.Place == sq.Place && e.Method == "シンボル")?.Pokemon;
-            return string.IsNullOrEmpty(species) ? null : species;
+            return data.IsIslandMap(sq.MapId) || State.SymbolsGone.Contains(square) ? null : BoardData.SymbolOf(sq, data);
         }
 
         // ねむっているカビゴン（シンボルのマスで ポケモンがカビゴン）：ゲームのはじめから道をふさぐ（アマイ三ツと同じ State.Blocked、週では去らない）

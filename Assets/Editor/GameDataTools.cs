@@ -63,6 +63,9 @@ public static class GameDataTools
         var stuck = Enumerable.Range(1, maxDice).Where(d => Movement.Reachable(board, board.StartSquare, d, 0, false).Count == 0 && Movement.Reachable(board, board.StartSquare, d, 0, true).Count == 0).ToList();
         if (stuck.Count == 0) Debug.Log($"OK スタートから出目1〜{maxDice}のどれでも、止まれるマスがある");
         else Debug.LogError($"スタートから止まれるマスがない出目: {string.Join(",", stuck)}");
+        var layout = new List<string>();
+        BoardData.CheckLayout(board, data, layout); // 盤面の抜け（ロードマップ 1-D-1）は警告として ここにも出す
+        foreach (var w in layout) Debug.LogWarning(w);
         foreach (var line in RulesSelfTest.RunWithData(data, board)) Debug.Log(line);
         Debug.Log("ルールのテスト完了");
     }
