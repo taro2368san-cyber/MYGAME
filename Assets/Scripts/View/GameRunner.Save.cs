@@ -29,8 +29,10 @@ public partial class GameRunner
         }
     }
 
-    static string SlotLabel(int slot, SaveFile.Summary s) =>
-        s == null ? $"{SlotName(slot)}：（空き）" : $"{SlotName(slot)}：{s.SavedAt:M/d HH:mm}　{s.Week}／{s.MaxWeeks}週　次は {s.NextPlayer}";
+    // データの版がちがう枠には「データが ちがう」、新しい書き方のセーブには「よめません」（ロードマップ 6-1）
+    string SlotLabel(int slot, SaveFile.Summary s) =>
+        s == null ? $"{SlotName(slot)}：（空き）" : $"{SlotName(slot)}：{s.SavedAt:M/d HH:mm}　{s.Week}／{s.MaxWeeks}週　次は {s.NextPlayer}"
+            + (s.Format > SaveFile.Format ? "　<size=20>（よめません）</size>" : !SaveFile.SameData(s, data.Version) ? "　<size=20>（データが ちがう）</size>" : "");
 
     // 一時ファイルに書いてから置きかえる。前のセーブは .bak に残す（17.4）
     void SaveTo(int slot)
@@ -39,7 +41,7 @@ public partial class GameRunner
         {
             Directory.CreateDirectory(SaveDir);
             string path = SlotPath(slot), tmp = path + ".tmp";
-            File.WriteAllText(tmp, SaveFile.Write(S));
+            File.WriteAllText(tmp, SaveFile.Write(S, data.Version)); // データの版も書く（6-1）
             if (File.Exists(path)) File.Replace(tmp, path, path + ".bak");
             else File.Move(tmp, path);
             if (slot != 0) AddLog($"{SlotName(slot)}に セーブしました");
@@ -77,9 +79,23 @@ public partial class GameRunner
         foreach (var (slot, summary) in SaveSlots())
         {
             int k = slot;
-            Ui.Button(col, SlotLabel(slot, summary), () => RegisterThen(() => LoadFrom(k), ShowLoad), 900, 70).interactable = summary != null; // 枠を選んだら コントローラー登録（相談.md 15）
+            Ui.Button(col, SlotLabel(slot, summary), () => RegisterThen(() => ConfirmLoad(k), ShowLoad), 900, 70).interactable = summary != null && summary.Format <= SaveFile.Format; // 枠を選んだら コントローラー登録（相談.md 15）
         }
         Ui.Button(col, "もどる", ShowTitle, 900, 70);
+    }
+
+    // データの版がちがう（版を持っていない古いセーブも）なら、読む前に確かめる（ロードマップ 6-1、相談.md 19）
+    void ConfirmLoad(int slot)
+    {
+        SaveFile.Summary s = null;
+        try { s = SaveFile.Read(File.ReadAllText(SlotPath(slot))).summary; } catch { }
+        if (s == null || SaveFile.SameData(s, data.Version)) { LoadFrom(slot); return; }
+        var bg = FullScreen("LoadConfirm");
+        var col = Ui.Stack(bg.transform, "Rows", new Vector2(0.15f, 0.25f), new Vector2(0.85f, 0.75f), true, 18, 0);
+        Ui.Line(col, "データが かわっています。よみこむと とちゅうの ながれが かわったり、よめなかったり することがあります。よみこみますか？", 32);
+        var row = Row(col);
+        Ui.Button(row, "はい", () => LoadFrom(slot), 260, 70);
+        Ui.Button(row, "いいえ", ShowLoad, 260, 70);
     }
 
     void LoadFrom(int slot)
@@ -98,7 +114,7 @@ public partial class GameRunner
         }
         var bg = FullScreen("LoadError");
         var col = Ui.Stack(bg.transform, "Rows", new Vector2(0.15f, 0.2f), new Vector2(0.85f, 0.8f), true, 16, 0);
-        Ui.Line(col, "このセーブは 読み込めません", 44, new Color(1, 0.5f, 0.5f));
+        Ui.Line(col, "このセーブは よめませんでした", 44, new Color(1, 0.5f, 0.5f)); // 流し直しの途中で断られたら ゲームは始めない（Load が null）
         Ui.Line(col, error ?? "", 24);
         Ui.Line(col, "（データ（xlsx・CSV）を変えると、前のセーブが読めなくなることがあります）", 22, new Color(0.8f, 0.8f, 0.8f));
         Ui.Button(col, "もどる", ShowLoad, 400, 70);

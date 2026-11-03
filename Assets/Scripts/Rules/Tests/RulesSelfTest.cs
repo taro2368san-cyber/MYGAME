@@ -1531,6 +1531,28 @@ namespace Sugoroku.Rules
 
             Check(log, "セーブ→ロードで同じ状態に戻る（3回）", SaveRoundTrip(data, board, 11) && SaveRoundTrip(data, board, 22) && SaveRoundTrip(data, board, 33));
             {
+                // セーブのデータの版（ロードマップ 6-1）：同じ版なら そのまま同じ状態に戻る。書き換えた版・版のない古いセーブは「ちがう」。流し直しで断られたら 状態を作らない。新しい書き方は読まない
+                var vg = GameProcessor.NewGame(board, data, new[] { ("たろう", MoveMode.Highlight, "ヒトカゲ"), ("はなこ", MoveMode.Highlight, "ワニノコ") }, 30, 44, out _, new[] { "leaf", "gold" }, "random");
+                var vpol = new Random(44);
+                for (int n = 0, accepted = 0; accepted < 150 && n < 8000 && vg.State.Phase != Phase.GameOver; n++)
+                    if (vg.Apply(RandomCommand(vg.State, board, vpol), out string e).Count >= 0 && e == null) accepted++;
+                string text = SaveFile.Write(vg.State, data.Version);
+                var sum = SaveFile.Read(text).summary;
+                var back = GameProcessor.Load(board, data, text, out _, out string err0);
+                bool same = data.Version != "" && sum.DataVersion == data.Version && SaveFile.SameData(sum, data.Version) && back != null && err0 == null && StateText(back.State) == StateText(vg.State);
+                var lines = text.Split('\n').ToList();
+                string changed = string.Join("\n", lines.Select(l => l.StartsWith("data=") ? "data=000000000000" : l));
+                bool differs = !SaveFile.SameData(SaveFile.Read(changed).summary, data.Version);
+                string oldSave = string.Join("\n", lines.Where(l => !l.StartsWith("data=")).Select(l => l.StartsWith("version=") ? "version=1" : l));
+                bool oldDiffers = !SaveFile.SameData(SaveFile.Read(oldSave).summary, data.Version) && GameProcessor.Load(board, data, oldSave, out _, out _) != null; // 版がないだけなら 流し直しは できる
+                var broken = GameProcessor.Load(board, data, text + "cmd SelectPokemon Player=0 Slot=9\n", out _, out string err1); // いまは選出の場面ではない
+                bool refused = broken == null && err1 != null;
+                string newer = string.Join("\n", lines.Select(l => l.StartsWith("version=") ? $"version={SaveFile.Format + 1}" : l));
+                bool newerRefused = GameProcessor.Load(board, data, newer, out _, out string err2) == null && err2 != null;
+                Check(log, "セーブのデータの版：同じ版なら確認なしで同じ状態に戻る、書き換えた版と版のない古いセーブは「ちがう」、流し直しで断られたら状態を作らない、新しい書き方は読まない",
+                    same && differs && oldDiffers && refused && newerRefused);
+            }
+            {
                 // 調整値のキー（13.6・17.4）：コードが使うキーがないとエラー（名前つき）、数でない値もエラー、本番はエラー0件。一覧（CodeTuningKeys）の足し忘れは ソースを探して見つける
                 var tp = new List<string>();
                 GameData.CheckTuningKeys(data, tp);

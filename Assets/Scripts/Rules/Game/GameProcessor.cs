@@ -90,7 +90,8 @@ namespace Sugoroku.Rules
             error = null;
             try
             {
-                var (settings, commands, _) = SaveFile.Read(text);
+                var (settings, commands, summary) = SaveFile.Read(text);
+                if (summary.Format > SaveFile.Format) { error = "新しい書き方のセーブなので よめません"; return null; } // 6-1
                 error = ValidateSetup(data, settings.Players, settings.MaxWeeks, settings.Characters);
                 if (error != null) { error = "はじめの設定が 正しくありません：" + error; return null; }
                 var game = NewGame(board, data, settings.Players, settings.MaxWeeks, settings.Seed, out events, settings.Characters, settings.EventRule, settings.Cpu);

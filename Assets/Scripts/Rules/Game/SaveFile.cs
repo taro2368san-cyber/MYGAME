@@ -22,13 +22,21 @@ namespace Sugoroku.Rules
     // 書き方：1行に1つ。「キー=値」と「cmd 命令の名前 欄=値 …」。値は % で書き換えてある（空白・改行が入っても壊れない）
     public static class SaveFile
     {
-        public sealed class Summary { public DateTime SavedAt; public int Week, MaxWeeks; public string NextPlayer = ""; }
+        // セーブの書き方の版（2：データの版を書くようにした）。これより新しい版のセーブは読まない（ロードマップ 6-1）
+        public const int Format = 2;
 
-        public static string Write(GameState s)
+        // DataVersion：保存したときのデータの版（GameData.Version）。空なら 版を持っていない古いセーブ
+        public sealed class Summary { public DateTime SavedAt; public int Week, MaxWeeks, Format = 1; public string NextPlayer = "", DataVersion = ""; }
+
+        // 保存したときと 今のデータが 同じか。版を持っていない古いセーブは「ちがう」（6-1）
+        public static bool SameData(Summary s, string currentVersion) => s.DataVersion != "" && s.DataVersion == currentVersion;
+
+        public static string Write(GameState s, string dataVersion = "")
         {
             var sb = new StringBuilder();
             void Kv(string k, object v) => sb.Append(k).Append('=').Append(Esc(Convert.ToString(v, CultureInfo.InvariantCulture))).Append('\n');
-            Kv("version", 1);
+            Kv("version", Format);
+            Kv("data", dataVersion);
             Kv("saved", DateTime.Now.ToString("o", CultureInfo.InvariantCulture));
             Kv("week", s.Week); Kv("maxweeks", s.Settings.MaxWeeks); Kv("next", s.Phase == Phase.GameOver ? "" : s.CurrentPlayer.Name);
             Kv("seed", s.Settings.Seed); Kv("rule", s.Settings.EventRule);
@@ -61,6 +69,8 @@ namespace Sugoroku.Rules
                 string k = line.Substring(0, eq), v = Unesc(line.Substring(eq + 1).Trim());
                 switch (k)
                 {
+                    case "version": summary.Format = int.Parse(v); break;
+                    case "data": summary.DataVersion = v; break;
                     case "saved": summary.SavedAt = DateTime.Parse(v, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind); break;
                     case "week": summary.Week = int.Parse(v); break;
                     case "maxweeks": settings.MaxWeeks = summary.MaxWeeks = int.Parse(v); break;

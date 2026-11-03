@@ -24,7 +24,7 @@ public partial class GameRunner
     Color screenSelColor;                      // 選ぶ前の色（はずしたら戻す）
     int screenIndex;                           // 画面を描き直しても同じ位置を選ぶため
     string screenName;                         // 画面が変わったら先頭に戻すため
-    static readonly string[] BackLabels = { "もどる", "タイトルへ", "閉じる", "やめる" }; // ×で押すボタン
+    static readonly string[] BackLabels = { "もどる", "タイトルへ", "閉じる", "やめる", "いいえ" }; // ×で押すボタン
 
     // 演出の早送り（スペース、コントローラーの ○・×）
     static bool SkipHeld()

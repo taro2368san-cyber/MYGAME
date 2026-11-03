@@ -217,6 +217,25 @@ namespace Sugoroku.Rules
             return tiers[Math.Min(tiers.Count - 1, next ? i + 1 : i)];
         }
 
+        // データの版（ロードマップ 6-1）：読んだフォルダの CSV 全部（盤面・ポケモン・調整値など）の名前と中身から作る 短いハッシュ。セーブに書いて、読むときに比べる
+        public string Version = "";
+        public static string DataVersion(string dir)
+        {
+            if (!Directory.Exists(dir)) return "";
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+            using (var all = new MemoryStream())
+            {
+                foreach (var f in Directory.GetFiles(dir, "*.csv").OrderBy(Path.GetFileName, StringComparer.Ordinal))
+                {
+                    var name = System.Text.Encoding.UTF8.GetBytes(Path.GetFileName(f) + "\n");
+                    all.Write(name, 0, name.Length);
+                    var body = File.ReadAllBytes(f);
+                    all.Write(body, 0, body.Length);
+                }
+                return string.Concat(sha.ComputeHash(all.ToArray()).Take(6).Select(b => b.ToString("x2")));
+            }
+        }
+
         // 調整値をキーで引く。無ければ、何を足せばよいか分かるメッセージで止める
         public double Required(string key) =>
             Tuning.TryGetValue(key, out double v) ? v : throw new KeyNotFoundException($"調整値シートにキー「{key}」がありません。xlsx の調整値シートに追加してください。");
@@ -368,6 +387,7 @@ namespace Sugoroku.Rules
             LoadMemoCsv(data, dir, problems);
             CheckTuningKeys(data, problems); // コードが使う調整値のキー（17.4）
             Validate(data, problems);
+            data.Version = DataVersion(dir);
             return data;
         }
 
