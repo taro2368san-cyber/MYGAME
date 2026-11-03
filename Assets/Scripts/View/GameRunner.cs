@@ -141,6 +141,7 @@ public partial class GameRunner : MonoBehaviour
     // プレイヤーごとに キャラクター → 最初のポケモン（キャラクターの世代の御三家）→ 名前 → 移動方式（仕様書1.1）
 
     int playerCount = 2, weeks;
+    string setupError;                              // 処理役が はじめの設定を断った理由（ゲーム設定に1回だけ出す）
     readonly int[] characterIndex = { 0, 1, 3, 5 };
     readonly int[] starterIndex = { 1, 0, 0, 0 };   // キャラクターの御三家の何番目か
     readonly string[] names = new string[4];        // 空ならキャラクターの名前
@@ -176,6 +177,7 @@ public partial class GameRunner : MonoBehaviour
         var bg = Ui.Panel(canvas.transform, "Setup", Vector2.zero, Vector2.one, new Color(0.05f, 0.08f, 0.15f, 0.97f));
         var col = Ui.Stack(bg.transform, "Rows", new Vector2(0.25f, 0.08f), new Vector2(0.75f, 0.92f), true, 16, 20);
         Ui.Line(col, "ゲーム設定", 52);
+        if (setupError != null) { Ui.Line(col, "はじめられません：" + setupError, 26, new Color(1, 0.5f, 0.5f)); setupError = null; } // 処理役が断ったとき（StartGame）
         var row = Row(col);
         Ui.Line(row, $"人数 {playerCount}人", 30);
         for (int n = 2; n <= 4; n++) { int k = n; Ui.Button(row, $"{n}人", () => { playerCount = k; ShowSetup(); }, 110); }
@@ -316,6 +318,8 @@ public partial class GameRunner : MonoBehaviour
         var list = Enumerable.Range(0, playerCount).Select(i => (NameOf(i), cpus[i] ? MoveMode.Highlight : modes[i], StarterOf(i))).ToList();
         var characters = Enumerable.Range(0, playerCount).Select(i => CharacterOf(i).Id).ToList();
         ulong s = seed != 0 ? (ulong)seed : (ulong)DateTime.Now.Ticks;
+        // 画面でも止めているが、処理役でも確かめる（15.3 約束4）。だめなら ゲーム設定へ戻る
+        if (GameProcessor.ValidateSetup(data, list, weeks, characters) is string bad) { setupError = bad; ShowSetup(); return; }
         game = GameProcessor.NewGame(board, data, list, weeks, s, out var events, characters, EventRuleId, cpus.Take(playerCount).ToList());
         ShowTurnOrder(events);
     }

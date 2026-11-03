@@ -59,6 +59,30 @@ namespace Sugoroku.Rules
             return game;
         }
 
+        // ゲームを始める設定が正しいか（仕様書 1.1・16.1、15.3 約束4）。だめなら理由。画面から始めるときと セーブを読むときに使う（NewGame そのものは テスト用に 確かめない）
+        // 人数 2〜4人、週数 weeks_min〜weeks_max、キャラクターは1人1つで重ならない、最初のポケモンは そのキャラの世代の御三家で重ならない
+        // 名前は ひらがな（小さい字も）と「ー」だけで name_max 文字まで。名前を入れなかったときは キャラクターの名前のまま（画面と同じ）。CPU も同じ
+        public static string ValidateSetup(GameData data, IList<(string name, MoveMode mode, string starter)> players, int maxWeeks, IList<string> characters)
+        {
+            if (players.Count < 2 || players.Count > 4) return $"人数は 2〜4人です（{players.Count}人）";
+            int wMin = (int)data.Required("weeks_min"), wMax = (int)data.Required("weeks_max");
+            if (maxWeeks < wMin || maxWeeks > wMax) return $"週数は {wMin}〜{wMax}週です（{maxWeeks}週）";
+            if (characters == null || characters.Count != players.Count) return "キャラクターが 人数分 ありません";
+            if (characters.Distinct().Count() != characters.Count) return "同じキャラクターは 2人で選べません";
+            if (players.Select(p => p.starter).Distinct().Count() != players.Count) return "同じ最初のポケモンは 2人で選べません";
+            int nameMax = (int)data.Required("name_max");
+            for (int i = 0; i < players.Count; i++)
+            {
+                var c = data.Characters.FirstOrDefault(x => x.Id == characters[i]);
+                if (c == null) return $"キャラクター「{characters[i]}」が キャラクター.csv に ありません";
+                if (!c.Starters.Contains(players[i].starter)) return $"{c.Name}の 最初のポケモンは {string.Join("・", c.Starters)}の どれかです（{players[i].starter}）";
+                string name = players[i].name ?? "";
+                bool kana = name.Length >= 1 && name.Length <= nameMax && name.All(ch => (ch >= 'ぁ' && ch <= 'ゖ') || ch == 'ー');
+                if (!kana && name != c.Name) return $"名前は ひらがなと「ー」で {nameMax}文字までです（{name}）";
+            }
+            return null;
+        }
+
         // セーブを読み込む：同じ設定で始めて、記録した命令を順に流し直す。うまくいかなければ error に理由
         public static GameProcessor Load(BoardData board, GameData data, string text, out List<GameEvent> events, out string error)
         {
@@ -67,6 +91,8 @@ namespace Sugoroku.Rules
             try
             {
                 var (settings, commands, _) = SaveFile.Read(text);
+                error = ValidateSetup(data, settings.Players, settings.MaxWeeks, settings.Characters);
+                if (error != null) { error = "はじめの設定が 正しくありません：" + error; return null; }
                 var game = NewGame(board, data, settings.Players, settings.MaxWeeks, settings.Seed, out events, settings.Characters, settings.EventRule, settings.Cpu);
                 game.DebugEnabled = true; // デバッグ命令も記録に入っているので、流し直すあいだは受け付ける
                 for (int i = 0; i < commands.Count; i++)

@@ -1437,7 +1437,7 @@ namespace Sugoroku.Rules
 
             // 先攻・後攻のカード（7.1.2、UI仕様書 7.3 ②）：仕掛けた側が選んだカードの側が先攻。前の版のセーブ（カードを選ぶ命令がない）も読める
             {
-                var cg = GameProcessor.NewGame(board, data, new List<(string, MoveMode, string)> { ("A", MoveMode.Highlight, "ヒトカゲ"), ("B", MoveMode.Highlight, "ゼニガメ") }, 10, 7, out _);
+                var cg = GameProcessor.NewGame(board, data, new List<(string, MoveMode, string)> { ("たろう", MoveMode.Highlight, "ヒトカゲ"), ("はなこ", MoveMode.Highlight, "ワニノコ") }, 10, 7, out _, new[] { "leaf", "gold" }); // セーブを読むので 正しい設定で（ValidateSetup）
                 var pol = new Random(7);
                 for (int i = 0; i < 20000 && cg.State.Battle?.Step != BattleStep.Initiative && cg.State.Phase != Phase.GameOver; i++) cg.Apply(RandomCommand(cg.State, board, pol), out _);
                 var cb = cg.State.Battle;
@@ -1530,6 +1530,25 @@ namespace Sugoroku.Rules
             Check(log, "CPUだけで最後まで遊べる（4人×20週×2回）", BalanceReport(data, board, 2, 20).Count > 0);
 
             Check(log, "セーブ→ロードで同じ状態に戻る（3回）", SaveRoundTrip(data, board, 11) && SaveRoundTrip(data, board, 22) && SaveRoundTrip(data, board, 33));
+            {
+                // ゲームを始める設定（1.1・16.1、15.3 約束4）：処理役でも断る
+                int w = (int)data.Required("weeks_min");
+                string V(params (string name, string ch, string starter)[] ps) =>
+                    GameProcessor.ValidateSetup(data, ps.Select(p => (p.name, MoveMode.Highlight, p.starter)).ToList(), w, ps.Select(p => p.ch).ToList());
+                bool ok = V(("たろう", "leaf", "ヒトカゲ"), ("はなこ", "gold", "ヒノアラシ")) == null
+                    && V(("リーフ", "leaf", "ヒトカゲ"), ("ゴールド", "gold", "ヒノアラシ")) == null; // 名前を入れなかったときは キャラクターの名前（画面と同じ）
+                bool sameChar = V(("たろう", "leaf", "ヒトカゲ"), ("はなこ", "leaf", "ゼニガメ")) != null;
+                bool sameMon = V(("たろう", "gold", "ヒノアラシ"), ("はなこ", "crystal", "ヒノアラシ")) != null && V(("たろう", "gold", "ヒノアラシ"), ("はなこ", "crystal", "ワニノコ")) == null;
+                bool wrongGen = V(("たろう", "leaf", "チコリータ"), ("はなこ", "gold", "ヒノアラシ")) != null;
+                var five = new[] { "leaf", "gold", "crystal", "ruby", "sapphire" };
+                var monsFor = new[] { "ヒトカゲ", "ヒノアラシ", "チコリータ", "アチャモ", "キモリ" };
+                bool count = V(("たろう", "leaf", "ヒトカゲ")) != null && V(Enumerable.Range(0, 5).Select(i => ("たろう" + "あいうえお"[i], five[i], monsFor[i])).ToArray()) != null
+                    && V(Enumerable.Range(0, 4).Select(i => ("たろう" + "あいうえお"[i], five[i], monsFor[i])).ToArray()) == null;
+                bool badName = V(("タロウ", "leaf", "ヒトカゲ"), ("はなこ", "gold", "ヒノアラシ")) != null && V(("たろうたろうた", "leaf", "ヒトカゲ"), ("はなこ", "gold", "ヒノアラシ")) != null;
+                bool weeks = GameProcessor.ValidateSetup(data, new[] { ("たろう", MoveMode.Highlight, "ヒトカゲ"), ("はなこ", MoveMode.Highlight, "ヒノアラシ") }, w - 1, new[] { "leaf", "gold" }) != null;
+                Check(log, "はじめの設定：同じキャラ・同じ最初のポケモン・世代ちがいの御三家・1人や5人・カタカナや7文字の名前・範囲外の週数は 処理役でも断る",
+                    ok && sameChar && sameMon && wrongGen && count && badName && weeks);
+            }
 
             var summary = new Dictionary<string, int>();
             for (ulong seed = 1; seed <= 5; seed++)
@@ -1645,7 +1664,7 @@ namespace Sugoroku.Rules
         static bool SaveRoundTrip(GameData data, BoardData board, ulong seed)
         {
             var policy = new Random((int)seed);
-            var game = GameProcessor.NewGame(board, data, new[] { ("たろう", MoveMode.Highlight, "ヒトカゲ"), ("はなこ", MoveMode.Step, "ゼニガメ") }, 30, seed, out _, new[] { "leaf", "gold" }, "random");
+            var game = GameProcessor.NewGame(board, data, new[] { ("たろう", MoveMode.Highlight, "ヒトカゲ"), ("はなこ", MoveMode.Step, "ワニノコ") }, 30, seed, out _, new[] { "leaf", "gold" }, "random"); // ゴールドは第2世代の御三家（1.1）
             for (int n = 0, accepted = 0; accepted < 400 && n < 20000 && game.State.Phase != Phase.GameOver; n++)
                 if (game.Apply(RandomCommand(game.State, board, policy), out string e).Count >= 0 && e == null) accepted++;
             var loaded = GameProcessor.Load(board, data, SaveFile.Write(game.State), out _, out string error);
