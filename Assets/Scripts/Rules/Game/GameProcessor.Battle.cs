@@ -654,6 +654,7 @@ namespace Sugoroku.Rules
             CureAfterBattle(events);
             p.CaughtSpecies.Add(wild.Species);
             events.Add(new Caught { Player = p.Id, Pokemon = wild.Species, ToBox = p.Party.Count >= TuneInt("party_size") });
+            if (!B.Safari) EvolveParty(p, events); // 捕まえて終わっても バトル終了なので進化の判定（6.5）。捕まえた子は まだ手持ちにいないので対象外。サファリは今までどおり判定しない
             State.Battle = null;
             if (!AddPokemon(p, wild, events)) EndTurn(events); // 控えもいっぱいなら、逃がす子を選んでから手番が終わる
         }
@@ -797,11 +798,17 @@ namespace Sugoroku.Rules
             {
                 var p = State.Players[s.Player];
                 if (p.Party.All(m => m.Fainted)) SendToCenter(p, events);
-                foreach (var m in p.Party)
-                {
-                    string from = m.Species, to = Pokemons.TryEvolve(data, m);
-                    if (to != null) { Register(p, to, "しんかさせた"); events.Add(new Evolved { Player = p.Id, From = from, To = to }); }
-                }
+                EvolveParty(p, events);
+            }
+        }
+
+        // バトル後の進化の判定（6.5）：手持ちの1体ごとに1段階だけ。倒して終わっても、捕まえて終わっても通る
+        void EvolveParty(PlayerState p, List<GameEvent> events)
+        {
+            foreach (var m in p.Party)
+            {
+                string from = m.Species, to = Pokemons.TryEvolve(data, m);
+                if (to != null) { Register(p, to, "しんかさせた"); events.Add(new Evolved { Player = p.Id, From = from, To = to }); }
             }
         }
 

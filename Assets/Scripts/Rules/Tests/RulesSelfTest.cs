@@ -577,7 +577,15 @@ namespace Sugoroku.Rules
                 // サファリで捕まえたら 倒したときの3割（6.6）
                 bool safExp = !safEv.OfType<Caught>().Any() || safEv.OfType<ExpGained>().Any(x => x.Exp == (int)(data.Required("exp_coef") * safLv * safLv * data.Required("exp_capture_safari")));
                 Check(log, "サファリゾーン：入場料でサファリボール3個、投げるだけ、遭遇は1回。お金がないと入れない", kicked && entered && throwOnly && sg2.State.Battle == null && !sp2.Balls.ContainsKey("サファリボール"));
-                Check(log, "サファリで捕まえたら 経験値は3割" + (safEv.OfType<Caught>().Any() ? "" : "（この種では捕まらなかった）"), safExp);            }
+                Check(log, "サファリで捕まえたら 経験値は3割" + (safEv.OfType<Caught>().Any() ? "" : "（この種では捕まらなかった）"), safExp);
+                // サファリで捕まえても 進化の判定はしない（3.2.4）。先頭を Lv16 の1手前にして、HP1 の相手を捕まえる
+                GameProcessor ng = null;
+                for (ulong seed = 1; seed < 30 && ng?.State.Battle == null; seed++) ng = LandEvents(safariSq, "ヒトカゲ", s => { s.Players[0].Money = fee + 100; var l = s.Players[0].Party[0]; Pokemons.SetLevel(data, l, 15); l.Exp = Pokemons.ExpForLevel(16) - 1; }, seed).g;
+                var nlead = ng.State.Players[0].Party[0];
+                var nev = new List<GameEvent>();
+                if (ng.State.Battle?.Safari == true) ng.State.Battle.Sides[1].Current.Hp = 1;
+                for (int i = 0; i < 10 && ng.State.Battle?.Safari == true; i++) nev.AddRange(Apply(ng, new ThrowBall { Player = 0, Ball = "サファリボール" }));
+                Check(log, "サファリで捕まえたら 経験値でLv16を越えても 進化しない", nev.OfType<Caught>().Any() && nlead.Level >= 16 && nlead.Species == "ヒトカゲ" && !nev.OfType<Evolved>().Any());            }
             var clubRow = data.EventSquares.FirstOrDefault(x => x.Effect.Kind == EffectKind.Item && x.Effect.CondKind == "1人1回");
             var clubSq = clubRow == null ? null : board.Squares.Values.FirstOrDefault(x => x.Name == clubRow.Square && x.Neighbors.Count > 0);
             if (clubSq != null)
@@ -891,6 +899,47 @@ namespace Sugoroku.Rules
                 (sq.Type, sq.Symbol) = keep;
                 Check(log, "伝説のシンボル：止まるとバトル、倒すと盤面から消えて、次に止まっても もういない", fought && gone && empty);
                 Check(log, "捕まえても経験値：倒したときの7割", capExp);
+            }
+            {
+                // 捕まえて終わっても バトル終了なので進化の判定（6.5）。先頭のヒトカゲに Lv と経験値を持たせ、野生のヒトカゲ Lv5 をマスターボールで捕まえる
+                (List<GameEvent> ev, PlayerState p) CatchWith(int level, int exp)
+                {
+                    var g = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
+                    var p = g.State.Players[0];
+                    var lead = p.Party[0];
+                    Pokemons.SetLevel(data, lead, level); lead.Exp = exp;
+                    p.Balls["マスターボール"] = 1;
+                    g.DebugEnabled = true;
+                    Apply(g, new DebugCommand { Player = 0, Action = DebugAction.Battle, Text = "ヒトカゲ", Value = 5 });
+                    var ev = new List<GameEvent>();
+                    for (int k = 0; k < 5 && g.State.Battle != null && !ev.OfType<Caught>().Any(); k++)
+                    {
+                        var b = g.State.Battle;
+                        if (b.Step == BattleStep.Select) Apply(g, new SelectPokemon { Player = 0, Slot = 0 });
+                        else { b.Step = BattleStep.Ball; ev = Apply(g, new ThrowBall { Player = 0, Ball = "マスターボール" }); } // 1往復を待たずに投げる
+                    }
+                    return (ev, p);
+                }
+                // Lv15 で Lv16 の1手前 → 捕獲の経験値で Lv16 を越えて リザードに（経験値は1回だけ、図鑑と旅の記録にも残る）
+                var (e1, p1) = CatchWith(15, Pokemons.ExpForLevel(16) - 1);
+                var ex1 = e1.OfType<ExpGained>().Where(x => x.Pokemon == "ヒトカゲ").ToList();
+                bool evolved = e1.OfType<Caught>().Any() && ex1.Count == 1 && ex1[0].Level >= 16
+                    && e1.OfType<Evolved>().Count(v => v.Player == p1.Id) == 1 && e1.OfType<Evolved>().Single().From == "ヒトカゲ" && e1.OfType<Evolved>().Single().To == "リザード"
+                    && p1.Party[0].Species == "リザード" && p1.Dex.Contains("リザード") && p1.Journal.Any(j => j.Kind == "evolve");
+                Check(log, "捕まえて終わったバトルでも、捕獲の経験値で進化レベルを越えた手持ちが進化する", evolved);
+                // Lv35 のヒトカゲ（Lv16 も Lv36 も越える）でも 1段階だけ
+                var (e2, p2) = CatchWith(35, Pokemons.ExpForLevel(36) - 1);
+                bool once = e2.OfType<Caught>().Any() && p2.Party[0].Level >= 36 && e2.OfType<Evolved>().Count() == 1 && p2.Party[0].Species == "リザード";
+                Check(log, "捕まえて終わったバトルの進化も 1段階だけ（リザードンの Lv を越えても リザードまで）", once);
+                // 野生を倒して終わっても 進化の判定（6.5「戦闘」には野生戦も含む）
+                var wg = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
+                var wlead = wg.State.Players[0].Party[0];
+                Pokemons.SetLevel(data, wlead, 15); wlead.Exp = Pokemons.ExpForLevel(16) - 1;
+                wg.DebugEnabled = true;
+                Apply(wg, new DebugCommand { Player = 0, Action = DebugAction.Battle, Text = "ヒトカゲ", Value = 5 });
+                if (wg.State.Battle?.Step == BattleStep.Select) Apply(wg, new SelectPokemon { Player = 0, Slot = 0 });
+                var wev = Apply(wg, new DebugCommand { Player = 0, Action = DebugAction.WinBattle });
+                Check(log, "野生を倒して終わったバトルでも、進化レベルを越えた手持ちが進化する", wev.OfType<Evolved>().Count() == 1 && wlead.Species == "リザード");
             }
             {
                 // 換金所（2.1・2.3）：1,000円で1p。最後の10週は閉まる。勝利ポイントには換えたポイントだけが入り、お金は入らない
