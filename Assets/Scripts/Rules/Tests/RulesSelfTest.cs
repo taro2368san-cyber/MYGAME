@@ -1127,6 +1127,47 @@ namespace Sugoroku.Rules
                 Check(log, "先頭固定のバトル（野生）でも 遭遇で 両方の先頭が出る", wev.OfType<Encountered>().Any(e => e.Side == 1 && e.Pokemon == "コラッタ" && e.Level == 5) && wev.OfType<Encountered>().Any(e => e.Side == 0 && e.Pokemon == "ヒトカゲ"));
             }
             {
+                // 野生のダメージ0.6倍（7.5）：野生の行動で プレイヤーのポケモンが受けるときだけ。同じ乱数で、相手がトレーナーのときのダメージと比べる
+                var hitMethod = typeof(GameProcessor).GetMethod("Hit", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                (GameProcessor g, BattleState b) Make(bool wild)
+                {
+                    var g = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
+                    g.State.Players[0].Party[0] = Pokemons.Create(data, "カメックス", 50, "", "", 1);
+                    g.DebugEnabled = true;
+                    Apply(g, new DebugCommand { Player = 0, Action = DebugAction.Battle, Text = "カメックス", Value = 50 });
+                    var b = g.State.Battle;
+                    if (b != null && !wild) b.Kind = BattleKind.Trainer;
+                    return (g, b);
+                }
+                var (wildG, wildB) = Make(true);
+                var (trG, trB) = Make(false);
+                RoundResolved HitOnce(GameProcessor g, BattleState b, int attacker, Attack atk, Defense def, ulong rng)
+                {
+                    foreach (var s in b.Sides) s.Current.Hp = Pokemons.MaxHp(data, s.Current);
+                    g.State.Rng = rng; b.Attacker = attacker;
+                    var ev = new RoundResolved();
+                    hitMethod.Invoke(g, new object[] { b.Sides[attacker], b.Sides[1 - attacker], atk, def, ev });
+                    return ev;
+                }
+                // attacker：0＝プレイヤー、1＝野生。scaled：0.6倍がかかるはず
+                bool Scene(int attacker, Attack atk, Defense def, bool reflect, bool scaled)
+                {
+                    if (wildB == null || trB == null) return false;
+                    for (ulong rng = 1; rng < 200; rng++)
+                    {
+                        var t = HitOnce(trG, trB, attacker, atk, def, rng);
+                        if (t.Missed || t.Absorbed) continue; // 当たる乱数を探す（同じ乱数なら 野生のほうも同じ流れ）
+                        var w = HitOnce(wildG, wildB, attacker, atk, def, rng);
+                        if (w.Missed || w.Reflected != reflect || t.Reflected != reflect) return false;
+                        return scaled ? w.Damage < t.Damage && Math.Abs(w.Damage - t.Damage * data.Required("wild_damage_mult")) <= 1 : w.Damage == t.Damage;
+                    }
+                    return false;
+                }
+                Check(log, "野生のダメージ0.6倍：野生の攻撃をプレイヤーが受ける→かかる、野生の必殺技をプレイヤーが反射して野生が受ける→かからない、プレイヤーの必殺技を野生が反射してプレイヤーが受ける→かかる、プレイヤーの攻撃を野生が受ける→かからない",
+                    Scene(1, Attack.Physical, Defense.Guard, false, true) && Scene(1, Attack.Super, Defense.Counter, true, false)
+                    && Scene(0, Attack.Super, Defense.Counter, true, true) && Scene(0, Attack.Physical, Defense.Guard, false, false));
+            }
+            {
                 // ボールを売る（8.1・8.9）：ボールは専用のカウンターから1個減って、価格の半額が入る。マスターボールは売れない
                 var shopSq = board.Squares.Values.FirstOrDefault(x => x.Type == "ショップ");
                 bool sold = false;

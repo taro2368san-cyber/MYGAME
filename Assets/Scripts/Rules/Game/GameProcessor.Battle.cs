@@ -538,13 +538,16 @@ namespace Sugoroku.Rules
             ev.Critical = !guarded && AbilityName(D) != "カブトアーマー" && Chance(Math.Max(fx != null && fx.CritRate > 0 ? fx.CritRate : Tune("crit_rate"), HeldOf(A) == "ピントレンズ" ? Tune("crit_rate_scope") : 0));
             int dice = ev.Dice = Roll(1, 10);
             double random = Tune("damage_random_min") + (Tune("damage_random_max") - Tune("damage_random_min")) * (dice - 1) / 9;
+            // 野生のダメージ（7.5）：野生の行動で プレイヤーのポケモンが受けるときだけ 0.6倍。必殺技を反射したときは 攻撃側が受けるので、受ける側で決める
+            bool reflected = atk == Attack.Super && guarded;
+            var taker = reflected ? A : D;
             double damage = baseDamage * mult * (ev.Weakness ? Tune("weakness_mult") : 1) * (ev.Critical ? Tune("crit_mult") : 1) * random * (atk == Attack.Super ? ja.super : 1) * (physical && ap.Status == Status.Burn ? 0.5 : 1)
                 * (fx != null && fx.LateMult > 0 && B.First != B.Attacker ? fx.LateMult : 1) * AbilityDamageMult(A, D, physical, guarded, ev)
                 * (HeldOf(A) == "いのちのたま" ? Tune("life_orb_mult") : 1)
-                * (B.Kind == BattleKind.Wild && A.Player < 0 ? Tune("wild_damage_mult") : 1); // 野生が与えるダメージ
+                * (B.Kind == BattleKind.Wild && taker.Player >= 0 ? Tune("wild_damage_mult") : 1); // 反射なら 本来×2×0.6。切り捨てと最低1は 最後に1回
             ev.Damage = Math.Max(TuneInt("damage_min"), (int)damage);
             ev.Guarded = guarded;
-            if (atk == Attack.Super && guarded)
+            if (reflected)
             {
                 ev.Reflected = true; // カウンター成功：防御側は無傷、2倍を攻撃側へ
                 ap.Hp = Math.Max(0, ap.Hp - ev.Damage);
