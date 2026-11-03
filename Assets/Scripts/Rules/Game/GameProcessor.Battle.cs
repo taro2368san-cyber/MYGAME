@@ -43,8 +43,8 @@ namespace Sugoroku.Rules
             events.Add(new BattleStarted { Kind = kind, Full = full, Opponent = opponent.Name, Players = b.Sides.Select(s => s.Player).ToArray() });
             b.Weather = State.FluteWeeks > 0 ? State.FluteWeather : WeatherOfWeek(State.Weather);
             if (b.Weather != "") events.Add(new BattleWeatherChanged { Weather = b.Weather });
-            // 選出があるのはフルバトルとプレイヤー戦（7.1.1）。先頭固定のバトルでも、先頭が戦闘不能なら選ぶ
-            bool choose = full || kind == BattleKind.Player || kind == BattleKind.Tournament;
+            // 選出があるのはフルバトル・プレイヤー戦・ロケット団（7.1.1）。先頭固定のバトルでも、先頭が戦闘不能なら選ぶ
+            bool choose = full || kind == BattleKind.Player || kind == BattleKind.Tournament || kind == BattleKind.Rocket;
             for (int i = 0; i < 2; i++) PrepareSide(i, choose, events);
             AfterSelect(events);
             return true;
@@ -145,6 +145,15 @@ namespace Sugoroku.Rules
             B.First = B.Attacker = cards[picked];
             events.Add(new InitiativeDrawn { Cards = cards, Picked = picked, First = B.Attacker, FirstPokemon = B.Sides[B.Attacker].Current.Species });
             BeginCommands(events);
+        }
+
+        // 前の版のセーブ：ロケット団戦は選出がなく、先頭が自動で出ていた（先頭が戦闘不能なら選出の命令が記録されている）
+        internal void AutoSelectLead()
+        {
+            var events = new List<GameEvent>();
+            foreach (var s in B.Sides.Where(x => x.NeedsSelect && x.Player >= 0)) { s.Active = 0; s.NeedsSelect = false; }
+            AfterSelect(events);
+            Record(events);
         }
 
         // 前の版のセーブ（カードを選ぶ命令がない）を読むとき：前と同じく乱数で1枚引く。命令の記録には残さない

@@ -338,11 +338,34 @@ namespace Sugoroku.Rules
                     return all;
                 }
                 var (g1, ev1) = LandEvents(sq, "ヒトカゲ", Strong);
-                bool battle = ev1.OfType<BattleStarted>().Any(x => x.Kind == BattleKind.Rocket);
+                bool battle = ev1.OfType<BattleStarted>().Any(x => x.Kind == BattleKind.Rocket) && g1.State.Battle?.Step == BattleStep.Select && ev1.OfType<SelectRequested>().Any(x => x.Player == 0); // 3体から選出（7.1.1）
                 var fought = Fight(g1);
                 var won = fought.OfType<RocketDefeated>().FirstOrDefault();
                 int areaTrainers = board.Squares.Values.Count(x => x.Type == "トレーナー" && x.Area == sq.Area);
-                Check(log, "ロケット団マス：団員とクイックバトル、勝つと拠点とエリアのトレーナーマス2つが自分のものに", battle && won != null && won.First && g1.State.Owners[sq.Id] == 0 && won.Trainers.Count == Math.Min(2, areaTrainers) && won.Trainers.All(x => g1.State.Owners[x] == 0));
+                Check(log, "ロケット団マス：団員とクイックバトル（3体から選出）、勝つと拠点とエリアのトレーナーマス2つが自分のものに", battle && won != null && won.First && g1.State.Owners[sq.Id] == 0 && won.Trainers.Count == Math.Min(2, areaTrainers) && won.Trainers.All(x => g1.State.Owners[x] == 0));
+
+                // 選んだ子が戦う（7.1.1・6.6）：手持ちの2番（ヒトカゲ）を出すと その子が場に出て、勝つと その子に1.0倍、ほかの手持ち（カメックス）に0.6倍
+                var (g6, _) = LandEvents(sq, "ヒトカゲ", Strong);
+                bool picked = false, expOk = false;
+                if (g6.State.Battle?.Step == BattleStep.Select)
+                {
+                    var b6 = g6.State.Battle;
+                    Apply(g6, new SelectPokemon { Slot = 1 });
+                    picked = b6.Sides[0].Active == 1 && b6.Sides[0].Current.Species == "ヒトカゲ";
+                    int foeLv = b6.Sides[1].Current.Level;
+                    double total = data.Required("exp_coef") * foeLv * foeLv;
+                    g6.DebugEnabled = true;
+                    var xs = Apply(g6, new DebugCommand { Action = DebugAction.WinBattle }).OfType<ExpGained>().ToList();
+                    expOk = xs.Any(x => x.Pokemon == "ヒトカゲ" && x.Exp == (int)(total * data.Required("exp_selected")))
+                        && xs.Any(x => x.Pokemon == "カメックス" && x.Exp == (int)(total * data.Required("exp_bench")));
+                }
+                Check(log, "ロケット団戦：選んだ2番の子が場に出て、勝つと その子に経験値1.0倍、ほかの手持ちに0.6倍", picked && expOk);
+
+                // 戦闘不能の子は選べない
+                var (g7, _) = LandEvents(sq, "ヒトカゲ", s => { Strong(s); s.Players[0].Party[1].Hp = 0; });
+                int me7 = g7.State.CurrentPlayer.Id;
+                Check(log, "ロケット団戦：戦闘不能の子を選出する命令は受け付けない", g7.State.Battle?.Step == BattleStep.Select
+                    && g7.Validate(new SelectPokemon { Player = me7, Slot = 1 }) != null && g7.Validate(new SelectPokemon { Player = me7, Slot = 0 }) == null);
 
                 var (g2, _) = LandEvents(sq, "ヒトカゲ", s => { Strong(s); s.Owners[sq.Id] = 0; });
                 var f = g2.State.Facility;
@@ -554,8 +577,7 @@ namespace Sugoroku.Rules
                 // サファリで捕まえたら 倒したときの3割（6.6）
                 bool safExp = !safEv.OfType<Caught>().Any() || safEv.OfType<ExpGained>().Any(x => x.Exp == (int)(data.Required("exp_coef") * safLv * safLv * data.Required("exp_capture_safari")));
                 Check(log, "サファリゾーン：入場料でサファリボール3個、投げるだけ、遭遇は1回。お金がないと入れない", kicked && entered && throwOnly && sg2.State.Battle == null && !sp2.Balls.ContainsKey("サファリボール"));
-                Check(log, "サファリで捕まえたら 経験値は3割" + (safEv.OfType<Caught>().Any() ? "" : "（この種では捕まらなかった）"), safExp);
-            }
+                Check(log, "サファリで捕まえたら 経験値は3割" + (safEv.OfType<Caught>().Any() ? "" : "（この種では捕まらなかった）"), safExp);            }
             var clubRow = data.EventSquares.FirstOrDefault(x => x.Effect.Kind == EffectKind.Item && x.Effect.CondKind == "1人1回");
             var clubSq = clubRow == null ? null : board.Squares.Values.FirstOrDefault(x => x.Name == clubRow.Square && x.Neighbors.Count > 0);
             if (clubSq != null)
@@ -567,8 +589,7 @@ namespace Sugoroku.Rules
             }
             var bossRow = data.EventSquares.FirstOrDefault(x => x.Effect.Kind == EffectKind.Battle && data.FindParty(x.Effect.Value)?.Full == true);
             var bossSq = bossRow == null ? null : board.Squares.Values.FirstOrDefault(x => x.Name == bossRow.Square && x.Neighbors.Count > 0);
-            if (bossSq != null) Check(log, "サカキ：シルフカンパニーのイベントマスで フルバトル", LandOn(bossSq) is BattleStarted bb && bb.Kind == BattleKind.Event && bb.Full && bb.Opponent == data.FindParty(bossRow.Effect.Value).Name);
-            {
+            if (bossSq != null) Check(log, "サカキ：シルフカンパニーのイベントマスで フルバトル", LandOn(bossSq) is BattleStarted bb && bb.Kind == BattleKind.Event && bb.Full && bb.Opponent == data.FindParty(bossRow.Effect.Value).Name);            {
                 var cs = new GameState { MaxWeeks = 50, Week = 12 };
                 bool before = Conditions.Met("経過した週の割合", "25", null, cs);
                 cs.Week = 13;

@@ -71,6 +71,8 @@ namespace Sugoroku.Rules
                 game.DebugEnabled = true; // デバッグ命令も記録に入っているので、流し直すあいだは受け付ける
                 for (int i = 0; i < commands.Count; i++)
                 {
+                    var bs = game.State.Battle;
+                    if (bs?.Step == BattleStep.Select && bs.Kind == BattleKind.Rocket && !(commands[i] is SelectPokemon)) game.AutoSelectLead(); // 前の版のセーブ
                     if (game.State.Battle?.Step == BattleStep.Initiative && !(commands[i] is PickCard)) game.AutoPickCard(); // 前の版のセーブ
                     events = game.Apply(commands[i], out string e);
                     if (e != null) { error = $"{i + 1}番目の命令（{commands[i].GetType().Name}）が受け付けられません：{e}"; return null; }
