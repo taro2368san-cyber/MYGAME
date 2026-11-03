@@ -982,7 +982,17 @@ public partial class GameRunner : MonoBehaviour
                     var c = new SelectPokemon { Player = side.Player, Slot = i };
                     Add($"{m.Species} Lv{m.Level} {m.Hp}/{Pokemons.MaxHp(data, m)}", () => Send(c), KeyCode.None, Ok(c));
                 }
-                return $"{side.Name}さん、出すポケモンを えらんでください（相手には見えません）";
+                // 相手は 先頭だけ見える（16.5・7.11）。プレイヤーの相手は 選び直すので 出てくるとは限らない（NPC は いつも先頭を出す）
+                // バトルの はじめ（まだ1体も出していない）だけ。倒れたあとの選び直しでは 相手の場の子が見えている
+                string foeLead = "";
+                if (side.Participated.Count == 0)
+                {
+                    var foe = b.Sides[1 - System.Array.IndexOf(b.Sides, side)];
+                    var lead = game.Lead(foe);
+                    var sp = Pokemons.Of(data, lead);
+                    foeLead = $"\nあいての せんとう：{lead.Species} Lv{lead.Level}（じゃくてん：{(sp.Weakness != "" ? sp.Weakness : "なし")}）" + (foe.Player >= 0 ? "　※あいても えらぶので、出てくるとは かぎらない" : "");
+                }
+                return $"{side.Name}さん、出すポケモンを えらんでください（相手には見えません）" + foeLead;
             }
             // コマンドは バトル画面の ポケモンの下で選ぶ（UI仕様書 7.2）。ここでは 押したときの動きとキーだけを決める（並びは □ ○ △ R1）
             // コントローラー：□ ○ △ R1。キーボード：A S D F（攻撃・防御とも同じ記号は同じキー）

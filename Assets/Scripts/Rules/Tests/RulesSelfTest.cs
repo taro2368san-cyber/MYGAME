@@ -357,6 +357,12 @@ namespace Sugoroku.Rules
                 }
                 var (g1, ev1) = LandEvents(sq, "ヒトカゲ", Strong);
                 bool battle = ev1.OfType<BattleStarted>().Any(x => x.Kind == BattleKind.Rocket) && g1.State.Battle?.Step == BattleStep.Select && ev1.OfType<SelectRequested>().Any(x => x.Player == 0); // 3体から選出（7.1.1）
+                // 遭遇（16.5・7.11）：選出の前に 相手の先頭（手持ちの1番目）と弱点が見える。場には まだ出ない
+                var foeLead = g1.State.Battle?.Sides[1].Team[0];
+                int encAt = ev1.FindIndex(e => e is Encountered x && x.Side == 1), selAt = ev1.FindIndex(e => e is SelectRequested);
+                var enc = encAt >= 0 ? (Encountered)ev1[encAt] : null;
+                Check(log, "ロケット団戦：選出の前に 遭遇で 相手の先頭（手持ちの1番目）の名前・Lv・弱点が見えて、場には まだ出ていない",
+                    foeLead != null && enc != null && encAt < selAt && enc.Pokemon == foeLead.Species && enc.Level == foeLead.Level && enc.Weakness == Pokemons.Of(data, foeLead).Weakness && !ev1.OfType<SentOut>().Any());
                 var fought = Fight(g1);
                 var won = fought.OfType<RocketDefeated>().FirstOrDefault();
                 int areaTrainers = board.Squares.Values.Count(x => x.Type == "トレーナー" && x.Area == sq.Area);
@@ -1043,6 +1049,33 @@ namespace Sugoroku.Rules
                     surrendered = pev2.OfType<Fled>().Any(f => f.Surrender) && loser.Money == 666 && winner.Money == 1334;
                 }
                 Check(log, "プレイヤー戦のお金：勝った人が「許す」を選んでも、降参で負けても 334円が 勝った人に入る", forgiven && surrendered);
+            }
+            {
+                // プレイヤー戦の遭遇（16.5）：2人とも 相手の1番目が見える。先頭とちがう子を選んでも、場に出るのは 2人とも選んでから（15.6）
+                var g = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ"), ("B", MoveMode.Highlight, "ヒトカゲ") }, 50, 3, out _);
+                var me = g.State.CurrentPlayer; var you = g.State.Players.First(x => x != me);
+                me.Party.Add(Pokemons.Create(data, "ピカチュウ", 10, "", "", 1));
+                you.Party.Add(Pokemons.Create(data, "イーブイ", 10, "", "", 1));
+                g.DebugEnabled = true;
+                Apply(g, new DebugCommand { Player = me.Id, Action = DebugAction.SetDice, Value = 1 });
+                int to = Apply(g, new RollDice { Player = me.Id }).OfType<DiceRolled>().First().Reachable.First();
+                you.Square = to;
+                Apply(g, new ChooseDestination { Player = me.Id, Square = to });
+                var start = Apply(g, new ConfirmMove { Player = me.Id });
+                var encs = start.OfType<Encountered>().ToList();
+                bool bothSee = g.State.Battle?.Kind == BattleKind.Player && encs.Count == 2 && !start.OfType<SentOut>().Any()
+                    && encs.Any(e => e.Side == 0 && e.Pokemon == me.Party[0].Species) && encs.Any(e => e.Side == 1 && e.Pokemon == you.Party[0].Species);
+                var firstPick = bothSee ? Apply(g, new SelectPokemon { Player = me.Id, Slot = 1 }) : new List<GameEvent>(); // 先頭とちがう子
+                bool hidden = bothSee && !firstPick.OfType<SentOut>().Any() && !firstPick.OfType<Encountered>().Any();
+                var secondPick = hidden ? Apply(g, new SelectPokemon { Player = you.Id, Slot = 1 }) : new List<GameEvent>();
+                var outs = secondPick.OfType<SentOut>().ToList();
+                Check(log, "プレイヤー戦：2人とも 相手の1番目が見える。先頭とちがう子を選んでも、場に出るのは 2人とも選んでから（そろう前は 選んだ子が出ない）",
+                    bothSee && hidden && outs.Count == 2 && outs.Any(o => o.Side == 0 && o.Pokemon == "ピカチュウ") && outs.Any(o => o.Side == 1 && o.Pokemon == "イーブイ"));
+                // 先頭固定のバトル（野生）でも 同じ形の遭遇が出る
+                var wg = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
+                wg.DebugEnabled = true;
+                var wev = Apply(wg, new DebugCommand { Player = 0, Action = DebugAction.Battle, Text = "コラッタ", Value = 5 });
+                Check(log, "先頭固定のバトル（野生）でも 遭遇で 両方の先頭が出る", wev.OfType<Encountered>().Any(e => e.Side == 1 && e.Pokemon == "コラッタ" && e.Level == 5) && wev.OfType<Encountered>().Any(e => e.Side == 0 && e.Pokemon == "ヒトカゲ"));
             }
             {
                 // ボールを売る（8.1・8.9）：ボールは専用のカウンターから1個減って、価格の半額が入る。マスターボールは売れない

@@ -60,6 +60,7 @@ namespace Sugoroku.Rules
     }
 
     public sealed class BattleStarted : GameEvent { public BattleKind Kind; public bool Full; public string Opponent; public int[] Players; }
+    public sealed class Encountered : GameEvent { public int Side; public string Pokemon; public int Level; public string Type, Weakness; } // 遭遇（16.5 #29）：選出の前に見える その側の先頭だけ。実際に出る子は SentOut
     public sealed class SelectRequested : GameEvent { public int Side, Player; }
     public sealed class BattleSuspended : GameEvent { public int Player; public string Opponent; }   // 1往復したので、続きは次の自分の番
     public sealed class BattleResumed : GameEvent { public int Player; public BattleKind Kind; public bool Full; public string Opponent; public int[] Players; }

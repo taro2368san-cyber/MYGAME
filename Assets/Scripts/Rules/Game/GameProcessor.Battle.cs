@@ -43,12 +43,22 @@ namespace Sugoroku.Rules
             events.Add(new BattleStarted { Kind = kind, Full = full, Opponent = opponent.Name, Players = b.Sides.Select(s => s.Player).ToArray() });
             b.Weather = State.FluteWeeks > 0 ? State.FluteWeather : WeatherOfWeek(State.Weather);
             if (b.Weather != "") events.Add(new BattleWeatherChanged { Weather = b.Weather });
+            // 遭遇（16.5 #29・7.11）：選出の前に、両方の先頭だけを見せる。選出のあるバトルでは 出てくるとは限らない
+            for (int i = 0; i < 2; i++)
+            {
+                var lead = Lead(b.Sides[i]);
+                var sp = Pokemons.Of(data, lead);
+                events.Add(new Encountered { Side = i, Pokemon = lead.Species, Level = lead.Level, Type = sp.Type, Weakness = sp.Weakness });
+            }
             // 選出があるのはフルバトル・プレイヤー戦・ロケット団（7.1.1）。先頭固定のバトルでも、先頭が戦闘不能なら選ぶ
             bool choose = full || kind == BattleKind.Player || kind == BattleKind.Tournament || kind == BattleKind.Rocket;
             for (int i = 0; i < 2; i++) PrepareSide(i, choose, events);
             AfterSelect(events);
             return true;
         }
+
+        // 見えている先頭（16.5）：手持ちの1番目。戦闘不能なら 戦える最初の子（NPC が出す子・先頭固定で出る子と同じ）
+        public PokemonState Lead(BattleSide s) => s.Team.FirstOrDefault(m => !m.Fainted) ?? s.Team[0];
 
         // exclude：交代させられた子（脱出ボタン）。その子は選べない
         void PrepareSide(int i, bool choose, List<GameEvent> events, int exclude = -1)
