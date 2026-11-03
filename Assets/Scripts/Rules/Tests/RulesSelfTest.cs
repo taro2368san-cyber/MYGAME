@@ -1188,6 +1188,15 @@ namespace Sugoroku.Rules
                     var wev = challenged ? jg.Apply(new DebugCommand { Player = 0, Action = DebugAction.WinBattle }, out _) : new List<GameEvent>();
                     Check(log, "職業マス：開始時にトレーナーマスへ置かれる、条件を満たすと職業トレーナーと戦い、勝つと解放して就くか聞かれる",
                         placed && !nev.OfType<JobChallenge>().Any() && challenged && wev.OfType<JobUnlocked>().Any(x => x.Job == "ひふきやろう") && jg.State.Facility?.Kind == FacilityKind.JobOffer);
+                    // トレーナーマスの亜種（9.2・11.2）：持ち主がいなければ 勝った人のファンになる（年貢の数に入る＝トレーナーマスの持ち主）。他人のファンなら 解放されても 持ち主は変わらない
+                    void Strong4(GameState s) { var pl = s.Players[0]; for (int i = 0; i < 4; i++) pl.Gyms.Add("ジム" + i); pl.Party[0] = Pokemons.Create(data, "リザードン", 100, "", "", 1); }
+                    var (og, oev) = LandEvents(board[fireSq], "ヒトカゲ", s => { Strong4(s); s.Owners[fireSq] = 99; });
+                    bool otherChallenged = oev.OfType<JobChallenge>().Any() && og.State.Battle?.Kind == BattleKind.Job;
+                    og.DebugEnabled = true;
+                    var owev = otherChallenged ? og.Apply(new DebugCommand { Player = 0, Action = DebugAction.WinBattle }, out _) : new List<GameEvent>();
+                    Check(log, "職業マス：持ち主がいなければ 勝つと そのトレーナーが勝った人のファンになる（年貢の数に入る）。他人のファンなら 解放されても 持ち主は変わらない",
+                        challenged && jg.State.Owners.TryGetValue(fireSq, out int jo) && jo == 0 && board[fireSq].Type == "トレーナー" && wev.OfType<OwnerChanged>().Any(x => x.Square == fireSq && x.Owner == 0)
+                        && otherChallenged && owev.OfType<JobUnlocked>().Any(x => x.Job == "ひふきやろう") && og.State.Owners[fireSq] == 99 && !owev.OfType<OwnerChanged>().Any(x => x.Square == fireSq));
                 }
                 else Check(log, "職業マス：開始時にトレーナーマスへ置かれる", placed);
             }

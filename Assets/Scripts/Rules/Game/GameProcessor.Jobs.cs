@@ -74,6 +74,7 @@ namespace Sugoroku.Rules
             events.Add(new JobChallenge { Player = p.Id, Job = r.Job });
             StartBattle(BattleKind.Job, false, Npc($"{r.Job}の トレーナー", new[] { (species, level) }), events);
             B.Job = r.Job;
+            B.TrainerId = entry?.Id; // トレーナー.csv の人（ジムトレーナーなら 倒した記録にも残る）
             return true;
         }
 

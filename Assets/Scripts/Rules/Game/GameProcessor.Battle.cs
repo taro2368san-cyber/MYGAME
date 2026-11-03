@@ -757,7 +757,13 @@ namespace Sugoroku.Rules
                 Say("rival_become_owner", events, p);
             }
             if (b.Kind == BattleKind.Rocket) RocketCleared(p, events);
-            if (b.Kind == BattleKind.Job) { UnlockJob(p, b.Job, events); OfferJob(p, b.Job, events); } // 勝つと解放、その場で就ける（9.2）
+            if (b.Kind == BattleKind.Job)
+            {
+                // 職業マスはトレーナーマスの亜種（9.2）：持ち主がいなければ ふつうのトレーナーマスと同じく ファンになる（11.2）。他人のファンなら 持ち主は変わらない
+                if (b.TrainerId != null) p.BeatenTrainers.Add(b.TrainerId);
+                if (!State.Owners.ContainsKey(b.Square)) { SetOwner(b.Square, p.Id, events); Say("trainer_become_fan", events, p, ("名前", lose.Name)); }
+                UnlockJob(p, b.Job, events); OfferJob(p, b.Job, events); // 勝つと解放、その場で就ける（9.2）
+            }
             if (b.Kind == BattleKind.Event) EventBattleWon(p, events);
             if (b.Kind == BattleKind.League) LeagueWon(p, events);
             // 共通報酬のアイテム（7.7）：NPC戦に勝つと確率で、ボールマスと同じ表（バッジの段階）から1つ。もらったポケモンの入れ先を選んでいる最中なら出さない
