@@ -314,36 +314,41 @@ public partial class GameRunner
         b.image.color = new Color(1f, 0.85f, 0.4f);
     }
 
-    // ---- コントローラー登録（16.1 #4）：○を押したコントローラーが 1番、次に押したものが 2番 ----
+    // ---- コントローラー登録（1.1・15.10.1・16.1 #4）：はじめから・つづきから（枠を選んだあと）の前に必ず通る ----
+    // ○を押したコントローラーが 1番、次に押した別のものが 2番。キーボードは Enter で1つの機器として登録できる（開発中の確認用）
+    // 1台で遊ぶなら、1番のあと START（か画面のボタン）で すすむ。×（Esc）で1つ前の画面へ。つづきからも通すのは 相談.md 15
 
-    void StartPadRegister()
-    {
-        padDevice[0] = padDevice[1] = -1;
-        padRegister = 0;
-        PadRegisterShow();
-    }
+    System.Action padNext, padBack;
 
     void PadRegisterShow()
     {
-        var col = Overlay("PadRegister");
-        Ui.Line(col, "コントローラー登録", 48);
-        Ui.Line(col, padRegister == 0 ? "1番にする コントローラーの ○ を 押してください" : "2番にする コントローラーの ○ を 押してください（1台だけなら Esc）", 32);
+        var bg = FullScreen("PadRegister");
+        var col = Ui.Stack(bg.transform, "Rows", new Vector2(0.2f, 0.12f), new Vector2(0.8f, 0.88f), true, 18, 0);
+        Ui.Line(col, "コントローラー登録", 56);
+        Ui.Line(col, $"{padRegister + 1}ばんの コントローラーで ○を おしてください", 38);
+        Ui.Line(col, "（キーボードで あそぶなら Enter）", 26, new Color(0.8f, 0.8f, 0.8f));
+        if (padRegister == 1) Ui.Line(col, $"1ばん：{DeviceName(padDevice[0])}", 30, new Color(1, 0.9f, 0.5f));
         Ui.Line(col, $"つながっている コントローラー：{Gamepad.all.Count}台", 26);
+        if (padRegister == 1) Ui.Button(col, "1台で すすむ（START）", FinishPadRegister, 520, 66);
+        Ui.Button(col, "もどる（×）", CancelPadRegister, 520, 66);
     }
+
+    static string DeviceName(int id) => InputSystem.GetDeviceById(id) is InputDevice d ? (d is Keyboard ? "キーボード" : d.displayName) : "なし";
 
     void PadRegisterUpdate()
     {
-        if (Input.GetKeyDown(KeyCode.Escape)) { padRegister = -1; CloseOverlay(); return; }
-        foreach (var g in Gamepad.all)
-        {
-            if (!g.buttonEast.wasPressedThisFrame || padDevice.Contains(g.deviceId)) continue;
-            padDevice[padRegister] = g.deviceId;
-            padRegister++;
-            if (padRegister >= 2) { padRegister = -1; CloseOverlay(); AddLogSafe("コントローラーを 登録しました"); return; }
-            PadRegisterShow();
-            return;
-        }
+        if (Input.GetKeyDown(KeyCode.Escape) || Gamepad.all.Any(g => g.buttonSouth.wasPressedThisFrame)) { CancelPadRegister(); return; }
+        if (padRegister == 1 && Gamepad.all.Any(g => g.startButton.wasPressedThisFrame)) { FinishPadRegister(); return; }
+        int id = -1;
+        if (Input.GetKeyDown(KeyCode.Return) && Keyboard.current != null) id = Keyboard.current.deviceId;
+        foreach (var g in Gamepad.all) if (g.buttonEast.wasPressedThisFrame) id = g.deviceId;
+        if (id < 0 || padDevice.Contains(id)) return; // 同じ機器で2回押しても 2番にはしない
+        padDevice[padRegister] = id;
+        if (++padRegister >= 2) FinishPadRegister(); else PadRegisterShow();
     }
+
+    void FinishPadRegister() { padRegister = -1; padNext(); }
+    void CancelPadRegister() { padRegister = -1; padDevice[0] = padDevice[1] = -1; padBack(); }
 
     // ---- コントローラーが抜けたとき（17.4）：登録したものが抜けたら止めて、つなぎ直したら続ける ----
 
@@ -358,14 +363,31 @@ public partial class GameRunner
         if (padLostPanel == null)
         {
             Time.timeScale = 0; // 演出も止める
+            // 確定前のものは捨てて選び直し（17.4）：開いていた下のメニュー（どうぐ・にげるの確認など）と、移動で選んでいたマス。命令として送ったものは そのまま
+            subMenu = null; padSquare = -1;
+            if (game != null && !playing) RefreshAll();
             var bg = Ui.Panel(canvas.transform, "PadLost", Vector2.zero, Vector2.one, new Color(0, 0, 0, 0.85f));
-            Ui.Label(bg.transform, $"コントローラー{string.Join("・", lost.Select(n => n + 1))}が はずれました\nつなぎなおしてください\n（登録をやめるなら Esc）", 44);
+            Ui.Label(bg.transform, $"コントローラー{string.Join("・", lost.Select(n => n + 1))}が はずれました\nつなぎなおしてください\n（別の番号で つながったら ○。登録をやめるなら Esc）", 44, TextAnchor.MiddleCenter);
             padLostPanel = bg.gameObject;
         }
+        // つなぎ直したコントローラーが 新しい機器として見えたときは、○を押せば はずれた番号に入る
+        var back = Gamepad.all.FirstOrDefault(g => !padDevice.Contains(g.deviceId) && g.buttonEast.wasPressedThisFrame);
+        if (back != null) padDevice[lost[0]] = back.deviceId;
         if (Input.GetKeyDown(KeyCode.Escape)) { foreach (int n in lost) padDevice[n] = -1; } // キーボードで遊び続ける
         return true;
     }
 #endif
 
-    void AddLogSafe(string text) { if (game != null) AddLog(text); }
+    // コントローラー登録を通してから next へ（× なら back へ）。Input System がなければ そのまま next
+    void RegisterThen(System.Action next, System.Action back)
+    {
+#if ENABLE_INPUT_SYSTEM
+        padNext = next; padBack = back;
+        padDevice[0] = padDevice[1] = -1;
+        padRegister = 0;
+        PadRegisterShow();
+#else
+        next();
+#endif
+    }
 }

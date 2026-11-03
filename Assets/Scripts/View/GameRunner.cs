@@ -102,7 +102,7 @@ public partial class GameRunner : MonoBehaviour
         sound.PlayBgm("title");
         Ui.Label(Ui.Rect(bg.transform, "Name", new Vector2(0, 0.6f), new Vector2(1, 0.85f)), gameTitle, 110, TextAnchor.MiddleCenter);
         var col = Ui.Stack(bg.transform, "Menu", new Vector2(0.38f, 0.12f), new Vector2(0.62f, 0.52f), true, 18, 0);
-        Ui.Button(col, "はじめから", ShowSetup, 420, 76);
+        Ui.Button(col, "はじめから", () => RegisterThen(ShowSetup, ShowTitle), 420, 76); // コントローラー登録 → ゲーム設定（1.1）
         // セーブが1つもなければ押せない
         Ui.Button(col, "つづきから", ShowLoad, 420, 76).interactable = SaveSlots().Any(x => x.summary != null);
         Ui.Button(col, "設定", ShowSettings, 420, 76);
@@ -194,9 +194,6 @@ public partial class GameRunner : MonoBehaviour
         row = Row(col);
         Ui.Button(row, "つぎへ", () => ShowCharacterPick(0), 300, 70);
         Ui.Button(row, "タイトルへ", ShowTitle, 220, 70);
-#if ENABLE_INPUT_SYSTEM
-        Ui.Button(row, "コントローラー登録", StartPadRegister, 300, 70);
-#endif
     }
 
     string PlayerTitle(int i) => $"P{i + 1}" + (cpus[i] ? "（CPU）" : "");

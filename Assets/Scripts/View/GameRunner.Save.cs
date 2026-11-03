@@ -77,7 +77,7 @@ public partial class GameRunner
         foreach (var (slot, summary) in SaveSlots())
         {
             int k = slot;
-            Ui.Button(col, SlotLabel(slot, summary), () => LoadFrom(k), 900, 70).interactable = summary != null;
+            Ui.Button(col, SlotLabel(slot, summary), () => RegisterThen(() => LoadFrom(k), ShowLoad), 900, 70).interactable = summary != null; // 枠を選んだら コントローラー登録（相談.md 15）
         }
         Ui.Button(col, "もどる", ShowTitle, 900, 70);
     }
