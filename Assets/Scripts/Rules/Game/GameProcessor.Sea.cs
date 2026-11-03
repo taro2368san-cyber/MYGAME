@@ -12,15 +12,7 @@ namespace Sugoroku.Rules
         public const string SurfItem = "ひでんマシン なみのり";
         public const string FishingRod = "つりざお"; // 使うとなくなる（トレーナーの道具）
 
-        // 今いるマスから道で2マス以内の海上マス。となりを先に見る（なければ null）
-        BoardSquare SeaNextTo(PlayerState p)
-        {
-            var near = board[p.Square].Neighbors;
-            return near.Select(n => board[n]).FirstOrDefault(s => s.Sea)
-                ?? near.SelectMany(n => board[n].Neighbors).Where(n => n != p.Square).Select(n => board[n]).FirstOrDefault(s => s.Sea);
-        }
-
-        string CheckFish(PlayerState p) => !p.TrainerBag.Contains(FishingRod) ? "つりざおを 持っていません" : SeaNextTo(p) == null ? "つりは 海上マスから 2マス以内で できます" : null;
+        string CheckFish(PlayerState p) => !p.TrainerBag.Contains(FishingRod) ? "つりざおを 持っていません" : !board.CanFish(p.Square) ? "つりは 海上マスから 2マス以内で できます" : null;
 
         void DoFish(List<GameEvent> events)
         {
@@ -28,7 +20,7 @@ namespace Sugoroku.Rules
             p.TrainerBag.Remove(FishingRod);
             events.Add(new Fished { Player = p.Id });
             // 出現表は 今いる場所の「つり」。なければ 近くの海上マスの場所の「つり」
-            if (StartWild(board[p.Square], events, "つり") || StartWild(SeaNextTo(p), events, "つり")) return;
+            if (StartWild(board[p.Square], events, "つり") || StartWild(board.FishingSea(p.Square), events, "つり")) return;
             Nothing("なにも つれなかった", events);
             EndTurn(events);
         }

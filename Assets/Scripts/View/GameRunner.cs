@@ -631,6 +631,24 @@ public partial class GameRunner : MonoBehaviour
         }
     }
 
+    // つりができるマス（海上マスから2マス以内、4.1.2）に つりのマーク。場所の印なので つりざおの有無では変えない。別マップの板にも同じく置く（見えるのは表示中の板だけ）
+    // 絵は Ui.Icon の「つりざお」（仮のドット絵）。差し替えるときは FishMarkIcon か Ui の絵を変える
+    const string FishMarkIcon = "つりざお";
+    readonly List<GameObject> fishMarks = new List<GameObject>();
+    void SyncFishMarks()
+    {
+        if (fishMarks.Count > 0) return; // 盤面は変わらないので 1回だけ
+        foreach (var s in board.Squares.Values.Where(s => board.CanFish(s.Id)))
+        {
+            var go = new GameObject("つり");
+            go.transform.position = SquarePosition(s.Id) + new Vector3(0.55f, 0.35f, 0.35f); // マスの右上（真ん中は マスの名前と ×）
+            go.transform.rotation = Quaternion.Euler(90, 0, 0); // 寝かせて 上から見える向き（× と同じ）
+            go.transform.localScale = Vector3.one * 5f;
+            go.AddComponent<SpriteRenderer>().sprite = Ui.Icon(FishMarkIcon);
+            fishMarks.Add(go);
+        }
+    }
+
     Vector3 SquarePosition(int id) =>
         squares.TryGetValue(id, out var sq) ? sq.transform.position : new Vector3(board[id].X, 0, board[id].Z);
 
@@ -654,6 +672,7 @@ public partial class GameRunner : MonoBehaviour
         if (debugPanel != null) BuildDebugPanel();
         SyncSnorlax();
         SyncLocks();
+        SyncFishMarks();
         TryCpu();
     }
 

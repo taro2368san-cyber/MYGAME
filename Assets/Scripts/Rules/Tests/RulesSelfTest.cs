@@ -900,15 +900,19 @@ namespace Sugoroku.Rules
                 bool waterTable = wild == null || data.Encounters.Any(e => e.Place == sea.Place && e.Method == "水上" && wild.Opponent == "野生の" + e.Pokemon);
                 (sea.Type, sea.GrassKind) = keep;
                 // つりは 海上マスから道で2マス以内（小さい盤面：1─2─3─4。1から 3は2マス、4は3マス）
+                bool sameAsMark = true; // 盤面の つりのマーク（BoardData.CanFish）と 準備フェーズの「つり」が 同じマスで一致する
                 bool FishAt(int seaSquare)
                 {
                     var tb = TestBoard();
                     tb[seaSquare].GrassKind = "海上";
                     var tg = GameProcessor.NewGame(tb, TestData(3, 3), new[] { ("A", MoveMode.Highlight, "") }, 50, 1, out _);
                     tg.State.Players[0].TrainerBag.Add(GameProcessor.FishingRod);
-                    return tg.Validate(new Fish { Player = 0 }) == null;
+                    bool ok = tg.Validate(new Fish { Player = 0 }) == null;
+                    sameAsMark &= ok == tb.CanFish(tg.State.Players[0].Square);
+                    return ok;
                 }
                 Check(log, "海上マス：なみのりを覚えた人だけ行き先に選べる（ひでんマシンは袋に入らない）、止まると水上の野生、2マス以内なら つりざおを1本使って つりができる", closed && learned && reach.Contains(seaId) && noRod && fished && rodUsed && waterTable && FishAt(2) && FishAt(3) && !FishAt(4));
+                Check(log, "つりのマーク：海上マスから1歩・2歩のマスは つりができる、3歩はできない。準備フェーズの「つり」と同じマスで一致する", sameAsMark);
             }
             {
                 // 伝説のシンボル（4.x）：空マスを一時的に「ミュウツーのシンボル」にして試す。止まるとバトル、倒すと消えて 次はもういない
