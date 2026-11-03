@@ -913,6 +913,10 @@ namespace Sugoroku.Rules
                 }
                 Check(log, "海上マス：なみのりを覚えた人だけ行き先に選べる（ひでんマシンは袋に入らない）、止まると水上の野生、2マス以内なら つりざおを1本使って つりができる", closed && learned && reach.Contains(seaId) && noRod && fished && rodUsed && waterTable && FishAt(2) && FishAt(3) && !FishAt(4));
                 Check(log, "つりのマーク：海上マスから1歩・2歩のマスは つりができる、3歩はできない。準備フェーズの「つり」と同じマスで一致する", sameAsMark);
+                // 海上マス自身でも つれる（なみのりで水の上から）。まわりに海上マスがない ぽつんと1つの海上マス（1）の上でも「つり」を選べる
+                var lone = TestBoard(); lone[3].GrassKind = "海上";
+                bool selfOk = lone.CanFish(3) && lone.Squares.Values.Where(s => s.Sea).All(s => lone.CanFish(s.Id));
+                Check(log, "つりのマーク：海上マス自身も つりができる。ぽつんと1つの海上マスの上でも つりざおがあれば「つり」を選べる", selfOk && FishAt(1) && sameAsMark);
             }
             {
                 // 伝説のシンボル（4.x）：空マスを一時的に「ミュウツーのシンボル」にして試す。止まるとバトル、倒すと消えて 次はもういない

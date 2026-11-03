@@ -33,12 +33,13 @@ namespace Sugoroku.Rules
 
         public BoardSquare this[int id] => Squares[id];
 
-        // つり（4.1.2）：マスから道で2マス以内の海上マス（自分は数えない）。となりを先に見る。なければ null。準備フェーズの「つり」と盤面の つりのマークが 両方これを使う
+        // つり（4.1.2）：マスから道で2マス以内の海上マス（自分も含む。なみのりで水の上からも つれる）。近い順に見る。なければ null。準備フェーズの「つり」と盤面の つりのマークが 両方これを使う
         public BoardSquare FishingSea(int id)
         {
+            if (this[id].Sea) return this[id];
             var near = this[id].Neighbors;
             return near.Select(n => this[n]).FirstOrDefault(s => s.Sea)
-                ?? near.SelectMany(n => this[n].Neighbors).Where(n => n != id).Select(n => this[n]).FirstOrDefault(s => s.Sea);
+                ?? near.SelectMany(n => this[n].Neighbors).Select(n => this[n]).FirstOrDefault(s => s.Sea);
         }
         public bool CanFish(int id) => FishingSea(id) != null;
 
