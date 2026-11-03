@@ -246,6 +246,11 @@ namespace Sugoroku.Rules
                 if (cave2 != null && outside2 != null)
                     Check(log, "別マップは別のエリア：本マップから別マップへも、別マップから本マップへも 妨害が届かない。同じ別マップの中どうしと、本マップの同じエリアどうしは 届く",
                         !Reach(outside.Id, cave.Id) && !Reach(cave.Id, outside.Id) && Reach(cave.Id, cave2.Id) && Reach(outside.Id, outside2.Id));
+                // 島（3.4）：同じ行き先の島にいる2人には届く。同じ形（地方の島）でも、ちがう行き先の島どうしには届かない
+                var shape = data.IslandMaps.Where(i => i.Kind == "地方の島").Select(i => board.Squares.Values.Where(s => s.Place == i.Name).Select(s => s.Id).ToList()).Where(l => l.Count >= 2).ToList();
+                if (shape.Count >= 2)
+                    Check(log, "島：同じ行き先の島にいる2人には 妨害が届く。同じ形でも ちがう行き先の島（ジョウト島とホウエン島など）には 届かない。本マップからも届かない",
+                        Reach(shape[0][0], shape[0][1]) && !Reach(shape[0][0], shape[1][0]) && !Reach(board.StartSquare, shape[0][0]));
             }
             {
                 var (g, me, you) = Two("キャッチャ", y => y.PokemonBag.Add("キズくすり"));

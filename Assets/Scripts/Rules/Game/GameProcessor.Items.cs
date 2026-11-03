@@ -10,10 +10,11 @@ namespace Sugoroku.Rules
     public sealed partial class GameProcessor
     {
         // 妨害が届くのは同じエリアの相手だけ（8.3）
-        // 妨害の届くエリア（3.4・8.3、相談.md 3）：本マップは エリアシートのエリア、別マップは それぞれが1つのエリア（マップID）。島は その人だけのエリア
+        // 妨害の届くエリア（3.4・8.3、相談.md 3）：本マップは エリアシートのエリア、別マップは それぞれが1つのエリア（マップID）、島は 行き先（場所の名前）
+        // 同じ行き先の島に渡った人どうしは 同じマスにいて、妨害が届く（3.4「中に複数のプレイヤーがいれば、その間では妨害が届く」）
         // 同じエリアかどうかは、すべて これで見る（妨害アイテムの相手、ポケモンのふえ、突発バトルの組分け）
-        string AreaKey(int square) { var s = board[square]; return s.MapId == "" ? "area:" + s.Area : "map:" + s.MapId; }
-        string AreaKey(PlayerState p) => OnIsland(p) ? "island:" + p.Id : AreaKey(p.Square);
+        string AreaKey(int square) { var s = board[square]; return data.IsIslandMap(s.MapId) ? "island:" + s.Place : s.MapId == "" ? "area:" + s.Area : "map:" + s.MapId; }
+        string AreaKey(PlayerState p) => AreaKey(p.Square);
         bool SameArea(PlayerState a, PlayerState b) => AreaKey(a) == AreaKey(b);
 
         // 使えるか（CheckUseItem から。ポケモンに使う道具より後）。だめなら理由
