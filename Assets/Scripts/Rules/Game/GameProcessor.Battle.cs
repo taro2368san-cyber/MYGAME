@@ -721,7 +721,7 @@ namespace Sugoroku.Rules
         {
             var b = B;
             var p = State.Players[win.Player];
-            // お金（7.7）：相手の一番高いレベル×種類ごとの値。プレイヤー戦は負けた人が落としたお金
+            // お金（7.7）：相手の一番高いレベル×種類ごとの値。プレイヤー戦はここでは入らず、負けた人が落としたお金を LoserPenalty で受け取る
             int topLevel = lose.Team.Max(m => m.Level);
             string key = b.Kind == BattleKind.Wild ? "wild_win_money" : b.Kind == BattleKind.Trainer ? "trainer_win_money" : b.Kind == BattleKind.Gym ? "gym_win_money" : b.Kind == BattleKind.Rival ? "rival_win_money" : b.Kind == BattleKind.Event ? "event_win_money" : b.Kind == BattleKind.Rocket ? "rocket_win_money" : b.Kind == BattleKind.Job ? "trainer_win_money" : b.Kind == BattleKind.League ? "gym_win_money" : null;
             if (key != null) AddMoney(p, TuneInt(key) * topLevel * (p.Party.Any(m => m.HeldItem == "おまもりこばん") ? TuneInt("amulet_coin_mult") : 1), "賞金", events);
@@ -778,7 +778,10 @@ namespace Sugoroku.Rules
                 return;
             }
             foreach (var m in b.Full ? lose.Team : new List<PokemonState> { lose.Current }) m.Hp = 0;
+            int before = p.Money;
             AddMoney(p, -loss, "負けて落とした", events);
+            // プレイヤー戦は 落としたお金が そのまま勝った人に入る（7.7・7.9）。判定・降参でも同じ。「許す」は奪取だけなので ここは変わらない。NPC戦では消える
+            if (b.Kind == BattleKind.Player && win.Player >= 0) AddMoney(State.Players[win.Player], before - p.Money, "勝って ひろった", events);
             if (Chance(Tune("defeat_rest_rate"))) Rest(p, events);
             if (b.Kind == BattleKind.Rival) Say(b.DialogKey + "_lose", events, p);
             if (b.Kind == BattleKind.League) { Say(b.DialogKey + "_lose", events, p); LeagueOver(p); } // 挑戦は終わり。次は1人目から

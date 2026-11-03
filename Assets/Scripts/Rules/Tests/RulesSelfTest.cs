@@ -597,7 +597,44 @@ namespace Sugoroku.Rules
             }
             var bossRow = data.EventSquares.FirstOrDefault(x => x.Effect.Kind == EffectKind.Battle && data.FindParty(x.Effect.Value)?.Full == true);
             var bossSq = bossRow == null ? null : board.Squares.Values.FirstOrDefault(x => x.Name == bossRow.Square && x.Neighbors.Count > 0);
-            if (bossSq != null) Check(log, "サカキ：シルフカンパニーのイベントマスで フルバトル", LandOn(bossSq) is BattleStarted bb && bb.Kind == BattleKind.Event && bb.Full && bb.Opponent == data.FindParty(bossRow.Effect.Value).Name);            {
+            if (bossSq != null) Check(log, "サカキ：シルフカンパニーのイベントマスで フルバトル", LandOn(bossSq) is BattleStarted bb && bb.Kind == BattleKind.Event && bb.Full && bb.Opponent == data.FindParty(bossRow.Effect.Value).Name);
+            // 負けたときのお金（7.9）：所持金100円から34円（1/3、切り上げ）を失う。NPC戦では だれにも入らない
+            List<GameEvent> LoseAt(GameProcessor g)
+            {
+                g.DebugEnabled = true;
+                if (g.State.Battle?.Step == BattleStep.Select) Apply(g, new SelectPokemon { Player = 0, Slot = 0 });
+                g.State.Players[0].Money = 100;
+                return Apply(g, new DebugCommand { Player = 0, Action = DebugAction.LoseBattle });
+            }
+            {
+                var lg = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
+                lg.DebugEnabled = true;
+                Apply(lg, new DebugCommand { Player = 0, Action = DebugAction.Battle, Text = "コラッタ", Value = 5 });
+                var lev = LoseAt(lg);
+                Check(log, "NPC戦に負けると 所持金100円から34円を失い、そのお金は だれにも入らない",
+                    lg.State.Players[0].Money == 66 && lev.OfType<MoneyChanged>().Count() == 1 && lev.OfType<MoneyChanged>().Single().Amount == -34);
+            }
+            // イベントのクイックバトルに負けたら 所持金だけ（戦闘不能・1回休み・送還なし）。サカキ（フル）は ふつうの負け
+            var quickRow = data.EventSquares.FirstOrDefault(x => data.FindParty(x.Effect.Value)?.Full == false // 格闘道場（からておう）など
+                && board.Squares.Values.Any(s => s.Name == x.Square && s.Neighbors.Count > 0 && LandOn(s)?.Kind == BattleKind.Event));
+            if (quickRow != null)
+            {
+                // 1回休みは60%なので 種を5つ。即敗北のデバッグは 手持ちを全員倒すので、戦闘不能・送還は ここでは見ない
+                bool moneyOnly = true;
+                for (ulong seed = 1; seed <= 5; seed++)
+                {
+                    var (qg, _) = LandEvents(board.Squares.Values.First(s => s.Name == quickRow.Square && s.Neighbors.Count > 0), "ヒトカゲ", null, seed);
+                    var qev = LoseAt(qg);
+                    moneyOnly &= qg.State.Players[0].Money == 66 && !qev.OfType<RestNextTurn>().Any();
+                }
+                Check(log, "イベントのクイックバトルに負けると 所持金100円から34円を失うだけ（1回休みにならない）", moneyOnly);
+            }
+            if (bossSq != null)
+            {
+                var (bg, _) = LandEvents(bossSq, "ヒトカゲ");
+                var bev = LoseAt(bg);
+                Check(log, "サカキ（フルバトルのイベント）に負けると ふつうの負け：34円を失い、全滅で センターへ", bg.State.Players[0].Money == 66 && bev.OfType<SentToCenter>().Any());
+            }            {
                 var cs = new GameState { MaxWeeks = 50, Week = 12 };
                 bool before = Conditions.Met("経過した週の割合", "25", null, cs);
                 cs.Week = 13;
@@ -940,6 +977,46 @@ namespace Sugoroku.Rules
                 if (wg.State.Battle?.Step == BattleStep.Select) Apply(wg, new SelectPokemon { Player = 0, Slot = 0 });
                 var wev = Apply(wg, new DebugCommand { Player = 0, Action = DebugAction.WinBattle });
                 Check(log, "野生を倒して終わったバトルでも、進化レベルを越えた手持ちが進化する", wev.OfType<Evolved>().Count() == 1 && wlead.Species == "リザード");
+            }
+            {
+                // プレイヤー戦のお金（7.7・7.9）：負けた人が落とした 所持金の1/3（切り上げ）が 勝った人に入る。2人ともスタートから、手番の人が相手のいるマスに1歩で止まる
+                (GameProcessor g, PlayerState me, PlayerState you) Meet()
+                {
+                    var g = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ"), ("B", MoveMode.Highlight, "ヒトカゲ") }, 50, 3, out _);
+                    var me = g.State.CurrentPlayer; var you = g.State.Players.First(x => x != me);
+                    g.DebugEnabled = true;
+                    Apply(g, new DebugCommand { Player = me.Id, Action = DebugAction.SetDice, Value = 1 });
+                    int to = Apply(g, new RollDice { Player = me.Id }).OfType<DiceRolled>().First().Reachable.First();
+                    you.Square = to;
+                    Apply(g, new ChooseDestination { Player = me.Id, Square = to });
+                    Apply(g, new ConfirmMove { Player = me.Id });
+                    foreach (var s in g.State.Battle?.Sides ?? new BattleSide[0]) if (s.NeedsSelect) Apply(g, new SelectPokemon { Player = s.Player, Slot = 0 });
+                    PickFirstCard(g, new List<GameEvent>());
+                    me.Money = 1000; you.Money = 1000;
+                    return (g, me, you);
+                }
+                // 手番の人が勝つ（即勝利）：負けた人は 1,000円 → 666円、勝った人は 334円 増える
+                var (pg1, pa1, pb1) = Meet();
+                bool pvp1 = pg1.State.Battle?.Kind == BattleKind.Player;
+                var pev1 = pvp1 ? Apply(pg1, new DebugCommand { Player = pa1.Id, Action = DebugAction.WinBattle }) : new List<GameEvent>();
+                bool paid = pvp1 && pb1.Money == 666 && pa1.Money == 1334
+                    && pev1.OfType<MoneyChanged>().Any(m => m.Player == pb1.Id && m.Amount == -334) && pev1.OfType<MoneyChanged>().Any(m => m.Player == pa1.Id && m.Amount == 334);
+                Check(log, "プレイヤー戦のお金：負けた人の 1,000円から 334円（1/3、切り上げ）が 勝った人に入る", paid);
+                // 勝った人が「許す」を選んでも お金は そのまま。降参で負けても 同じように入る
+                if (paid) Apply(pg1, new ChooseReward { Player = pa1.Id, Reward = Reward.Forgive });
+                bool forgiven = paid && pg1.State.Battle == null && pb1.Money == 666 && pa1.Money == 1334;
+                var (pg2, _, _) = Meet();
+                var pb = pg2.State.Battle;
+                bool surrendered = false;
+                if (pb?.Kind == BattleKind.Player && pb.Step == BattleStep.Commands)
+                {
+                    var winner = pg2.State.Players[pb.Sides[pb.Attacker].Player];
+                    var loser = pg2.State.Players[pb.Sides[1 - pb.Attacker].Player];
+                    Apply(pg2, new ChooseAttack { Player = winner.Id, Attack = Attack.Physical });
+                    var pev2 = Apply(pg2, new ChooseDefense { Player = loser.Id, Defense = Defense.Flee });
+                    surrendered = pev2.OfType<Fled>().Any(f => f.Surrender) && loser.Money == 666 && winner.Money == 1334;
+                }
+                Check(log, "プレイヤー戦のお金：勝った人が「許す」を選んでも、降参で負けても 334円が 勝った人に入る", forgiven && surrendered);
             }
             {
                 // 換金所（2.1・2.3）：1,000円で1p。最後の10週は閉まる。勝利ポイントには換えたポイントだけが入り、お金は入らない
