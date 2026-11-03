@@ -80,24 +80,27 @@ namespace Sugoroku.Rules
             foreach (int n in board[cur].Neighbors.OrderBy(_ => r.Next())) yield return new StepTo { Player = p.Id, Square = n };
         }
 
-        // 挑めるジム：まだバッジを持っていない、閉まっていない（トキワはバッジ7個から）
-        static bool GymOpenFor(GameData d, PlayerState p, BoardSquare s)
+        // ジムの数え方は 処理役と同じ GymStatusFor（3.3.1。見渡しの表示・ジムに止まったときと 食い違わない）
+        // 挑めるジム：まだバッジを持っていない、閉まっていない（トキワはバッジ7個から）。ストライキは見ない（前と同じ）
+        static bool GymOpenFor(GameProcessor g, PlayerState p, BoardSquare s)
         {
-            string gym = d.Places.FirstOrDefault(x => x.Name == s.Place)?.Gym ?? "";
-            return gym != "" && !p.Gyms.Contains(gym) && !GameProcessor.GymClosed(gym, p);
+            var st = g.GymStatusFor(p, s);
+            return st.Gym != "" && !p.Gyms.Contains(st.Gym) && !st.Closed;
         }
 
-        // そのジムの町で、まだだれも倒していないジムトレーナーのマス（先に倒す必要がある）
-        static List<int> GymTrainersLeft(GameProcessor g, GameData d, BoardData board, BoardSquare gymSquare, PlayerState p) =>
-            GameProcessor.HasGymKey(p, d.Places.FirstOrDefault(x => x.Name == gymSquare.Place)?.Gym ?? "") ? new List<int>() : // カギがあれば 残っていても挑める
-            d.Trainers.Where(t => t.IsGymTrainer && t.Place == gymSquare.Place)
-                .Select(t => board.Squares.Values.FirstOrDefault(s => s.Name == t.Square)).Where(s => s != null && !g.State.Owners.ContainsKey(s.Id)).Select(s => s.Id).ToList();
+        // そのジムの町で、まだだれも倒していないジムトレーナーのマス（先に倒す必要がある）。カギがあれば 残っていても挑める
+        static List<int> GymTrainersLeft(GameProcessor g, BoardData board, BoardSquare gymSquare, PlayerState p)
+        {
+            var st = g.GymStatusFor(p, gymSquare);
+            if (st.HasKey) return new List<int>();
+            return st.Remaining.Select(t => board.Squares.Values.FirstOrDefault(s => s.Name == t.Square)).Where(s => s != null).Select(s => s.Id).ToList();
+        }
 
         // 次の目標（挑めるジム。ジムトレーナーが残っていればそのマス）までの、各マスからの歩数。ワープは1歩として数える
         static Dictionary<int, int> DistanceToNextGym(GameProcessor g, GameData d, BoardData board, PlayerState p)
         {
-            var gyms = board.Squares.Values.Where(s => s.Type == "ジム" && Movement.CanEnter(board, s.Id, p.Badges, g.TopBadges, p.Surf) && GymOpenFor(d, p, s))
-                .SelectMany(s => GymTrainersLeft(g, d, board, s, p) is var left && left.Count > 0 ? left : new List<int> { s.Id }).Distinct().ToList();
+            var gyms = board.Squares.Values.Where(s => s.Type == "ジム" && Movement.CanEnter(board, s.Id, p.Badges, g.TopBadges, p.Surf) && GymOpenFor(g, p, s))
+                .SelectMany(s => GymTrainersLeft(g, board, s, p) is var left && left.Count > 0 ? left : new List<int> { s.Id }).Distinct().ToList();
             if (gyms.Count == 0) return null;
             var dist = gyms.ToDictionary(x => x, x => 0);
             var queue = new Queue<int>(gyms);
@@ -123,7 +126,7 @@ namespace Sugoroku.Rules
             bool owned = g.State.Owners.ContainsKey(id);
             switch (sq.Type)
             {
-                case "ジム": return GymOpenFor(d, p, sq) && GymTrainersLeft(g, d, board, sq, p).Count == 0 ? 50 : 0;
+                case "ジム": return GymOpenFor(g, p, sq) && GymTrainersLeft(g, board, sq, p).Count == 0 ? 50 : 0;
                 case "ライバル": return owned ? 3 : 40;
                 case "ロケット団": return !owned ? 25 : owner == p.Id ? 5 : 1; // 拠点の買い物はまだしない
                 case "ポケモンセンター": case "スタート": return hurt ? 35 : 2;
