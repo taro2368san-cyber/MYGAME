@@ -237,6 +237,17 @@ namespace Sugoroku.Rules
                     && (far == null || g3.Validate(new UseItem { Player = me3.Id, Item = "スリーパーのこいん", Target = you3.Id }) != null));
             }
             {
+                // 別マップは それぞれ別のエリア（3.4・8.3）：本マップ ⇄ 別マップには 届かない（エリアシートのエリアが同じでも）。同じ別マップの中どうしは届く。本マップの同じエリアどうしは届く
+                var cave = board.Squares.Values.FirstOrDefault(x => x.MapId == "rocktunnel") ?? board.Squares.Values.FirstOrDefault(x => x.MapId != "" && !data.IsIslandMap(x.MapId));
+                var cave2 = cave == null ? null : board.Squares.Values.FirstOrDefault(x => x.MapId == cave.MapId && x.Id != cave.Id);
+                var outside = cave == null ? null : board.Squares.Values.FirstOrDefault(x => x.MapId == "" && x.Area == cave.Area);
+                var outside2 = outside == null ? null : board.Squares.Values.FirstOrDefault(x => x.MapId == "" && x.Area == outside.Area && x.Id != outside.Id);
+                bool Reach(int from, int to) { var (g, me, you) = Two("スリーパーのこいん", y => y.Square = to); me.Square = from; return g.Validate(new UseItem { Player = me.Id, Item = "スリーパーのこいん", Target = you.Id }) == null; }
+                if (cave2 != null && outside2 != null)
+                    Check(log, "別マップは別のエリア：本マップから別マップへも、別マップから本マップへも 妨害が届かない。同じ別マップの中どうしと、本マップの同じエリアどうしは 届く",
+                        !Reach(outside.Id, cave.Id) && !Reach(cave.Id, outside.Id) && Reach(cave.Id, cave2.Id) && Reach(outside.Id, outside2.Id));
+            }
+            {
                 var (g, me, you) = Two("キャッチャ", y => y.PokemonBag.Add("キズくすり"));
                 g.Apply(new UseItem { Player = me.Id, Item = "キャッチャ", Target = you.Id }, out string err);
                 Check(log, "キャッチャ：相手の道具を1つ奪い、準備フェーズのまま", err == null && me.PokemonBag.Contains("キズくすり") && !you.PokemonBag.Contains("キズくすり") && g.State.Phase == Phase.Prepare);
@@ -365,7 +376,7 @@ namespace Sugoroku.Rules
                     foeLead != null && enc != null && encAt < selAt && enc.Pokemon == foeLead.Species && enc.Level == foeLead.Level && enc.Weakness == Pokemons.Of(data, foeLead).Weakness && !ev1.OfType<SentOut>().Any());
                 var fought = Fight(g1);
                 var won = fought.OfType<RocketDefeated>().FirstOrDefault();
-                int areaTrainers = board.Squares.Values.Count(x => x.Type == "トレーナー" && x.Area == sq.Area);
+                int areaTrainers = board.Squares.Values.Count(x => x.Type == "トレーナー" && (x.MapId == "" && x.Area == sq.Area || sq.MapId != "" && x.MapId == sq.MapId)); // 本マップのそのエリア（別マップなら その中も、3.4）
                 Check(log, "ロケット団マス：団員とクイックバトル（3体から選出）、勝つと拠点とエリアのトレーナーマス2つが自分のものに", battle && won != null && won.First && g1.State.Owners[sq.Id] == 0 && won.Trainers.Count == Math.Min(2, areaTrainers) && won.Trainers.All(x => g1.State.Owners[x] == 0));
 
                 // 選んだ子が戦う（7.1.1・6.6）：手持ちの2番（ヒトカゲ）を出すと その子が場に出て、勝つと その子に1.0倍、ほかの手持ち（カメックス）に0.6倍
@@ -415,6 +426,39 @@ namespace Sugoroku.Rules
                 var (g5, _) = LandEvents(sq, "ヒトカゲ", s => { Strong(s); s.Owners[sq.Id] = 0; s.Players[0].RocketUsed.Add("rb_tower_2"); });
                 Check(log, "ロケット団の拠点：タワーでヒトモシを1人1回もらえる", all4.Count(m => m.Species == "ヒトモシ" && m.Level == 15) == 1 && !g5.State.Players[0].Party.Concat(g5.State.Players[0].Box).Any(m => m.Species == "ヒトモシ"));
                 sq.Type = keep.Type; sq.Place = keep.Place;
+            }
+            {
+                // ロケット団の報酬（3.4・11.3）：別マップのロケット団は 中のトレーナーマスから、足りない分は 親エリアの本マップから。本マップのロケット団は 本マップだけ
+                List<int> Reward(BoardSquare rsq, Action<GameState> setup = null)
+                {
+                    var (g, _) = LandEvents(rsq, "ヒトカゲ", s => { s.Players[0].Party[0] = Pokemons.Create(data, "カメックス", 60, "", "", 1); setup?.Invoke(s); });
+                    if (g.State.Battle?.Step == BattleStep.Select) Apply(g, new SelectPokemon { Slot = 0 });
+                    g.DebugEnabled = true;
+                    return g.State.Battle == null ? null : Apply(g, new DebugCommand { Action = DebugAction.WinBattle }).OfType<RocketDefeated>().FirstOrDefault()?.Trainers;
+                }
+                int TrainersIn(string map) => board.Squares.Values.Count(t => t.Type == "トレーナー" && t.MapId == map);
+                var subRocket = board.Squares.Values.FirstOrDefault(x => x.Type == "ロケット団" && x.MapId != "" && TrainersIn(x.MapId) >= 2);
+                var mainRocket = board.Squares.Values.FirstOrDefault(x => x.Type == "ロケット団" && x.MapId == "");
+                if (subRocket != null)
+                {
+                    var both = Reward(subRocket);
+                    // 中のトレーナーマスを1つだけにする（ほかは一時的に空マス）
+                    var others = board.Squares.Values.Where(t => t.Type == "トレーナー" && t.MapId == subRocket.MapId).Skip(1).ToList();
+                    foreach (var t in others) t.Type = "空マス";
+                    var one = Reward(subRocket);
+                    foreach (var t in others) t.Type = "トレーナー";
+                    var again = Reward(subRocket, s => s.RocketCleared.Add(subRocket.Id)); // 2回目（奪い返し）は 報酬なし
+                    Check(log, "ロケット団の報酬：別マップのロケット団は 中のトレーナーマスから2つ。中に1つしかなければ 残りは親エリアの本マップから。2回目は なし",
+                        both != null && both.Count == 2 && both.All(x => board[x].MapId == subRocket.MapId)
+                        && one != null && one.Count == 2 && one.Count(x => board[x].MapId == subRocket.MapId) == 1 && one.Count(x => board[x].MapId == "" && board[x].Area == subRocket.Area) == 1
+                        && again != null && again.Count == 0);
+                }
+                if (mainRocket != null)
+                {
+                    var gotMain = Reward(mainRocket);
+                    Check(log, "ロケット団の報酬：本マップのロケット団は 同じエリアの本マップのトレーナーマスだけ（別マップからは選ばない）",
+                        gotMain != null && gotMain.Count > 0 && gotMain.All(x => board[x].MapId == "" && board[x].Area == mainRocket.Area));
+                }
             }
             var museumRow = data.EventSquares.FirstOrDefault(x => x.Effect.Kind == EffectKind.Museum);
             var museum = museumRow == null ? null : board.Squares.Values.FirstOrDefault(x => x.Name == museumRow.Square && x.Neighbors.Count > 0);

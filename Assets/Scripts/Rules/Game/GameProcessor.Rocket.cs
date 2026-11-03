@@ -41,6 +41,7 @@ namespace Sugoroku.Rules
         }
 
         // ロケット団に勝った：マスが自分のものに。はじめて倒したマスなら、エリア内のトレーナーマスを2つ（ほかの人のものでも）
+        // 別マップのロケット団は まずその別マップの中から、足りない分は親エリア（エリアシートのエリア）の本マップから。本マップのロケット団は そのエリアの本マップだけ（別マップは別のエリア。3.4、相談.md 3）
         void RocketCleared(PlayerState p, List<GameEvent> events)
         {
             var b = B;
@@ -51,14 +52,18 @@ namespace Sugoroku.Rules
             var gained = new List<int>();
             if (first)
             {
-                var pool = board.Squares.Values.Where(s => s.Type == "トレーナー" && s.Area == board[b.Square].Area && !(State.Owners.TryGetValue(s.Id, out int o) && o == p.Id)).Select(s => s.Id).ToList();
-                for (int i = 0; i < TuneInt("rocket_reward_trainers") && pool.Count > 0; i++)
-                {
-                    int k = Roll(0, pool.Count - 1);
-                    SetOwner(pool[k], p.Id, events);
-                    gained.Add(pool[k]);
-                    pool.RemoveAt(k);
-                }
+                var home = board[b.Square];
+                bool Candidate(BoardSquare s) => s.Type == "トレーナー" && !(State.Owners.TryGetValue(s.Id, out int o) && o == p.Id);
+                var inside = home.MapId == "" ? new List<int>() : board.Squares.Values.Where(s => s.MapId == home.MapId && Candidate(s)).Select(s => s.Id).ToList();
+                var parent = board.Squares.Values.Where(s => s.MapId == "" && s.Area == home.Area && Candidate(s)).Select(s => s.Id).ToList();
+                foreach (var pool in new[] { inside, parent })
+                    while (gained.Count < TuneInt("rocket_reward_trainers") && pool.Count > 0)
+                    {
+                        int k = Roll(0, pool.Count - 1);
+                        SetOwner(pool[k], p.Id, events);
+                        gained.Add(pool[k]);
+                        pool.RemoveAt(k);
+                    }
             }
             events.Add(new RocketDefeated { Player = p.Id, Square = b.Square, First = first, Trainers = gained });
         }

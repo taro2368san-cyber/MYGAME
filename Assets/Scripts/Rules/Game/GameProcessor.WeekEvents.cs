@@ -84,8 +84,8 @@ namespace Sugoroku.Rules
         // はじめる。戦えるのは 同じエリアにいる人たち（いちばん多いエリア。同じ数なら ランダム）。2人いなければ何もしない（false）
         internal bool StartTournament(List<GameEvent> events)
         {
-            var groups = State.Players.Where(p => p.Party.Any(m => !m.Fainted)).GroupBy(p => data.Places.FirstOrDefault(x => x.Name == board[p.Square].Place)?.Area ?? "")
-                .Where(g => g.Key != "" && g.Count() >= 2).ToList();
+            var groups = State.Players.Where(p => p.Party.Any(m => !m.Fainted)).GroupBy(p => AreaKey(p)) // 別マップ・島は それぞれ別のエリア（3.4）
+                .Where(g => g.Key != "area:" && g.Count() >= 2).ToList();
             if (groups.Count == 0) return false;
             var top = groups.Where(g => g.Count() == groups.Max(x => x.Count())).ToList();
             var entrants = top[Roll(0, top.Count - 1)].Select(p => p.Id).ToList();

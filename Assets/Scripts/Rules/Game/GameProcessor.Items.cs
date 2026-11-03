@@ -10,7 +10,11 @@ namespace Sugoroku.Rules
     public sealed partial class GameProcessor
     {
         // 妨害が届くのは同じエリアの相手だけ（8.3）
-        bool SameArea(PlayerState a, PlayerState b) => !OnIsland(a) && !OnIsland(b) && board[a.Square].Area == board[b.Square].Area; // 島はその人だけのエリア（3.4）
+        // 妨害の届くエリア（3.4・8.3、相談.md 3）：本マップは エリアシートのエリア、別マップは それぞれが1つのエリア（マップID）。島は その人だけのエリア
+        // 同じエリアかどうかは、すべて これで見る（妨害アイテムの相手、ポケモンのふえ、突発バトルの組分け）
+        string AreaKey(int square) { var s = board[square]; return s.MapId == "" ? "area:" + s.Area : "map:" + s.MapId; }
+        string AreaKey(PlayerState p) => OnIsland(p) ? "island:" + p.Id : AreaKey(p.Square);
+        bool SameArea(PlayerState a, PlayerState b) => AreaKey(a) == AreaKey(b);
 
         // 使えるか（CheckUseItem から。ポケモンに使う道具より後）。だめなら理由
         string CheckTrainerItem(PlayerState p, ItemUse use, double value, int target)
@@ -48,7 +52,7 @@ namespace Sugoroku.Rules
                 case ItemUse.PokeFlute:
                     if (!State.Blocked.ContainsKey(target)) return "カビゴンの いるマスを 選んでください";
                     if (SymbolHere(target) == Snorlax) return board[p.Square].Neighbors.Contains(target) ? null : "道をふさいでいる カビゴンは となりの マスから 起こします";
-                    return board[target].Area == board[p.Square].Area ? null : "同じエリアの カビゴンにしか 届きません";
+                    return AreaKey(target) == AreaKey(p) ? null : "同じエリアの カビゴンにしか 届きません";
                 case ItemUse.DartBike: return p.Has("ダート自転車") ? "もう ダート自転車に 乗っています" : null;
                 case ItemUse.SweetScent: return p.Has("アマいおこう") ? "もう アマいおこうが 効いています" : null;
                 case ItemUse.Disguise: return p.Has("へんそう") ? "もう へんそう しています" : null;
