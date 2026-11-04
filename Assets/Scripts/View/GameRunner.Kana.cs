@@ -73,7 +73,7 @@ public partial class GameRunner
         kanaName.text = names[kanaFor] == "" ? "（まだ ありません）" : names[kanaFor] + "＿";
         for (int x = 0; x < KanaColumns.Length; x++)
             for (int y = 0; y < 5; y++)
-                kanaButtons[x, y].image.color = x == kanaX && y == kanaY ? new Color(1f, 0.85f, 0.4f) : Color.white;
+                kanaButtons[x, y].image.color = x == kanaX && y == kanaY ? new Color(1f, 0.85f, 0.4f) : new Color(0.2f, 0.25f, 0.35f, 0.95f); // ふつうのボタンの色（字が白なので 白にすると見えない）
     }
 
     // カーソルを動かす（空きマスは飛ばす）
