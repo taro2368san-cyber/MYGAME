@@ -753,6 +753,171 @@ namespace Sugoroku.Rules
                 Check(log, $"7.18 絆：NPC戦でHPが{th:P0}未満なら 約{T("bond_evasion_bonus"):P0}よける（{low:P1}）、{th:P0}以上では よけない、プレイヤー戦では起きない",
                     Math.Abs(low - T("bond_evasion_bonus")) < 0.03 && high == 0 && highMiss == 0 && pvp == 0);
             }
+
+            BattleFlowRules(data, log);
+        }
+
+        // バトルの流れ（7.1・7.1.2・7.1.3・6.1）。番をまたぐので テスト用の小さな輪（1スタート─2センター─3何もないマス）で組む
+        static void BattleFlowRules(GameData data, List<string> log)
+        {
+            if (new[] { "カビゴン", "マルマイン", "リザードン" }.Any(n => data.FindSpecies(n) == null)) return;
+            double T(string key) => data.Required(key);
+            int MaxHp(PokemonState m) => Pokemons.MaxHp(data, m);
+            PokemonState Mon(string species, int level) => Pokemons.Create(data, species, level, "", "", 1);
+            var ring = BoardData.Create(new[] {
+                new BoardSquare { Id = 1, Name = "f1", Type = "スタート", Place = "マサラタウン", Area = "エリア1" },
+                new BoardSquare { Id = 2, Name = "f2", Type = "ポケモンセンター", Place = "トキワシティ", Area = "エリア1" },
+                new BoardSquare { Id = 3, Name = "f3", Type = "ワープ", Place = "マサラタウン", Area = "エリア1" } }, new[] { (1, 2), (2, 3), (3, 1) }, new List<string>());
+            GameProcessor Game(int players)
+            {
+                var g = GameProcessor.NewGame(ring, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ"), ("B", MoveMode.Highlight, "ヒトカゲ") }.Take(players).ToList(), 50, 9, out _);
+                g.State.NextEventWeek = 9999;
+                g.DebugEnabled = true;
+                return g;
+            }
+            // NPC とのバトルを処理役の入口から始める（kind・フルかどうか・相手の手持ち）
+            List<GameEvent> Start(GameProcessor g, BattleKind kind, bool full, params (string, int)[] team)
+            {
+                var ev = new List<GameEvent>();
+                Call(g, "StartBattle", kind, full, (BattleSide)Call(g, "Npc", "テスト", team), ev, null, -1);
+                return ev;
+            }
+            // 1ラウンド：自分が攻撃側なら ぶつり、防御側なら ぼうぎょ。倒れないように 先に両方を回復しておく
+            List<GameEvent> Round(GameProcessor g, PlayerState me)
+            {
+                var b = g.State.Battle;
+                foreach (var s in b.Sides) s.Current.Hp = MaxHp(s.Current);
+                return b.Sides[b.Attacker].Player == me.Id ? Apply(g, new ChooseAttack { Player = me.Id, Attack = Attack.Physical }) : Apply(g, new ChooseDefense { Player = me.Id, Defense = Defense.Guard });
+            }
+            // カードの枚数（7.1.2）：速い側の先攻カード 1〜3枚＋遅い側1枚。すばやさは 処理役と同じ数え方（BattleSpeed）
+            int Cards(GameProcessor g)
+            {
+                var b = g.State.Battle;
+                int s0 = (int)Call(g, "BattleSpeed", b.Sides[0]), s1 = (int)Call(g, "BattleSpeed", b.Sides[1]);
+                double ratio = (double)Math.Max(s0, s1) / Math.Max(1, Math.Min(s0, s1));
+                return (ratio >= T("initiative_ratio_large") ? 3 : ratio >= T("initiative_ratio_small") ? 2 : 1) + 1;
+            }
+
+            // ---- 7.1.2 交代したら カードを引き直す ----
+            {
+                var g = Game(1);
+                var me = g.State.CurrentPlayer;
+                me.Party.Clear();
+                me.Party.Add(Mon("カビゴン", 50)); me.Party.Add(Mon("マルマイン", 50)); me.Party.Add(Mon("カビゴン", 50));
+                Start(g, BattleKind.Trainer, true, ("カビゴン", 50), ("マルマイン", 50));
+                var b = g.State.Battle;
+                // フルバトルの最初の選出 → カード（同じ子どうしなので 先攻カード1枚＋1枚）
+                var ev = g.Apply(new SelectPokemon { Player = me.Id, Slot = 0 }, out _);
+                bool first = b.Step == BattleStep.Initiative && b.Cards.Count == Cards(g) && b.Cards.Count == 2 && ev.OfType<CardsDealt>().Single().Player == me.Id;
+                Apply(g, new PickCard { Player = me.Id, Card = 0 });
+                // 1体目が倒れる（どく＋HP1。自分の攻撃のラウンドの終わりに倒れる。相手の攻撃で倒れてもよい）
+                me.Party[0].Status = Status.Poison;
+                for (int i = 0; i < 4 && b.Step == BattleStep.Commands; i++)
+                {
+                    b.Sides[1].Current.Hp = MaxHp(b.Sides[1].Current);
+                    me.Party[0].Hp = 1;
+                    if (b.Sides[b.Attacker].Player == me.Id) Apply(g, new ChooseAttack { Player = me.Id, Attack = Attack.Physical });
+                    else Apply(g, new ChooseDefense { Player = me.Id, Defense = Defense.Guard });
+                }
+                bool fainted = b.Step == BattleStep.Select && me.Party[0].Fainted && g.Validate(new SelectPokemon { Player = me.Id, Slot = 0 }) != null;
+                ev = g.Apply(new SelectPokemon { Player = me.Id, Slot = 1 }, out _);
+                int after = b.Cards?.Count ?? 0;
+                bool redraw = b.Step == BattleStep.Initiative && after == Cards(g) && after != 2 && ev.OfType<CardsDealt>().Single().Player == me.Id;
+                // 遅い側（相手）のカードを引くと 相手から攻撃が始まり直す
+                int foeCard = b.Cards.IndexOf(1);
+                Apply(g, new PickCard { Player = me.Id, Card = foeCard });
+                bool restart = b.First == 1 && b.Attacker == 1 && b.Step == BattleStep.Commands;
+                Check(log, $"7.1.2 カードの引き直し：フルバトルで倒れて次の子を出すと カードを引く場面になり、新しい2体のすばやさで枚数が決まり直す（2枚→{after}枚）。引くのは仕掛けた側（プレイヤー）。引いたカードの側から攻撃が始まり直す",
+                    first && fainted && redraw && restart);
+
+                // 脱出ボタン（自分で選んで交代）・レッドカード（相手をランダムに交代）でも 引き直す
+                ev = new List<GameEvent>();
+                Call(g, "SwitchOut", 0, false, ev);
+                bool choose = b.Step == BattleStep.Select && g.Validate(new SelectPokemon { Player = me.Id, Slot = 1 }) != null; // 交代させられた子は選べない
+                ev = g.Apply(new SelectPokemon { Player = me.Id, Slot = 2 }, out _);
+                bool button = b.Step == BattleStep.Initiative && b.Cards.Count == Cards(g) && ev.OfType<CardsDealt>().Single().Player == me.Id;
+                Apply(g, new PickCard { Player = me.Id, Card = 0 });
+                ev = new List<GameEvent>();
+                Call(g, "SwitchOut", 1, true, ev);
+                bool red = b.Sides[1].Current.Species == "マルマイン" && b.Step == BattleStep.Initiative && b.Cards.Count == Cards(g) && b.Cards.Count != 2 && ev.OfType<CardsDealt>().Single().Player == me.Id;
+                Check(log, "7.1.2 カードの引き直し：脱出ボタン（自分で選ぶ交代）でも レッドカード（相手のランダムな交代）でも 新しい子どうしで カードを引き直す。引くのは仕掛けた側",
+                    choose && button && red);
+            }
+
+            // ---- 7.1.3・7.1 野生戦のボールの確認と、番の交代 ----
+            {
+                var g = Game(2);
+                var me = g.State.CurrentPlayer; var other = g.State.Players.First(x => x != me);
+                me.Party[0] = Mon("カビゴン", 60);
+                me.Balls["モンスターボール"] = 5;
+                Apply(g, new DebugCommand { Player = me.Id, Action = DebugAction.Battle, Text = "リザードン", Value = 50 }); // HP満タンのリザードン Lv50 は モンスターボールでは捕まらない（6.3 のテスト）
+                var b = g.State.Battle;
+                var ev = new List<GameEvent>();
+                int rounds = 0;
+                for (; rounds < 4 && b.Step == BattleStep.Commands; rounds++) ev.AddRange(Round(g, me));
+                bool prompt = b.Rounds == 2 && b.Step == BattleStep.Ball && ev.OfType<BallPrompt>().Count() == 1 && !ev.OfType<BattleSuspended>().Any();
+                int attacker = b.Attacker;
+                foreach (var s in b.Sides) s.Current.Hp = MaxHp(s.Current);
+                int myHp = me.Party[0].Hp;
+                ev = Apply(g, new ThrowBall { Player = me.Id, Ball = "モンスターボール" });
+                bool missed = ev.OfType<BallThrown>().Single().Caught == false && !ev.OfType<RoundResolved>().Any() && me.Party[0].Hp == myHp
+                    && ev.OfType<BattleSuspended>().Any(x => x.Player == me.Id) && g.State.CurrentPlayer == other && me.PendingBattle == b;
+                // 相手の番：センターに止まって出る → 自分の番は サイコロなしで バトルの続き
+                other.Square = 3; other.FixedDice = 1;
+                Apply(g, new RollDice { Player = other.Id });
+                Apply(g, new ChooseDestination { Player = other.Id, Square = 2 });
+                Apply(g, new ConfirmMove { Player = other.Id });
+                ev = g.State.Phase == Phase.Facility ? Apply(g, new LeaveFacility { Player = other.Id }) : new List<GameEvent>();
+                bool resumed = ev.OfType<BattleResumed>().Any(x => x.Player == me.Id) && g.State.CurrentPlayer == me && g.State.Phase == Phase.Battle && g.State.Battle == b
+                    && b.Step == BattleStep.Commands && g.Validate(new RollDice { Player = me.Id }) != null;
+                // 投げても 自分の攻撃の機会は減らない：ボールの前と同じ側から 攻撃が続く（交互のまま）
+                bool kept = b.Attacker == attacker && ev.OfType<CommandsRequested>().LastOrDefault()?.Attacker == attacker;
+                // 投げないと そのまま番が次の人へ
+                ev = new List<GameEvent>();
+                for (rounds = 0; rounds < 4 && b.Step == BattleStep.Commands; rounds++) ev.AddRange(Round(g, me));
+                bool again = b.Rounds == 4 && b.Step == BattleStep.Ball;
+                ev = Apply(g, new ThrowBall { Player = me.Id, Ball = null });
+                bool passed = again && ev.OfType<BattleSuspended>().Any(x => x.Player == me.Id) && g.State.CurrentPlayer == other;
+                Check(log, $"7.1.3・7.1 野生戦：攻守が1往復すると「ボールを投げる？」。失敗しても 野生の追加の攻撃はなく、番が次の人へ。次の自分の番は サイコロなしで バトルの続き（ボールの前と同じ側から攻撃）。投げなくても 番が次の人へ（上限 {T("round_limit_quick")}ラウンド）",
+                    prompt && missed && resumed && kept && passed);
+
+                // トレーナー戦では 往復のあとに ボールの確認は出ない
+                var tg = Game(1);
+                var tp = tg.State.CurrentPlayer;
+                tp.Party[0] = Mon("カビゴン", 60);
+                tp.Balls["モンスターボール"] = 5;
+                Start(tg, BattleKind.Trainer, false, ("リザードン", 50));
+                if (tg.State.Battle?.Step == BattleStep.Initiative) Apply(tg, new PickCard { Player = tp.Id, Card = 0 });
+                var tev = new List<GameEvent>();
+                for (int i = 0; i < 2 && tg.State.Battle?.Step == BattleStep.Commands; i++) tev.AddRange(Round(tg, tp));
+                Check(log, "7.1.3 トレーナー戦：攻守が1往復しても ボールの確認は出ず、そのまま番が終わる",
+                    tev.OfType<RoundResolved>().Count() == 2 && !tev.OfType<BallPrompt>().Any() && tev.OfType<BattleSuspended>().Any());
+            }
+
+            // ---- 6.1 先頭固定のバトルで 先頭が戦闘不能なら、出す子を選ぶ ----
+            {
+                bool Picks(Func<GameProcessor, PlayerState, List<GameEvent>> start)
+                {
+                    var g = Game(1);
+                    var p = g.State.CurrentPlayer;
+                    p.Party[0].Hp = 0; p.Party.Add(Mon("カビゴン", 30));
+                    var ev = start(g, p);
+                    var b = g.State.Battle;
+                    bool asked = b?.Step == BattleStep.Select && ev.OfType<SelectRequested>().Any(x => x.Player == p.Id);
+                    bool noFainted = asked && g.Validate(new SelectPokemon { Player = p.Id, Slot = 0 }) != null;
+                    if (asked) Apply(g, new SelectPokemon { Player = p.Id, Slot = 1 });
+                    return noFainted && b.Step != BattleStep.Select && b.Sides[0].Active == 1;
+                }
+                bool wild = Picks((g, p) => Apply(g, new DebugCommand { Player = p.Id, Action = DebugAction.Battle, Text = "コラッタ", Value = 5 }));
+                bool trainer = Picks((g, p) => Start(g, BattleKind.Trainer, false, ("コラッタ", 5)));
+                bool job = Picks((g, p) => Start(g, BattleKind.Job, false, ("コラッタ", 5)));
+                // 先頭が元気なら 選ばずに先頭が出る
+                var hg = Game(1);
+                Start(hg, BattleKind.Trainer, false, ("コラッタ", 5));
+                bool lead = hg.State.Battle.Step != BattleStep.Select && hg.State.Battle.Sides[0].Active == 0;
+                Check(log, "6.1 先頭固定のバトル（野生・トレーナー・職業トレーナー）で 先頭が戦闘不能なら、出す子を選ぶ場面になる。戦闘不能の子は選べず、元気な子を選ぶと進む。先頭が元気なら選ばない",
+                    wild && trainer && job && lead);
+            }
         }
     }
 }
