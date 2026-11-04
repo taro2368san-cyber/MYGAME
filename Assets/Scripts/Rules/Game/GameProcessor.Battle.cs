@@ -73,10 +73,11 @@ namespace Sugoroku.Rules
             events.Add(new SelectRequested { Side = i, Player = s.Player });
         }
 
-        // 新しい子が場に出るときに戻すもの：能力ランク（7.15）、出たときの特性、ばけのかわ、かるわざ、オボンのみ
+        // 新しい子が場に出るときに戻すもの：能力ランク（7.15）、必殺技のクールダウン（7.4、相談10-3）、出たときの特性、ばけのかわ、かるわざ、オボンのみ
         static void ResetSide(BattleSide s)
         {
             s.Ranks = new int[3];
+            s.LastWasSuper = false; // クールダウンは場に出ている子のもの。下がったら消え、もう一度出てきても打てる
             s.Entered = true; s.DisguiseUsed = false; s.LostItem = false; s.BerryUsed = false;
         }
 

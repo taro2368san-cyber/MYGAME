@@ -15,7 +15,7 @@ namespace Sugoroku.Rules
         public string Name;
         public List<PokemonState> Team;            // プレイヤーなら手持ちそのもの（ダメージが残る）
         public int Active = -1;
-        public bool LastWasSuper;                  // 前の攻撃が必殺技（次の攻撃では打てない、7.4）
+        public bool LastWasSuper;                  // 場に出ている子の 前の攻撃が必殺技（次の攻撃では打てない、7.4）。交代で消える（相談10-3）
         public int SwitchFrom = -1;                // 交代させられた子（選び直しのとき、この子は選べない）
         public bool BerryUsed;                     // このバトルでオボンのみを使った（1バトルに1回）
         public bool LostItem;                      // このバトルでもちものを使い切った・奪われた（かるわざ）

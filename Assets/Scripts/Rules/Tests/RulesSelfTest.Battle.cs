@@ -296,6 +296,84 @@ namespace Sugoroku.Rules
                 Check(log, "7.4 必殺のクールダウン：打った次の 自分の攻撃の機会では選べず、その次の機会では選べる", cooled);
             }
 
+            // ---- 7.4 クールダウンは場に出ている子のもの（相談10-3）：交代・倒れて次の子・もう一度出てきた子は すぐ打てる ----
+            {
+                var (g, b, p) = Fight("ヒトカゲ", 30, "ヒトカゲ", 30, BattleKind.Trainer);
+                b.Full = true;
+                p.Party.Add(Pokemons.Create(data, "ゼニガメ", 30, "", "", 1));
+                b.Sides[1].Team.Add(Pokemons.Create(data, "ゼニガメ", 30, "", "", 1));
+                // 自分の攻撃の番にして、必殺が選べるか
+                bool CanSuper()
+                {
+                    b.Step = BattleStep.Commands; b.Attacker = 0; b.AttackCmd = null; b.DefenseCmd = Defense.Guard;
+                    return g.Validate(new ChooseAttack { Player = p.Id, Attack = Attack.Super }) == null;
+                }
+                void SuperNow() // 自分が必殺を打つ（倒れないように 打ったあと回復）
+                {
+                    b.Attacker = 0; b.First = 0; b.AttackCmd = Attack.Super; b.DefenseCmd = Defense.Guard;
+                    Call(g, "ResolveRound", new List<GameEvent>());
+                    Heal(b);
+                }
+                SuperNow();
+                bool lockedBefore = !CanSuper();                                       // 交代しなければ 打てない
+                Call(g, "SwitchOut", 0, true, new List<GameEvent>());                  // レッドカードと同じ交代
+                bool newOne = b.Sides[0].Current.Species == "ゼニガメ" && CanSuper(); // 出てきた子は すぐ打てる
+                SuperNow();
+                Call(g, "SwitchOut", 0, true, new List<GameEvent>());
+                bool backAgain = b.Sides[0].Current.Species == "ヒトカゲ" && CanSuper(); // 下がった子が もう一度出てきても 打てる
+                // 必殺を打った子が倒れて、次の子が出たとき
+                SuperNow();
+                b.Sides[0].Current.Hp = 1;
+                bool fainted = false;
+                for (ulong seed = 1; seed <= 20 && !fainted; seed++)
+                {
+                    b.Sides[0].Current.Hp = 1;
+                    b.Attacker = 1; b.First = 1; b.AttackCmd = Attack.Physical; b.DefenseCmd = Defense.SpecialGuard;
+                    g.State.Rng = seed * 7919;
+                    Call(g, "ResolveRound", new List<GameEvent>());
+                    fainted = b.Sides[0].Team[0].Fainted;
+                }
+                if (fainted && b.Step == BattleStep.Select) Apply(g, new SelectPokemon { Player = p.Id, Slot = 1 });
+                bool afterFaint = fainted && b.Sides[0].Current.Species == "ゼニガメ" && CanSuper();
+                Check(log, "7.4 クールダウンは場に出ている子のもの：交代しなければ打てないが、交代して出てきた子、下がってから もう一度出てきた子、必殺を打った子が倒れて出てきた子は すぐ打てる",
+                    lockedBefore && newOne && backAgain && afterFaint);
+
+                // すごろくの番をまたいでも残り、命令を流し直したセーブでも同じ。命令だけで遊ぶ（デバッグで Lv を上げ、硬くて力の弱い野生と戦う）
+                // 2人（はじめの設定の確かめを通る名前）。相手の番は デバッグの「週を進める」でとばす（自分が先の番なので、とばすと すぐ自分の番＝バトルの続き）
+                var tank = data.Species.Where(s => !s.Ability.StartsWith("へんしん")).OrderByDescending(s => s.Hp + s.Defense + s.SpDefense - 3 * Math.Max(s.Attack, s.SpAttack)).First(); // 必殺は こうげき・とくこうの高いほうを使う
+                var cg = GameProcessor.NewGame(board, data, new[] { ("たろう", MoveMode.Highlight, "ヒトカゲ"), ("はなこ", MoveMode.Highlight, "ワニノコ") }, 30, 44, out _, new[] { "leaf", "gold" });
+                cg.DebugEnabled = true;
+                int me = cg.State.CurrentPlayer.Id;
+                Apply(cg, new DebugCommand { Player = me, Action = DebugAction.LevelUp, Value = 45 });
+                Apply(cg, new DebugCommand { Player = me, Action = DebugAction.Battle, Text = tank.Name, Value = 30 }); // Lv50 の自分が 6ラウンドは倒れない強さ
+                bool supered = false, suspended = false, carried = false, flagged = false, replayed = false, freed = false;
+                for (int i = 0; i < 60 && !freed; i++)
+                {
+                    List<GameEvent> ev;
+                    if (cg.State.CurrentPlayer.Id != me) { ev = Apply(cg, new DebugCommand { Player = cg.State.CurrentPlayer.Id, Action = DebugAction.NextWeek }); continue; }
+                    var cb = cg.State.Battle;
+                    if (cb == null) break;
+                    if (cb.Step == BattleStep.Ball) ev = Apply(cg, new ThrowBall { Player = me, Ball = null });
+                    else if (cb.Step != BattleStep.Commands) break;
+                    else if (cb.Sides[cb.Attacker].Player != me) ev = Apply(cg, new ChooseDefense { Player = me, Defense = Defense.Guard });
+                    else if (!supered) { ev = Apply(cg, new ChooseAttack { Player = me, Attack = Attack.Super }); supered = true; }
+                    else if (!carried)
+                    {
+                        // 必殺のあと はじめての 自分の攻撃の番：番をまたいでいて、まだ打てない
+                        carried = suspended && cg.Validate(new ChooseAttack { Player = me, Attack = Attack.Super }) != null;
+                        var loaded = GameProcessor.Load(board, data, SaveFile.Write(cg.State, data.Version), out _, out string err);
+                        replayed = err == null && loaded?.State.Battle?.Sides[0].LastWasSuper == true && loaded.Validate(new ChooseAttack { Player = me, Attack = Attack.Super }) != null
+                            && loaded.Validate(new ChooseAttack { Player = me, Attack = Attack.Physical }) == null;
+                        ev = Apply(cg, new ChooseAttack { Player = me, Attack = Attack.Physical });
+                    }
+                    else { freed = cg.Validate(new ChooseAttack { Player = me, Attack = Attack.Super }) == null; break; } // その次は打てる
+                    if (supered && ev.OfType<BattleSuspended>().Any()) suspended = true;
+                    if (supered && !carried && ev.OfType<CommandsRequested>().LastOrDefault(x => x.AttackPlayer == me) is CommandsRequested cr) flagged = cr.SuperLocked;
+                }
+                Check(log, "7.4 クールダウン：必殺を打ったあと すごろくの番をまたいでも まだ打てず（画面の「打てない」も出る）、命令を流し直したセーブでも同じ。その次の攻撃では打てる",
+                    supered && suspended && carried && flagged && replayed && freed);
+            }
+
             // ---- 7.8 レベル追いつき ----
             {
                 // レベルの低い子が 高い子を倒すと、差の分だけ上がり、そのバトルの経験値はない。倒した相手は図鑑に入る（6.7）
