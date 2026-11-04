@@ -778,11 +778,7 @@ namespace Sugoroku.Rules
                 var item = tier == null ? null : Pick(data.BallSquareItems, x => x.Weights[tier.Id]);
                 if (item != null) GiveItem(p, item.Item, events);
             }
-            if (b.Kind == BattleKind.Gym)
-            {
-                p.Gyms.Add(b.Gym);
-                events.Add(new BadgeEarned { Player = p.Id, Gym = b.Gym, Badges = p.Badges });
-            }
+            if (b.Kind == BattleKind.Gym) EarnBadge(p, b.Gym, events);
         }
 
         // 負けたとき（7.9）：出ていたポケモン（フルなら全員）が戦闘不能、所持金の1/3、60%で1回休み、全滅ならセンターへ

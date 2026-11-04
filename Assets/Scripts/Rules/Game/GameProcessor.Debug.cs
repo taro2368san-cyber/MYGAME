@@ -67,9 +67,7 @@ namespace Sugoroku.Rules
                     break;
                 case DebugAction.Item: PutItem(p, d.Text); events.Add(new ItemGained { Player = p.Id, Item = d.Text }); break;
                 case DebugAction.Badge:
-                    string gym = NextGym(p);
-                    p.Gyms.Add(gym);
-                    events.Add(new BadgeEarned { Player = p.Id, Gym = gym, Badges = p.Badges });
+                    EarnBadge(p, NextGym(p), events);
                     break;
                 case DebugAction.HealAll: HealParty(p, events); break;
                 case DebugAction.LevelUp:

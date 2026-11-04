@@ -100,6 +100,7 @@ namespace Sugoroku.Rules
     public sealed class LevelCaughtUp : GameEvent { public int Player; public string Pokemon; public int Level; }
     public sealed class Evolved : GameEvent { public int Player; public string From, To; }
     public sealed class BadgeEarned : GameEvent { public int Player; public string Gym; public int Badges; }
+    public sealed class GymAppeared : GameEvent { public int Player; public string Gym, Place; } // トキワジムが この人に あらわれた（バッジ7個、3.3）
     public sealed class RestNextTurn : GameEvent { public int Player; }
     public sealed class RewardRequested : GameEvent { public int Winner, Loser; }
     public sealed class Caught : GameEvent { public int Player; public string Pokemon; public bool ToBox; }

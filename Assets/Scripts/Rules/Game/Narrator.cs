@@ -168,6 +168,7 @@ namespace Sugoroku.Rules
                 case LevelCaughtUp x: return $"{x.Pokemon}は 格上を たおして Lv{x.Level}に！";
                 case Evolved x: return T("notice_evolve_2", "{ポケモン}は {進化後}に しんかした！", ("ポケモン", x.From), ("進化後", x.To));
                 case BadgeEarned x: return T("notice_badge", "{トレーナー}は {バッジ}を てにいれた！", ("トレーナー", Name(x.Player)), ("バッジ", x.Gym + "のバッジ"));
+                case GymAppeared x: return T("notice_gym_appear", "{トレーナー}の前に {町}の ジムが あらわれた！", ("トレーナー", Name(x.Player)), ("町", x.Place));
                 case RestNextTurn x: return $"{Name(x.Player)}は 次の手番 1回休み";
                 case RewardRequested x: return $"{Name(x.Winner)}は ほうびを えらんでください";
             }

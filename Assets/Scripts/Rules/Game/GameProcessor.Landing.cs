@@ -367,6 +367,16 @@ namespace Sugoroku.Rules
         // トキワジムはバッジ7個を取ったプレイヤーにだけ開く（3.3）。町のジムトレーナーも、開くまでは戦わない
         public static bool GymClosed(string gym, PlayerState p) => gym == "トキワジム" && p.Badges < 7;
 
+        // バッジを付ける（ジムに勝った・デバッグ）。これで トキワジムが開いたら、その人に「あらわれた」を1回だけ出す（3.3）
+        void EarnBadge(PlayerState p, string gym, List<GameEvent> events)
+        {
+            bool closed = GymClosed("トキワジム", p);
+            p.Gyms.Add(gym);
+            events.Add(new BadgeEarned { Player = p.Id, Gym = gym, Badges = p.Badges });
+            if (closed && !GymClosed("トキワジム", p))
+                events.Add(new GymAppeared { Player = p.Id, Gym = "トキワジム", Place = data.Places.FirstOrDefault(x => x.Gym == "トキワジム")?.Name ?? "トキワシティ" });
+        }
+
         // ジムのカギ（イベントマスの効果の型「ジムのカギ」）：踏んだ人は そのジムのジムトレーナーが残っていても挑める
         public static bool HasGymKey(PlayerState p, string gym) => p.RocketUsed.Contains("gymkey:" + gym);
 

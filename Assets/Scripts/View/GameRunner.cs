@@ -535,6 +535,7 @@ public partial class GameRunner : MonoBehaviour
                 case Caught c: yield return Banner(text, PlayerColor(S.Players[c.Player]), 2, c.Pokemon); continue;
                 case Evolved ev: yield return Banner(text, PlayerColor(S.Players[ev.Player]), 5, ev.To); continue;
                 case BadgeEarned be: yield return Banner(text, PlayerColor(S.Players[be.Player]), 3); continue;
+                case GymAppeared ga: yield return Banner(text, PlayerColor(S.Players[ga.Player]), 2); continue; // トキワジムの出現（3.3）。バッジの知らせのすぐあと
                 case SymbolGone sg: SyncSymbols(); yield return Banner(text, PlayerColor(S.Players[sg.Player]), 2, sg.Pokemon); continue; // 伝説が盤面から消えた（全員に大きく）
                 case LevelCaughtUp lc: yield return Banner(text, PlayerColor(S.Players[lc.Player]), 2); continue;
             }

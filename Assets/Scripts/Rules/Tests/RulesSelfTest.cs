@@ -1568,6 +1568,25 @@ namespace Sugoroku.Rules
             Check(log, "CPUだけで最後まで遊べる（4人×20週×2回）", BalanceReport(data, board, 2, 20).Count > 0);
 
             Check(log, "セーブ→ロードで同じ状態に戻る（3回）", SaveRoundTrip(data, board, 11) && SaveRoundTrip(data, board, 22) && SaveRoundTrip(data, board, 33));
+            if (data.GymMembers.Select(m => m.Gym).Distinct().Count() >= 8)
+            {
+                // トキワジムの出現（3.3）：7個目のバッジで その人にだけ 1回。6個目・8個目では出ない。流し直しても 同じ場面で出る
+                var tg = GameProcessor.NewGame(board, data, new[] { ("たろう", MoveMode.Highlight, "ヒトカゲ"), ("はなこ", MoveMode.Highlight, "ワニノコ") }, 30, 45, out _, new[] { "leaf", "gold" });
+                tg.DebugEnabled = true;
+                var tp = tg.State.CurrentPlayer; var other = tg.State.Players.First(x => x != tp);
+                var appeared = new List<int>(); // 何個目のバッジで出たか
+                string at7 = null; int at7Count = 0;
+                for (int n = 1; n <= 8; n++)
+                {
+                    var ev = Apply(tg, new DebugCommand { Player = tp.Id, Action = DebugAction.Badge });
+                    foreach (var x in ev.OfType<GymAppeared>()) { appeared.Add(n); if (x.Player != tp.Id || x.Gym != "トキワジム") appeared.Add(-1); }
+                    if (n == 7) { at7 = SaveFile.Write(tg.State, data.Version); at7Count = ev.OfType<GymAppeared>().Count(); }
+                }
+                var replay = GameProcessor.Load(board, data, at7, out var lastEvents, out string lerr);
+                bool replayed = replay != null && lerr == null && lastEvents.OfType<GymAppeared>().Count(x => x.Player == tp.Id) == 1;
+                Check(log, "トキワジム：7個目のバッジで その人にだけ1回あらわれる（6個目・8個目は出ない、もう1人は閉じたまま、流し直しても出る）",
+                    appeared.SequenceEqual(new[] { 7 }) && at7Count == 1 && !GameProcessor.GymClosed("トキワジム", tp) && GameProcessor.GymClosed("トキワジム", other) && replayed);
+            }
             {
                 // セーブのデータの版（ロードマップ 6-1）：同じ版なら そのまま同じ状態に戻る。書き換えた版・版のない古いセーブは「ちがう」。流し直しで断られたら 状態を作らない。新しい書き方は読まない
                 var vg = GameProcessor.NewGame(board, data, new[] { ("たろう", MoveMode.Highlight, "ヒトカゲ"), ("はなこ", MoveMode.Highlight, "ワニノコ") }, 30, 44, out _, new[] { "leaf", "gold" }, "random");
