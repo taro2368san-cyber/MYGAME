@@ -56,7 +56,7 @@ namespace Sugoroku.Rules
             }
             double Rank(int r) => r >= 2 ? T("rank_up2") : r == 1 ? T("rank_up1") : r == -1 ? T("rank_down1") : r <= -2 ? T("rank_down2") : 1;
             // 7.5 のダメージ式で 出るはずのダメージ（特性・もちもの・職業・野生の倍率がないとき）。ダイス・急所・弱点は 出来事のものを使う
-            int Expected(BattleState b, int attacker, Attack atk, double mult, RoundResolved ev)
+            int Expected(BattleState b, int attacker, Attack atk, double mult, RoundResolved ev, double extra = 1) // extra：やけどの半減など、乱数のあとにかかる倍率
             {
                 var A = b.Sides[attacker].Current; var D = b.Sides[1 - attacker].Current;
                 var sa = Pokemons.Of(data, A); var sd = Pokemons.Of(data, D);
@@ -64,7 +64,7 @@ namespace Sugoroku.Rules
                 int a = (int)(Pokemons.Stat(physical ? sa.Attack : sa.SpAttack, A.Level) * Rank(b.Sides[attacker].Ranks[physical ? 0 : 1]));
                 int d = Pokemons.Stat(physical ? sd.Defense : sd.SpDefense, D.Level);
                 double random = T("damage_random_min") + (T("damage_random_max") - T("damage_random_min")) * (ev.Dice - 1) / 9;
-                double damage = GameProcessor.BaseDamage(data, A.Level, a, d) * mult * (ev.Weakness ? T("weakness_mult") : 1) * (ev.Critical ? T("crit_mult") : 1) * random;
+                double damage = GameProcessor.BaseDamage(data, A.Level, a, d) * mult * (ev.Weakness ? T("weakness_mult") : 1) * (ev.Critical ? T("crit_mult") : 1) * random * extra;
                 return Math.Max((int)T("damage_min"), (int)damage);
             }
             void Heal(BattleState b) { foreach (var s in b.Sides) s.Current.Hp = MaxHp(s.Current); }
@@ -410,6 +410,89 @@ namespace Sugoroku.Rules
                 double skip = (double)skipped / tries;
                 Check(log, $"7.17 状態異常：ねむりの長さは {T("sleep_min")}〜{T("sleep_max")}ラウンド（両はしも出る）、まひで動けないのは 約{T("paralysis_skip_rate"):P0}（{skip:P1}）",
                     lengths.Min() == (int)T("sleep_min") && lengths.Max() == (int)T("sleep_max") && Math.Abs(skip - T("paralysis_skip_rate")) < 0.04);
+            }
+
+            // ---- 7.17 状態異常の効果（やけど・まひ）と、1体に1つだけ ----
+            {
+                var (g, b, _) = Fight("ヒトカゲ", 50, "ヒトカゲ", 50, BattleKind.Trainer);
+                var me = b.Sides[0].Current;
+                // やけど：物理のダメージが半分（とくこうは そのまま）
+                me.Status = Status.Burn;
+                g.State.Rng = 88; Heal(b);
+                var phys = Hit(g, b, 0, Attack.Physical, Defense.SpecialGuard);
+                g.State.Rng = 88; Heal(b);
+                var spec = Hit(g, b, 0, Attack.Special, Defense.Guard);
+                bool burn = !phys.Missed && phys.Damage == Expected(b, 0, Attack.Physical, T("guard_wrong_mult"), phys, 0.5)
+                    && !spec.Missed && spec.Damage == Expected(b, 0, Attack.Special, T("guard_wrong_mult"), spec);
+                // まひ：すばやさが半分
+                me.Status = Status.None;
+                int fast = (int)Call(g, "BattleSpeed", b.Sides[0]);
+                me.Status = Status.Paralysis;
+                int slow = (int)Call(g, "BattleSpeed", b.Sides[0]);
+                bool para = fast == Pokemons.Stat(Pokemons.Of(data, me).Speed, me.Level) && slow == (int)(fast * 0.5);
+                // 1体に1つだけ：どくの子に やけどは つかない
+                me.Status = Status.Poison;
+                var ev = new List<GameEvent>();
+                Call(g, "Inflict", 0, Status.Burn, ev, -1, null, true);
+                bool one = me.Status == Status.Poison && !ev.OfType<StatusInflicted>().Any();
+                Check(log, "7.17 状態異常：やけどは物理のダメージが半分（とくこうは そのまま）、まひは すばやさが半分、1体がかかるのは1つだけ", burn && para && one);
+            }
+
+            // ---- 7.13 砂あらし ----
+            {
+                // 攻守が1往復するたびに、闘タイプ以外は 最大HP×sand_damage（ドサイドンは闘）
+                var (g, b, _) = Fight("ヒトカゲ", 50, "ドサイドン", 50, BattleKind.Trainer);
+                b.Weather = "砂あらし";
+                b.Rounds = 1; b.Attacker = 0; b.First = 0; b.AttackCmd = Attack.Physical; b.DefenseCmd = Defense.Guard;
+                var me = b.Sides[0].Current;
+                var ev = new List<GameEvent>();
+                Call(g, "ResolveRound", ev);
+                var sand = ev.OfType<SandstormDamage>().ToList();
+                Check(log, "7.13 砂あらし：1往復ごとに 闘タイプ以外は最大HP×sand_damage のダメージ、闘タイプは受けない",
+                    sand.Count == 1 && sand[0].Side == 0 && sand[0].Damage == Math.Max(1, (int)(MaxHp(me) * T("sand_damage"))));
+            }
+
+            // ---- 7.3 にげる ----
+            {
+                List<GameEvent> Flee(BattleKind kind, bool full)
+                {
+                    var (g, b, _) = Fight("ヒトカゲ", 50, "ヒトカゲ", 50, kind);
+                    b.Full = full;
+                    b.Attacker = 1; b.First = 1; b.AttackCmd = Attack.Physical; b.DefenseCmd = Defense.Flee;
+                    var ev = new List<GameEvent>();
+                    Call(g, "ResolveRound", ev);
+                    return ev;
+                }
+                // ジム：にげられない（守る番に にげるを選べない）
+                var (gg, gb, gp) = Fight("ヒトカゲ", 50, "ヒトカゲ", 50, BattleKind.Gym);
+                gb.Attacker = 1; gb.Step = BattleStep.Commands; gb.AttackCmd = Attack.Physical; gb.DefenseCmd = null;
+                bool gym = Error(gg, new ChooseDefense { Player = gp.Id, Defense = Defense.Flee }).Contains("ジム");
+                var quick = Flee(BattleKind.Trainer, false); var full = Flee(BattleKind.Rival, true);
+                Check(log, "7.3 にげる：ジムからは にげられない。NPCのクイックバトルは お咎めなし（1回休みも お金もなし）、フルバトル（ライバルなど）から にげると1回休み",
+                    gym && quick.OfType<Fled>().Any() && !quick.OfType<RestNextTurn>().Any() && !quick.OfType<MoneyChanged>().Any()
+                    && full.OfType<Fled>().Any() && full.OfType<RestNextTurn>().Any(x => x.Player == 0));
+            }
+
+            // ---- 7.7 ポケモンの交換（プレイヤー戦の勝利報酬）----
+            {
+                // 同じか高いコストの子を出す。キャタピーを出して リザードンは取れない。相手の手持ちが1体だけなら 交換は選べない
+                bool Trade(bool loserHasTwo, string give, out string err)
+                {
+                    err = null;
+                    var (g, b) = PvP("ヒトカゲ", 50, "ヒトカゲ", 50);
+                    if (b == null) return false;
+                    var win = g.State.Players[b.Sides[0].Player]; var lose = g.State.Players[b.Sides[1].Player];
+                    win.Party[0] = Pokemons.Create(data, give, give == "キャタピー" ? 99 : 36, "", "", 1);
+                    lose.Party[0] = Pokemons.Create(data, "リザードン", 36, "", "", 1);
+                    if (loserHasTwo) lose.Party.Add(Pokemons.Create(data, "ゼニガメ", 10, "", "", 1));
+                    Apply(g, new DebugCommand { Player = win.Id, Action = DebugAction.WinBattle });
+                    if (g.State.Battle?.Step != BattleStep.Reward) return false;
+                    err = g.Validate(new ChooseReward { Player = win.Id, Reward = Reward.Trade, Take = 0, Give = 0 });
+                    return true;
+                }
+                bool a = Trade(true, "キャタピー", out string cheap), c = Trade(true, "リザードン", out string same), d = Trade(false, "リザードン", out string alone);
+                Check(log, "7.7 交換：Lv99のキャタピーを出して リザードンは取れない（コスト）。同じコストなら取れる。相手の手持ちが1体だけなら 交換できない",
+                    a && c && d && cheap != null && cheap.Contains("コスト") && same == null && alone != null && alone.Contains("1体"));
             }
 
             // ---- 7.18 絆による回避 ----
