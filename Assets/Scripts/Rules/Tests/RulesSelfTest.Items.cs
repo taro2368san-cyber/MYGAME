@@ -85,6 +85,40 @@ namespace Sugoroku.Rules
                 Check(log, $"8.7 ルーレット：自転車2個・マッハ自転車3個・ロトム自転車4個（今の上限 {keep}）。上限を3にすると ロトム自転車は3個、ダート自転車も3個を超えない", now && capped && data.Tuning["roulette_max"] == keep);
             }
 
+            // ---- 8.8.3 鍵付きボールマスの当たり率は 段階ごと（ボールマスの段階.csv の「当たり率」、食い違い20）----
+            {
+                // 段階ごとに 開けた人のバッジをその段階にして 何回も開け、当たりの割合が その段階の当たり率の前後に入る
+                var bad = new List<string>();
+                foreach (var tier in data.BallTiers)
+                {
+                    var g = Make(1, 11); var p = g.State.CurrentPlayer;
+                    for (int i = 0; i < tier.MinBadges; i++) p.Gyms.Add("テスト" + i);
+                    int n = 400, prizes = 0;
+                    for (int i = 0; i < n; i++)
+                    {
+                        p.PokemonBag.Clear(); p.TrainerBag.Clear(); g.State.Facility = null;
+                        var ev = new List<GameEvent>();
+                        Call(g, "LandBallSquare", board[p.Square], ev, true);
+                        if (ev.OfType<BallTierUsed>().Any(x => x.Prize)) prizes++;
+                    }
+                    double rate = (double)prizes / n;
+                    if (tier.PrizeRate == null || Math.Abs(rate - tier.PrizeRate.Value) > 0.08) bad.Add($"{tier.Id} {rate:P0}");
+                    else bad.Add("");
+                }
+                var miss = bad.Where(x => x != "").ToList();
+                // 当たり率の列がない（空の）段階は データチェックがエラー。0〜1 の外も エラー
+                var probe = new GameData();
+                probe.BallTiers.Add(new BallTier { Id = "bt0", PrizeRate = null });
+                probe.BallTiers.Add(new BallTier { Id = "bt3", PrizeRate = 1.5 });
+                probe.BallTiers.Add(new BallTier { Id = "bt5", PrizeRate = 0.65 });
+                var errs = new List<string>();
+                GameData.CheckPrizeRates(probe, errs);
+                var realErrs = new List<string>();
+                GameData.CheckPrizeRates(data, realErrs);
+                Check(log, "8.8.3 鍵付きボールマス：当たりの割合は 開けた人の段階の当たり率の前後（" + string.Join("・", data.BallTiers.Select(t => $"{t.Id} {t.PrizeRate:P0}")) + "）。当たり率がない・0〜1 の外は データチェックのエラー" + (miss.Count > 0 ? "（合わない：" + string.Join("、", miss) + "）" : ""),
+                    miss.Count == 0 && data.BallTiers.Count > 0 && errs.Count == 2 && errs.All(e => e.StartsWith("[エラー]")) && errs.Any(e => e.Contains("bt0")) && errs.Any(e => e.Contains("bt3")) && realErrs.Count == 0);
+            }
+
             // ---- 8.8.1 袋がいっぱいのとき ----
             {
                 (PlayerState p, List<string> options) Full(int choose)

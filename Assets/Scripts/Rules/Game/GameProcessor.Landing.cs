@@ -57,7 +57,7 @@ namespace Sugoroku.Rules
                 case "ショップ": return LandShop(sq, events);
                 case "モンスターボール": return LandBallSquare(sq, events);
                 case "鍵付きモンスターボール":
-                    // カギがあれば使って開ける。中身は「当たり枠」（key_prize_rate の確率）か、1つ上の段階の表（8.8.1）
+                    // カギがあれば使って開ける。中身は「当たり枠」（段階ごとの当たり率、8.8.3）か、1つ上の段階の表（8.8.1）
                     if (!player.TrainerBag.Contains("カギ")) return Nothing("カギが かかっていて 開かない", events);
                     RemoveItem(player, "カギ");
                     events.Add(new ItemUsed { Player = player.Id, Item = "カギ" });
@@ -279,7 +279,8 @@ namespace Sugoroku.Rules
             bool rescue = p.LastPlaceWeeks >= TuneInt("ballmass_boost_weeks");
             var tier = data.TierFor(p.Badges, rescue || keyed);
             var own = data.TierFor(p.Badges);
-            bool prize = keyed && own != null && data.KeyPrizeItems.Any(x => x.Weights[own.Id] > 0) && Chance(Tune("key_prize_rate"));
+            // 当たり率は 開けた人の段階の率（ボールマスの段階.csv の「当たり率」、8.8.3）。救済（rescue）は 鍵付きの当たりには かからない（当たりの表も 率も 自分の段階）
+            bool prize = keyed && own?.PrizeRate is double rate && data.KeyPrizeItems.Any(x => x.Weights[own.Id] > 0) && Chance(rate);
             var item = prize ? Pick(data.KeyPrizeItems, x => x.Weights[own.Id]) : tier == null ? null : Pick(data.BallSquareItems, x => x.Weights[tier.Id]);
             if (item == null) return Nothing("中は空っぽだった", events);
             events.Add(new BallTierUsed { Player = p.Id, Tier = prize ? own.Name : tier.Name, Rescue = rescue && !keyed && tier != own, Keyed = keyed, Prize = prize });

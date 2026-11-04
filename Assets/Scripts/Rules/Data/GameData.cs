@@ -118,7 +118,7 @@ namespace Sugoroku.Rules
 
     public sealed class Shop { public string Id, Name, Place, Base; }                   // Base: 品ぞろえを受け継ぐショップの id
     public sealed class ShopItem { public string ShopId, Item, CondKind, CondValue; }
-    public sealed class BallTier { public string Id, Name; public int MinBadges, MaxBadges; } // ボールマスの段階（バッジの数で決まる）
+    public sealed class BallTier { public string Id, Name; public int MinBadges, MaxBadges; public double? PrizeRate; } // ボールマスの段階（バッジの数で決まる）。PrizeRate：鍵付きボールマスの当たり率（8.8.3、0〜1）
     public sealed class BallSquareItem { public string Item, Bag; public int Count; public readonly Dictionary<string, int> Weights = new Dictionary<string, int>(); } // Weights: 段階id → 重み
     public sealed class EventSquare { public string Square, Content; public Effect Effect; }
     // 島マップ.csv の1行（3.4、チケットの設定.md）。Kind：地方の島／伝説の島
@@ -251,7 +251,7 @@ namespace Sugoroku.Rules
             "dice_max", "dice_min", "dice_zero_rate", "dividend_interval", "empty_money_spread", "empty_money_unit", "event_reward_level", "event_weeks", "eviolite_mult", "exchange_close_weeks",
             "exp_bench", "exp_capture", "exp_capture_safari", "exp_coef", "exp_selected", "fan_heal_forced", "fan_heal_ratio", "flute_weeks", "fossil_hatch_weeks", "fossil_level_offset",
             "gold_spray_weeks", "guard_success_mult", "guard_wrong_mult", "gym_level_step", "hit_rate_base", "initiative_ratio_large", "initiative_ratio_small", "job_level_bonus",
-            "key_prize_rate", "lab_evolve_price", "lab_researcher_dex", "leftovers_heal", "level_max", "life_orb_mult", "life_orb_recoil", "light_ball_mult", "name_max",
+            "lab_evolve_price", "lab_researcher_dex", "leftovers_heal", "level_max", "life_orb_mult", "life_orb_recoil", "light_ball_mult", "name_max",
             "news_legend_level_bonus", "news_legend_rate", "news_rare_mult", "owner_discount", "pager_candidates", "paralysis_skip_rate", "party_size", "poison_damage", "pokemon_bag",
             "quick_claw_rate", "rank_down1", "rank_down2", "rank_up1", "rank_up2", "reflect_mult", "rival_level_offset", "rival_trade_cost", "rival_trade_cost_owner", "rocket_award",
             "rocket_bridge_owner_rate", "rocket_reward_trainers", "rocket_scout_badges", "rocket_scout_weeks", "rocket_thief_shelf", "rocky_helmet_damage", "roulette_max", "round_limit_full",
@@ -423,7 +423,7 @@ namespace Sugoroku.Rules
 
             var tiers = Optional(dir, "ボールマスの段階", problems);
             foreach (var r in Rows(tiers))
-                data.BallTiers.Add(new BallTier { Id = tiers.Get(r, "id"), Name = tiers.Get(r, "名前"), MinBadges = Int(tiers, r, "バッジ最小", problems) ?? 0, MaxBadges = Int(tiers, r, "バッジ最大", problems) ?? 99 });
+                data.BallTiers.Add(new BallTier { Id = tiers.Get(r, "id"), Name = tiers.Get(r, "名前"), MinBadges = Int(tiers, r, "バッジ最小", problems) ?? 0, MaxBadges = Int(tiers, r, "バッジ最大", problems) ?? 99, PrizeRate = Num(tiers, r, "当たり率", problems) });
             // モンスターボールマスの表と、鍵付きボールマスの当たり枠（同じ形）
             void BallTable(string name, List<BallSquareItem> into)
             {
@@ -623,6 +623,13 @@ namespace Sugoroku.Rules
             }
         }
 
+        // 鍵付きボールマスの当たり率（ボールマスの段階.csv の「当たり率」、8.8.3）：どの段階も 0〜1 の数。列がない・空・範囲の外はエラー（調整値のチェックと同じ扱い）
+        public static void CheckPrizeRates(GameData d, List<string> problems)
+        {
+            foreach (var t in d.BallTiers.Where(t => t.PrizeRate == null || t.PrizeRate < 0 || t.PrizeRate > 1))
+                problems.Add($"[エラー] ボールマスの段階: 段階「{t.Id}」の「当たり率」がないか、0〜1 の数ではありません（鍵付きボールマスの当たりが決められません）");
+        }
+
         static void Validate(GameData d, List<string> problems)
         {
             foreach (var g in d.Species.GroupBy(s => s.Name).Where(g => g.Count() > 1))
@@ -699,6 +706,7 @@ namespace Sugoroku.Rules
 
             for (int b = 0; b <= 8; b++)
                 if (d.BallTiers.Count > 0 && !d.BallTiers.Any(t => b >= t.MinBadges && b <= t.MaxBadges)) Warn($"ボールマスの段階: バッジ{b}個のときの段階がありません");
+            CheckPrizeRates(d, problems);
             foreach (var b in d.BallSquareItems.Concat(d.KeyPrizeItems))
             {
                 var item = d.FindItem(b.Item);
