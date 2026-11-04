@@ -11,7 +11,7 @@ namespace Sugoroku.Rules
     //                5─6─7(バッジ1個で解放)
     //                │
     //                8(ワープ1) ……ワープ……> 9(ワープ1、道なし)
-    public static class RulesSelfTest
+    public static partial class RulesSelfTest
     {
         public static List<string> Run()
         {
@@ -1685,6 +1685,7 @@ namespace Sugoroku.Rules
                 Check(log, "はじめの設定：同じキャラ・同じ最初のポケモン・世代ちがいの御三家・1人や5人・カタカナや7文字の名前・範囲外の週数は 処理役でも断る",
                     ok && sameChar && sameMon && wrongGen && count && badName && weeks);
             }
+            BattleRules(data, board, log); // 6・7章（RulesSelfTest.Battle.cs）
 
             var summary = new Dictionary<string, int>();
             for (ulong seed = 1; seed <= 5; seed++)
