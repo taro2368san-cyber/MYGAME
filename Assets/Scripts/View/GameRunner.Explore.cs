@@ -11,24 +11,77 @@ public partial class GameRunner
     Transform exploreFocus;
     int exploreSquare = -1;
 
+    // 見渡せるのは 自分が今いるマップだけ（16.7）。別マップの板は 同じシーンの離れた場所にある（3.4）ので、
+    // そのマップのマスを囲む範囲（exploreRect）の外にある絵（板・マス・道・コマ・シンボル・マーク）を 見渡しの間だけ消し、カメラも その範囲の中だけで動かす
+    const float ExplorePad = 4f;              // マスの外側に 板の縁として残す幅
+    Rect exploreRect;
+    readonly System.Collections.Generic.List<Renderer> exploreHidden = new System.Collections.Generic.List<Renderer>();
+
     void StartExplore()
     {
         exploring = true;
         exploreSquare = -1;
         exploreFocus = new GameObject("ExploreFocus").transform;
-        exploreFocus.position = pieces[S.CurrentPlayer.Id].position;
+        exploreFocus.position = pieces[S.CurrentPlayer.Id].position + camPan; // いま見ているところから
+        camPan = Vector3.zero;
         cameraTarget = exploreFocus;
         subMenu = ExploreMenu;
-        RefreshAll();
+        exploreRect = MapRect(board[S.CurrentPlayer.Square].MapId);
+        RefreshAll(); // 最後に HideOtherMaps
     }
 
     void EndExplore()
     {
         exploring = false;
+        ShowOtherMaps();
         if (exploreFocus != null) Destroy(exploreFocus.gameObject);
         cameraTarget = pieces[S.CurrentPlayer.Id];
         subMenu = null;
         RefreshAll();
+    }
+
+    // そのマップのマスを囲む範囲（x・z）。縁を少し足す
+    Rect MapRect(string mapId)
+    {
+        var pts = board.Squares.Values.Where(s => s.MapId == mapId).Select(s => SquarePosition(s.Id)).ToList();
+        if (pts.Count == 0) return new Rect(-1e5f, -1e5f, 2e5f, 2e5f);
+        return Rect.MinMaxRect(pts.Min(p => p.x) - ExplorePad, pts.Min(p => p.z) - ExplorePad, pts.Max(p => p.x) + ExplorePad, pts.Max(p => p.z) + ExplorePad);
+    }
+
+    // 見渡しの間：範囲の外にある絵を消す（消したものだけ覚えて、出るときに戻す）。RefreshAll のたびに呼ぶ（あとから作られたマークも消す）。デバッグの「見渡しの制限：なし」なら消さない
+    void HideOtherMaps()
+    {
+        if (!exploring || seeAll) return;
+        foreach (var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+        {
+            if (!r.enabled) continue;
+            var c = r.bounds.center;
+            if (exploreRect.Contains(new Vector2(c.x, c.z))) continue;
+            r.enabled = false;
+            exploreHidden.Add(r);
+        }
+    }
+
+    void ShowOtherMaps()
+    {
+        foreach (var r in exploreHidden) if (r != null) r.enabled = true;
+        exploreHidden.Clear();
+    }
+
+    // 見渡しのカメラ（LateUpdate から）：引きすぎると範囲の外が入るので 縮小に上限、見ているところは 画面の端が範囲に収まるところまで
+    // ponytail: 画面に映る地面の広さは 真ん中の高さで見積もる（斜め見下ろしの手前と奥の差は 縁の幅で吸収）
+    void ClampExploreCamera(Camera cam)
+    {
+        if (seeAll || exploreFocus == null) return;
+        float dist = cameraOffset.magnitude, sin = cameraOffset.y / dist, tan = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
+        float perZoomW = dist * tan * cam.aspect, perZoomH = dist * tan / sin; // zoom 1 のときの 画面の半分の幅・奥行き
+        float maxZoom = Mathf.Clamp(Mathf.Min(exploreRect.width / (2 * perZoomW), exploreRect.height / (2 * perZoomH)), 0.3f, 3f);
+        zoom = Mathf.Min(zoom, maxZoom);
+        float hw = perZoomW * zoom, hh = perZoomH * zoom;
+        var p = exploreFocus.position;
+        p.x = exploreRect.width > 2 * hw ? Mathf.Clamp(p.x, exploreRect.xMin + hw, exploreRect.xMax - hw) : exploreRect.center.x;
+        p.z = exploreRect.height > 2 * hh ? Mathf.Clamp(p.z, exploreRect.yMin + hh, exploreRect.yMax - hh) : exploreRect.center.y;
+        exploreFocus.position = p;
     }
 
     void ExploreMenu()
