@@ -1363,12 +1363,42 @@ namespace Sugoroku.Rules
                     // トレーナーマスの亜種（9.2・11.2）：持ち主がいなければ 勝った人のファンになる（年貢の数に入る＝トレーナーマスの持ち主）。他人のファンなら 解放されても 持ち主は変わらない
                     void Strong4(GameState s) { var pl = s.Players[0]; for (int i = 0; i < 4; i++) pl.Gyms.Add("ジム" + i); pl.Party[0] = Pokemons.Create(data, "リザードン", 100, "", "", 1); }
                     var (og, oev) = LandEvents(board[fireSq], "ヒトカゲ", s => { Strong4(s); s.Owners[fireSq] = 99; });
-                    bool otherChallenged = oev.OfType<JobChallenge>().Any() && og.State.Battle?.Kind == BattleKind.Job;
+                    bool healOffered = og.State.Facility?.Kind == FacilityKind.FanHeal; // 他人のファン：先に有料回復（相談16-2）。ことわっても 挑戦は始まる
+                    if (healOffered) oev = Apply(og, new LeaveFacility { Player = og.State.CurrentPlayer.Id });
+                    bool otherChallenged = healOffered && oev.OfType<JobChallenge>().Any() && og.State.Battle?.Kind == BattleKind.Job;
                     og.DebugEnabled = true;
                     var owev = otherChallenged ? og.Apply(new DebugCommand { Player = 0, Action = DebugAction.WinBattle }, out _) : new List<GameEvent>();
                     Check(log, "職業マス：持ち主がいなければ 勝つと そのトレーナーが勝った人のファンになる（年貢の数に入る）。他人のファンなら 解放されても 持ち主は変わらない",
                         challenged && jg.State.Owners.TryGetValue(fireSq, out int jo) && jo == 0 && board[fireSq].Type == "トレーナー" && wev.OfType<OwnerChanged>().Any(x => x.Square == fireSq && x.Owner == 0)
                         && otherChallenged && owev.OfType<JobUnlocked>().Any(x => x.Job == "ひふきやろう") && og.State.Owners[fireSq] == 99 && !owev.OfType<OwnerChanged>().Any(x => x.Square == fireSq));
+
+                    // 回復・有料回復のあとで 職業の挑戦（相談16-2）
+                    // 自分のファン：HP の減った子が回復し、アイテムをもらい、そのあと職業バトル。バトルに出るときの HP は 回復したあと
+                    var (fg, fev) = LandEvents(board[fireSq], "ヒトカゲ", s => { Strong4(s); s.Owners[fireSq] = 0; s.Players[0].Party[0].Hp = 1; });
+                    var fp = fg.State.Players[0];
+                    int healAt = fev.FindIndex(e => e is PartyHealed), giftAt = fev.FindIndex(e => e is ItemGained), jobAt = fev.FindIndex(e => e is JobChallenge);
+                    var fout = fev.OfType<SentOut>().FirstOrDefault(x => x.Side == 0);
+                    bool ownFan = healAt >= 0 && giftAt > healAt && jobAt > giftAt && fg.State.Battle?.Kind == BattleKind.Job && fout != null && fout.Hp == fout.MaxHp && fout.Hp == Pokemons.MaxHp(data, fp.Party[0]);
+                    // 他人のファン：有料回復の代金が持ち主に入り、そのあと職業バトル
+                    var pg = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ"), ("B", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
+                    var payer = pg.State.CurrentPlayer; var fanOwner = pg.State.Players.First(x => x != payer);
+                    for (int i = 0; i < 4; i++) payer.Gyms.Add("ジム" + i);
+                    payer.Party[0] = Pokemons.Create(data, "リザードン", 100, "", "", 1); payer.Party[0].Hp = 1;
+                    pg.State.Owners[fireSq] = fanOwner.Id;
+                    pg.State.JobSquares[fireSq] = "ひふきやろう"; // 職業マスの置き場所は ゲームの始めに乱数で決まるので、同じマスにしておく
+                    payer.Money = 5000; fanOwner.Money = 0;
+                    payer.Square = board[fireSq].Neighbors[0]; payer.FixedDice = 1;
+                    Apply(pg, new RollDice { Player = payer.Id });
+                    Apply(pg, new ChooseDestination { Player = payer.Id, Square = fireSq });
+                    Apply(pg, new ConfirmMove { Player = payer.Id });
+                    int price = pg.State.Facility?.Kind == FacilityKind.FanHeal ? pg.State.Facility.Price : -1;
+                    var pev = price >= 0 ? Apply(pg, new AcceptHeal { Player = payer.Id }) : new List<GameEvent>();
+                    var pout = pev.OfType<SentOut>().FirstOrDefault(x => x.Side == 0);
+                    bool paidFan = price > 0 && payer.Money == 5000 - price && fanOwner.Money == price && pev.OfType<JobChallenge>().Any() && pg.State.Battle?.Kind == BattleKind.Job && pout != null && pout.Hp == pout.MaxHp;
+                    // 持ち主のいない職業マス：今までどおり 回復なしで すぐにバトル
+                    bool unowned = challenged && !jev.OfType<PartyHealed>().Any();
+                    Check(log, "職業マス：自分のファンなら 回復とアイテムのあとで、他人のファンなら 有料回復（代金は持ち主へ。ことわっても）のあとで 職業バトル。バトルに出るときは回復したあとのHP。持ち主がいなければ すぐにバトル",
+                        ownFan && paidFan && unowned && healOffered);
                 }
                 else Check(log, "職業マス：開始時にトレーナーマスへ置かれる", placed);
             }

@@ -85,6 +85,7 @@ namespace Sugoroku.Rules
         public string Prompt = "", EventId, PendingItem, PendingJob; // 選択肢の見出し、進行中のイベント、袋に入れたい物、就くか聞いている職業
         public PokemonState PendingPokemon;            // 控えに入れたいポケモン（BoxFull）
         public bool IsLab;                             // 研究室（センターの機能＋進化サービス、3.2.1）
+        public int JobSquare = -1;                     // この画面を出たあと 職業の挑戦をする職業マス（回復・有料回復のあと、相談16-2）。なければ -1
     }
 
     // ゲームのすべての情報（仕様書15.2）。書き換えてよいのは GameProcessor だけ

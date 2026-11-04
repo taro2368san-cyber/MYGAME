@@ -294,9 +294,11 @@ namespace Sugoroku.Rules
         bool LandTrainer(BoardSquare sq, List<GameEvent> events)
         {
             var p = Current;
-            if (JobChallengeOpen(p, sq.Id) is JobSquareRule job) return StartJobBattle(sq, job, events); // 職業マス（9.2）
+            // 職業マス（9.2）：挑めるなら職業トレーナーとバトル。持ち主がいれば 回復（自分のファン）・有料回復（他人のファン、ことわっても）のあとで（相談16-2）
+            var job = JobChallengeOpen(p, sq.Id);
             var entry = data.Trainers.FirstOrDefault(t => t.Square == sq.Name);
             bool owned = State.Owners.TryGetValue(sq.Id, out int owner);
+            if (!owned && job != null) return StartJobBattle(sq, job, events);
             string name = entry != null && entry.Name != "" ? entry.Name : "トレーナー";
             string leader = data.GymMembers.FirstOrDefault(m => m.Gym == data.Places.FirstOrDefault(x => x.Name == sq.Place)?.Gym)?.Leader ?? "ジムリーダー";
 
@@ -322,16 +324,32 @@ namespace Sugoroku.Rules
                 HealParty(p, events);
                 var first = data.TierFor(0);
                 var gift = first == null ? null : Pick(data.BallSquareItems, x => x.Weights[first.Id]);
-                return gift != null && GiveItem(p, gift.Item, events);
+                bool wait = gift != null && GiveItem(p, gift.Item, events);
+                if (job == null) return wait;
+                if (wait) { State.Facility.JobSquare = sq.Id; return true; } // 袋がいっぱいで 捨てる物を選んでから 挑戦（FinishFacility）
+                return StartJobBattle(sq, job, events);
             }
             var facility = new FacilityState { Kind = FacilityKind.FanHeal, Player = p.Id, Square = sq.Id, Owner = owner, Price = (int)(SquareValue(sq) * Tune("fan_heal_ratio")) }; // 回復代＝そのマスの換算額×fan_heal_ratio（8.10）
             Say(entry != null && entry.IsGymTrainer ? "gymtrainer_cleared" : "trainer_other", events, p, ("名前", name), ("所有者", owner >= 0 && owner < State.Players.Count ? State.Players[owner].Name : "だれか"), ("金額", facility.Price.ToString()), ("リーダー", leader));
             if (TuneInt("fan_heal_forced") == 1)
             {
                 PayHeal(facility, events);
-                return false;
+                return job != null && StartJobBattle(sq, job, events);
             }
+            if (job != null) facility.JobSquare = sq.Id; // 払っても ことわっても、画面を出たあとに 挑戦（FinishFacility）
             return OpenFacility(facility, events);
+        }
+
+        // 施設を出たあと：職業マスの回復・有料回復のあとなら 職業の挑戦（相談16-2）。それ以外は手番を終える
+        void FinishFacility(FacilityState f, List<GameEvent> events)
+        {
+            var p = State.Players[f.Player];
+            if (f.JobSquare >= 0 && p == Current && JobChallengeOpen(p, f.JobSquare) is JobSquareRule job)
+            {
+                State.Facility = null;
+                if (StartJobBattle(board[f.JobSquare], job, events)) return;
+            }
+            EndTurn(events);
         }
 
         // トレーナーの相手のポケモン。表にポケモンかLvがなければ、その場所（なければ同じ解放条件の場所）の出現表からランダム。Lvは最高Lv＋1（仮）
@@ -665,11 +683,11 @@ namespace Sugoroku.Rules
                         return;
                     }
                     if (ChooseOption(f, o.Index, events)) return; // まだ操作待ち（バトルなど）
-                    EndTurn(events);
+                    FinishFacility(f, events);
                     return;
             }
             events.Add(new FacilityClosed { Player = p.Id });
-            EndTurn(events);
+            FinishFacility(f, events);
         }
 
         // 選択肢を選んだ。続けて操作待ちになるなら true
