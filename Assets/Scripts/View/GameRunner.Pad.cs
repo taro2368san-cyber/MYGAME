@@ -157,6 +157,8 @@ public partial class GameRunner
             }
             if (Down(g, x => x.buttonSouth) && Ok(new StepBack { Player = S.CurrentPlayer.Id })) { Send(new StepBack { Player = S.CurrentPlayer.Id }); return true; }
         }
+        // メニューの L1・R1 は ←→ のキーとして押す（どうぐの袋の切りかえ、16.9）
+        if (subMenu != null && (Down(g, x => x.leftShoulder) || Down(g, x => x.rightShoulder))) { PressKey(Down(g, x => x.leftShoulder) ? KeyCode.LeftArrow : KeyCode.RightArrow); return true; }
         // メニュー：↑↓で選ぶ、○で決定、×でもどる（Esc のボタン）
         if (Down(g, x => x.dpad.down) || Down(g, x => x.dpad.up))
         {

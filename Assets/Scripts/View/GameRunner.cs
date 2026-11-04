@@ -774,7 +774,7 @@ public partial class GameRunner : MonoBehaviour
                 title = $"{p.Name}の ばん：サイコロを振る前";
                 // E メニュー（UI仕様書 E）：いどう／どうぐ／マップ／ポケモン／ずかん／せってい。左に その行動の絵
                 AddArt(Ui.Icon("くつ"), "いどう", () => { subMenu = () => DiceMenu(me); RefreshAll(); }, KeyCode.Return);
-                AddArt(Ui.Icon("つりざお"), "どうぐ", () => { subMenu = () => ItemMenu(me); RefreshAll(); }, KeyCode.None, !p.UsedItem && p.PokemonBag.Concat(p.TrainerBag).Any());
+                AddArt(Ui.Icon("つりざお"), "どうぐ", () => { itemPokemonBag = false; subMenu = () => ItemMenu(me); RefreshAll(); }, KeyCode.None, !p.UsedItem && p.PokemonBag.Concat(p.TrainerBag).Any());
                 AddArt(Ui.Icon("地図"), "マップ", StartExplore);
                 AddArt(Ui.Ball(new Color(0.9f, 0.2f, 0.2f)), "ポケモン", () => { subMenu = () => PokemonMenu(me); RefreshAll(); });
                 AddArt(Ui.Icon("本"), "ずかん", () => ShowDex(p));
@@ -841,18 +841,39 @@ public partial class GameRunner : MonoBehaviour
         DrawMenu(first < 0 ? "入れ替える1体目を えらぶ" : $"{p.Party[first].Species}と 入れ替える子を えらぶ");
     }
 
+    // どうぐ（16.9・16.6 #43）：2つの袋の一覧 → 使う相手 → 確認 → 効果。×で1つ前へ
+    // 袋は「トレーナーの道具」「ポケモンの道具」を ←→（コントローラーは L1・R1）で切りかえる。使えるかどうかは 処理役（Validate）で決める
+    bool itemPokemonBag; // いま見ている袋（false＝トレーナーの道具）
+
     void ItemMenu(int me)
     {
         var p = S.Players[me];
-        foreach (var item in p.PokemonBag.Concat(p.TrainerBag).Distinct())
+        var bag = itemPokemonBag ? p.PokemonBag : p.TrainerBag;
+        foreach (var item in bag.Distinct())
         {
             string name = item;
+            int count = bag.Count(x => x == name);
+            string label = count > 1 ? $"{name}×{count}" : name;
             if (game.TargetOf(name) != TargetKind.None)
-                Add(name, () => { subMenu = () => TargetMenu(me, name); RefreshAll(); }, KeyCode.None, Targets(me, name).Any(t => Ok(new UseItem { Player = me, Item = name, Target = t.target })));
-            else Add(name, () => Send(new UseItem { Player = me, Item = name }), KeyCode.None, Ok(new UseItem { Player = me, Item = name }));
+                Add(label, () => { subMenu = () => TargetMenu(me, name); RefreshAll(); }, KeyCode.None, Targets(me, name).Any(t => Ok(new UseItem { Player = me, Item = name, Target = t.target })));
+            else Add(label, () => { subMenu = () => ConfirmItem(me, name, -1, ""); RefreshAll(); }, KeyCode.None, Ok(new UseItem { Player = me, Item = name }));
         }
+        int trainerMax = (int)data.Required("trainer_bag"), pokemonMax = (int)data.Required("pokemon_bag");
+        Add(itemPokemonBag ? $"← トレーナーの道具（{p.TrainerBag.Count}/{trainerMax}）" : $"ポケモンの道具（{p.PokemonBag.Count}/{pokemonMax}） →",
+            () => { itemPokemonBag = !itemPokemonBag; RefreshAll(); }, itemPokemonBag ? KeyCode.LeftArrow : KeyCode.RightArrow);
         Add("もどる", () => { subMenu = null; RefreshAll(); }, KeyCode.Escape);
-        DrawMenu("どの道具を使う？　ボール：" + (p.Balls.Count(b => b.Value > 0) == 0 ? "なし" : string.Join("　", p.Balls.Where(b => b.Value > 0).Select(b => $"{b.Key}×{b.Value}"))));
+        string balls = p.Balls.Count(b => b.Value > 0) == 0 ? "なし" : string.Join("　", p.Balls.Where(b => b.Value > 0).Select(b => $"{b.Key}×{b.Value}"));
+        DrawMenu((itemPokemonBag ? $"ポケモンの道具（{p.PokemonBag.Count}/{pokemonMax}）" : $"トレーナーの道具（{p.TrainerBag.Count}/{trainerMax}）") + $"\nボール：{balls}");
+    }
+
+    // 確認（16.9）：○で使う、×で1つ前（相手を選んだなら相手の画面、ないなら一覧）へ
+    void ConfirmItem(int me, string item, int target, string label)
+    {
+        var c = new UseItem { Player = me, Item = item, Target = target };
+        Add("つかう", () => Send(c), KeyCode.Return, Ok(c));
+        Add("もどる", () => { subMenu = target >= 0 || game.TargetOf(item) != TargetKind.None ? (Action)(() => TargetMenu(me, item)) : () => ItemMenu(me); RefreshAll(); }, KeyCode.Escape);
+        var kind = game.TargetOf(item);
+        DrawMenu(kind == TargetKind.None ? $"{item}を つかいますか？" : kind == TargetKind.Number ? $"{item}で {label} すすみますか？" : $"{item}を {label}に つかいますか？");
     }
 
     // 道具を使う相手の候補（ポケモン・プレイヤー・マス・数）と、ボタンの文字
@@ -868,13 +889,16 @@ public partial class GameRunner : MonoBehaviour
         }
     }
 
+    // 使う相手：処理役が「使える」と返す相手だけ並べる（妨害は 同じエリアの人だけ、8.3）
     void TargetMenu(int me, string item)
     {
         foreach (var (target, label) in Targets(me, item))
         {
             var c = new UseItem { Player = me, Item = item, Target = target };
-            if (game.TargetOf(item) == TargetKind.Square && !Ok(c)) continue; // マスは使えるところだけ並べる
-            Add(label, () => Send(c), KeyCode.None, Ok(c));
+            if (!Ok(c)) continue;
+            var kind = game.TargetOf(item);
+            string name = kind == TargetKind.Pokemon ? S.Players[me].Party[target].Species : kind == TargetKind.Player ? S.Players[target].Name : label; // 確認の文に入れる名前
+            Add(label, () => { subMenu = () => ConfirmItem(me, item, c.Target, name); RefreshAll(); });
         }
         Add("もどる", () => { subMenu = () => ItemMenu(me); RefreshAll(); }, KeyCode.Escape);
         DrawMenu(game.TargetOf(item) == TargetKind.Square ? $"{item}：どこに？" : game.TargetOf(item) == TargetKind.Number ? $"{item}：何マス進む？" : $"{item}を だれに使う？");
