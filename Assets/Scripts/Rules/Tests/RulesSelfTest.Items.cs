@@ -62,6 +62,29 @@ namespace Sugoroku.Rules
                     Fill("ダート自転車", tMax, p => p.TrainerBag) && Fill("キズくすり", pMax, p => p.PokemonBag));
             }
 
+            // ---- 8.7 ルーレットは roulette_max 個まで（相談18）：どの自転車も 同じ上限を通る ----
+            {
+                // 自転車を使って（ダート自転車は乗って）サイコロを振ったときの ルーレットの数
+                int Roulette(string bike, ulong seed)
+                {
+                    var g = Make(1, seed); var p = g.State.CurrentPlayer;
+                    p.TrainerBag.Add(bike);
+                    Apply(g, new UseItem { Player = p.Id, Item = bike });
+                    return Apply(g, new RollDice { Player = p.Id }).OfType<DiceRolled>().First().Dice.Count;
+                }
+                int DartMax() => Enumerable.Range(1, 40).Max(s => Roulette("ダート自転車", (ulong)s));
+                bool now = Roulette("自転車", 1) == 2 && Roulette("マッハ自転車", 1) == 3 && Roulette("ロトム自転車", 1) == Math.Min(4, (int)T("roulette_max"));
+                double keep = data.Tuning["roulette_max"];
+                bool capped;
+                try
+                {
+                    data.Tuning["roulette_max"] = 3; // テストの中だけ 上限を3に
+                    capped = Roulette("ロトム自転車", 1) == 3 && Roulette("マッハ自転車", 1) == 3 && Roulette("自転車", 1) == 2 && DartMax() == Math.Min(3, (int)T("dart_bike_max"));
+                }
+                finally { data.Tuning["roulette_max"] = keep; }
+                Check(log, $"8.7 ルーレット：自転車2個・マッハ自転車3個・ロトム自転車4個（今の上限 {keep}）。上限を3にすると ロトム自転車は3個、ダート自転車も3個を超えない", now && capped && data.Tuning["roulette_max"] == keep);
+            }
+
             // ---- 8.8.1 袋がいっぱいのとき ----
             {
                 (PlayerState p, List<string> options) Full(int choose)

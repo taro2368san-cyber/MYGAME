@@ -1932,7 +1932,7 @@ namespace Sugoroku.Rules
             var data = new GameData();
             foreach (var (k, v) in new (string, double)[] { ("dice_min", diceMin), ("dice_max", diceMax), ("start_money", 500), ("start_balls", 3), ("start_level", 5),
                 ("weekly_event_min", 3), ("weekly_event_max", 8), ("dividend_interval", 7), ("badge_point", 5), ("yen_per_point", 1000), ("lab_researcher_dex", 130),
-                ("empty_money_area1", 100), ("empty_money_spread", 0.5), ("empty_money_unit", 10), ("ticket_rescue_badges", 3), ("ticket_rescue_weeks", 20) })
+                ("empty_money_area1", 100), ("empty_money_spread", 0.5), ("empty_money_unit", 10), ("ticket_rescue_badges", 3), ("ticket_rescue_weeks", 20), ("roulette_max", 4) })
                 data.Tuning[k] = v;
             return data;
         }

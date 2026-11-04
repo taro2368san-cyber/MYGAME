@@ -273,6 +273,7 @@ namespace Sugoroku.Rules
             {
                 // ダート自転車の期間中は、ほかの自転車を使っていなければ ルーレットが2〜4個
                 int count = player.DiceCount == 1 && player.Has("ダート自転車") ? Roll(TuneInt("dart_bike_min"), TuneInt("dart_bike_max")) : player.DiceCount;
+                count = Math.Min(count, TuneInt("roulette_max")); // どの自転車でも ルーレットは roulette_max 個まで（8.7、相談18）
                 for (int i = 0; i < count; i++) dice.Add(RollDie());
             }
             int total = dice.Sum();

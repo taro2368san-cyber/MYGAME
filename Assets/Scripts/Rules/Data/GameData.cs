@@ -254,7 +254,7 @@ namespace Sugoroku.Rules
             "key_prize_rate", "lab_evolve_price", "lab_researcher_dex", "leftovers_heal", "level_max", "life_orb_mult", "life_orb_recoil", "light_ball_mult", "name_max",
             "news_legend_level_bonus", "news_legend_rate", "news_rare_mult", "owner_discount", "pager_candidates", "paralysis_skip_rate", "party_size", "poison_damage", "pokemon_bag",
             "quick_claw_rate", "rank_down1", "rank_down2", "rank_up1", "rank_up2", "reflect_mult", "rival_level_offset", "rival_trade_cost", "rival_trade_cost_owner", "rocket_award",
-            "rocket_bridge_owner_rate", "rocket_reward_trainers", "rocket_scout_badges", "rocket_scout_weeks", "rocket_thief_shelf", "rocky_helmet_damage", "round_limit_full",
+            "rocket_bridge_owner_rate", "rocket_reward_trainers", "rocket_scout_badges", "rocket_scout_weeks", "rocket_thief_shelf", "rocky_helmet_damage", "roulette_max", "round_limit_full",
             "round_limit_quick", "safari_balls", "safari_fee", "safari_flee_rate", "sale_discount", "sand_damage", "sell_ratio", "sitrus_heal", "sitrus_threshold", "sleep_max", "sleep_min",
             "snorlax_level", "snorlax_weeks_max", "snorlax_weeks_min", "special_hit_rate", "special_through_mult", "speed_hit_clip", "speed_hit_coef", "start_balls", "start_level",
             "start_money", "sweet_scent_level", "sweet_scent_weeks_max", "sweet_scent_weeks_min", "thick_club_mult", "ticket_change_weeks_max", "ticket_change_weeks_min",
