@@ -482,7 +482,7 @@ public partial class GameRunner : MonoBehaviour
                 case DiceRolled dr: yield return DiceAnim(dr); continue;          // 17.6
                 case BallTierUsed bu when bu.Prize: yield return PrizeAnim(text, bu.Player); continue; // 鍵付きボールの当たり（8.8.3）
                 case CardsDealt cd: yield return DealCards(cd); continue;           // 先攻・後攻のカード（UI仕様書 7.3 ②）
-                case InitiativeDrawn idr: yield return RevealCard(idr); continue;
+                case InitiativeDrawn idr: yield return RevealCard(idr); yield return SwapSides(idr.First, true); continue;
                 case CommandsRequested cr: yield return SwapSides(cr.Attacker); break; // 攻守の交代（⑥）
                 case Moved m: camPan = Vector3.zero; yield return MovePiece(m.Player, m.Path); continue;
                 case Warped w: pieces[w.Player].position = PiecePosition(w.Player, w.To); break;

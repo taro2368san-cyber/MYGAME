@@ -162,11 +162,11 @@ public partial class GameRunner
         yield return cards[d].PowerUp(CommandColors[di]);
     }
 
-    // ---- ⑥ 攻守の交代：両方が横へ出ていき、大きさを入れかえて 横から入ってくる ----
-    IEnumerator SwapSides(int attacker)
+    // ---- ⑥ 攻守の交代：両方が横へ出ていき、大きさを入れかえて 横から入ってくる。always：先攻・後攻が決まったあとは 必ず出入りする ----
+    IEnumerator SwapSides(int attacker, bool always = false)
     {
-        if (shownAttacker == attacker) yield break;
-        if (shownAttacker < 0) { shownAttacker = attacker; for (int i = 0; i < 2; i++) cards[i].SetScale(i == attacker ? BigScale : SmallScale); yield break; } // はじめは そのまま
+        if (shownAttacker == attacker && !always) yield break;
+        if (shownAttacker < 0 && !always) { shownAttacker = attacker; for (int i = 0; i < 2; i++) cards[i].SetScale(i == attacker ? BigScale : SmallScale); yield break; } // はじめは そのまま
         float t = shortBattle ? 0.2f : 0.4f;
         foreach (var p in pads) p.Show(false);
         yield return Together(cards[0].Slide(-1, true, t, true), cards[1].Slide(1, true, t, true));
