@@ -152,7 +152,7 @@ namespace Sugoroku.Rules
                 foreach (ulong seed in new ulong[] { 11, 22 })
                 {
                     var policy = new Random((int)seed);
-                    var game = GameProcessor.NewGame(board, data, new[] { ("たろう", MoveMode.Highlight, "ヒトカゲ"), ("はなこ", MoveMode.Step, "ワニノコ") }, 30, seed, out _, new[] { "leaf", "gold" }, "random");
+                    var game = GameProcessor.NewGame(board, data, new[] { ("たろう", MoveMode.Highlight, "ヒトカゲ"), ("はなこ", MoveMode.Step, "ワニノコ") }, 80, seed, out _, new[] { "leaf", "gold" }, "random"); // 年表が何行か たまるように 長めに遊ぶ
                     for (int n = 0, accepted = 0; accepted < 1500 && n < 60000 && game.State.Phase != Phase.GameOver; n++)
                         if (game.Apply(RandomCommand(game.State, board, policy), out string e).Count >= 0 && e == null) accepted++;
                     var loaded = GameProcessor.Load(board, data, SaveFile.Write(game.State), out _, out string error);
