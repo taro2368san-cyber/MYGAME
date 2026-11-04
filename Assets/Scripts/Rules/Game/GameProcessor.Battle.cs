@@ -614,10 +614,18 @@ namespace Sugoroku.Rules
                 w = Compare(s0.Team.Count(m => !m.Fainted), s1.Team.Count(m => !m.Fainted));
                 if (w < 0) w = Compare(s0.Team.Sum(Ratio), s1.Team.Sum(Ratio));
             }
+            if (w >= 0) CountAsDefeated(w); // 判定勝ちは 場に出ていた相手1体を倒した扱い（経験値だけ、相談6）
             EndBattle(w, true, events);
         }
 
         static int Compare(double a, double b) => a > b ? 0 : b > a ? 1 : -1;
+
+        // 判定勝ち・降参勝ち（相談6）：相手の場に出ていた1体を「このバトルで倒した相手」に数える。使うのは経験値の計算だけ（図鑑・レベル追いつきは今のまま）
+        void CountAsDefeated(int winner)
+        {
+            var m = B.Sides[1 - winner].Current;
+            if (!m.Fainted) B.DefeatedLevels[winner].Add(m.Level); // 倒れた子は もう数えてある
+        }
 
         // にげる（7.3）。プレイヤー戦では降参＝負け
         void RunAway(int side, List<GameEvent> events)
@@ -636,6 +644,7 @@ namespace Sugoroku.Rules
                     events.Add(new LevelCaughtUp { Player = w.Player, Pokemon = w.Current.Species, Level = w.Current.Level });
                 }
                 b.Surrendered = true;
+                CountAsDefeated(1 - side); // 降参勝ちも 場に出ていた相手1体を倒した扱い（相談6。追いつきが起きたら 経験値は入らない、7.8）
                 EndBattle(1 - side, false, events);
                 return;
             }

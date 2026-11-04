@@ -167,6 +167,59 @@ namespace Sugoroku.Rules
                     pb != null && pev.OfType<BattleEnded>().Any(x => x.Draw) && pev.OfType<RestNextTurn>().Select(x => x.Player).Distinct().Count() == 2 && !pev.OfType<RewardRequested>().Any() && !pev.OfType<MoneyChanged>().Any());
             }
 
+            // ---- 7.1.1・6.6 判定勝ち・降参勝ちの経験値（相談6：場に出ていた相手1体を倒した扱い。前は0だった）----
+            {
+                int Exp(params int[] levels) => (int)(levels.Sum(l => T("exp_coef") * l * l) * T("exp_selected")); // 出場した子は1.0倍
+                int Gained(List<GameEvent> ev, int player) => ev.OfType<ExpGained>().Where(x => x.Player == player).Sum(x => x.Exp);
+                // クイックの判定勝ち：場に出ていた相手（Lv12）の分
+                var (qg, qb, qp) = Fight("ヒトカゲ", 10, "ヒトカゲ", 12, BattleKind.Trainer);
+                qb.Sides[0].Current.Hp = MaxHp(qb.Sides[0].Current) / 2;
+                qb.Sides[1].Current.Hp = MaxHp(qb.Sides[1].Current) / 3;
+                var qev = new List<GameEvent>();
+                Call(qg, "Judge", qev);
+                bool quick = qev.OfType<BattleEnded>().Any(x => x.Judged && x.Winner == 0) && Gained(qev, qp.Id) == Exp(12);
+                // フルの判定勝ち：1体（Lv12）を倒してから、場に出ていた2体目（Lv14）。3体目（Lv16、出ていない）は数えない
+                // 倒れていない数（3対2）で自分が勝つよう、自分の手持ちは3体
+                bool full = false;
+                var (f2, b2, p2) = Fight("ヒトカゲ", 30, "ヒトカゲ", 12, BattleKind.Trainer);
+                b2.Full = true;
+                p2.Party.Add(Pokemons.Create(data, "ゼニガメ", 30, "", "", 1)); p2.Party.Add(Pokemons.Create(data, "フシギダネ", 30, "", "", 1));
+                b2.Sides[1].Team.Add(Pokemons.Create(data, "ゼニガメ", 14, "", "", 1));
+                b2.Sides[1].Team.Add(Pokemons.Create(data, "フシギダネ", 16, "", "", 1));
+                for (ulong seed = 1; seed <= 20 && !b2.Sides[1].Team[0].Fainted; seed++)
+                {
+                    b2.Sides[1].Current.Hp = 1;
+                    b2.Attacker = 0; b2.First = 0; b2.AttackCmd = Attack.Physical; b2.DefenseCmd = Defense.SpecialGuard;
+                    f2.State.Rng = seed * 7919;
+                    Call(f2, "ResolveRound", new List<GameEvent>());
+                }
+                if (b2.Sides[1].Team[0].Fainted && b2.Sides[1].Current.Level == 14)
+                {
+                    var fev = new List<GameEvent>();
+                    Call(f2, "Judge", fev); // 倒れていない数 3対2 で 自分の勝ち
+                    // 経験値は 出場した子（1番）が1.0倍、出ていない2体が0.6倍。1番の分で比べる
+                    full = fev.OfType<BattleEnded>().Any(x => x.Judged && x.Winner == 0) && fev.OfType<ExpGained>().Any(x => x.Player == p2.Id && x.Pokemon == "ヒトカゲ" && x.Exp == Exp(12, 14));
+                }
+                // プレイヤー戦の降参勝ち：降参した側の場に出ていた子（Lv10）の分。追いつきが起きる組み合わせ（勝った側が低い）では入らない
+                List<GameEvent> Surrender(int winnerLv, int loserLv, out int winner)
+                {
+                    winner = -1;
+                    var (pg, pb) = PvP("ヒトカゲ", 10, "ヒトカゲ", 10);
+                    if (pb == null) return null;
+                    var A = pb.Sides[pb.Attacker]; var D = pb.Sides[1 - pb.Attacker];
+                    Pokemons.SetLevel(data, A.Current, winnerLv); Pokemons.SetLevel(data, D.Current, loserLv);
+                    winner = A.Player;
+                    Apply(pg, new ChooseAttack { Player = A.Player, Attack = Attack.Physical });
+                    return Apply(pg, new ChooseDefense { Player = D.Player, Defense = Defense.Flee });
+                }
+                var sev = Surrender(14, 10, out int sw);
+                var cev = Surrender(5, 10, out int cw);
+                bool surrender = sev != null && sev.OfType<Fled>().Any(x => x.Surrender) && Gained(sev, sw) == Exp(10)
+                    && cev != null && cev.OfType<LevelCaughtUp>().Any(x => x.Player == cw) && Gained(cev, cw) == 0;
+                Check(log, "7.1.1・6.6 判定勝ち・降参勝ち：場に出ていた相手1体を倒した扱いで経験値が入る（クイックの判定、フルは倒した1体＋場に出ていた1体で 出ていない子は数えない、降参。追いつきが起きたら入らない）",
+                    quick && full && surrender);
+            }
+
             // ---- 7.1.2 先攻・後攻のカード ----
             {
                 var (g, b, _) = Fight("ヒトカゲ", 50, "ヒトカゲ", 50);
