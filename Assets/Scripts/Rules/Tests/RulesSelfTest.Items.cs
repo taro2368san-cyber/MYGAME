@@ -344,6 +344,42 @@ namespace Sugoroku.Rules
                     g.State.Owners[fan.Id] == me.Id && rocketRefused && rivalRefused && rocket != null && rival != null);
             }
 
+            // ---- 8.3 バトルサーチャーは 同じエリアのファンにだけ（食い違い12）----
+            {
+                // 本マップの別のエリアのファンには使えない。本マップから別マップの中のファンにも使えない。別マップの中にいる人は その中のファンに使える
+                var fanA = board.Squares.Values.First(s => s.Type == "トレーナー" && s.MapId == "" && s.Area != null);
+                var otherArea = board.Squares.Values.First(s => s.MapId == "" && s.Area != null && s.Area != fanA.Area);
+                var subFan = board.Squares.Values.FirstOrDefault(s => s.Type == "トレーナー" && s.MapId != "" && !data.IsIslandMap(s.MapId)
+                    && board.Squares.Values.Any(t => t.MapId == s.MapId && t.Id != s.Id));
+                (GameProcessor g, PlayerState me) Ready(int stand, int fan)
+                {
+                    var g = Make(2); var me = g.State.CurrentPlayer; var you = g.State.Players.First(x => x != me);
+                    me.Square = stand; me.TrainerBag.Add("バトルサーチャー");
+                    g.State.Owners[fan] = you.Id;
+                    return (g, me);
+                }
+                string Try(int stand, int fan) { var (g, me) = Ready(stand, fan); return g.Validate(new UseItem { Player = me.Id, Item = "バトルサーチャー", Target = fan }); }
+                string farArea = Try(otherArea.Id, fanA.Id);
+                bool sub = false;
+                if (subFan != null)
+                {
+                    var inside = board.Squares.Values.First(t => t.MapId == subFan.MapId && t.Id != subFan.Id);
+                    string fromMain = Try(otherArea.Id, subFan.Id);
+                    var (sg, sme) = Ready(inside.Id, subFan.Id);
+                    Apply(sg, new UseItem { Player = sme.Id, Item = "バトルサーチャー", Target = subFan.Id });
+                    sub = fromMain != null && fromMain.Contains("同じエリア") && sg.State.Owners[subFan.Id] == sme.Id;
+                }
+                // CPU：同じエリアに使える相手がなければ 使おうとしない。同じエリアにあれば使う
+                var (cg, cme) = Ready(otherArea.Id, fanA.Id);
+                var far = Cpu.Decide(cg, data, board, cme.Id, new Random(1));
+                var near = fanA.Neighbors.Select(n => board[n]).FirstOrDefault(n => n.MapId == "" && n.Area == fanA.Area);
+                Command close = null;
+                if (near != null) { var (ng, nme) = Ready(near.Id, fanA.Id); close = Cpu.Decide(ng, data, board, nme.Id, new Random(1)); }
+                bool cpu = !(far is UseItem fu && fu.Item == "バトルサーチャー") && close is UseItem cu && cu.Item == "バトルサーチャー" && cu.Target == fanA.Id;
+                Check(log, $"8.3 バトルサーチャー：本マップの別のエリアのファンには使えない。本マップから 別マップ（{subFan?.MapId}）の中のファンにも使えず、その中にいる人は使える。CPUは 同じエリアに相手がなければ使わない",
+                    farArea != null && farArea.Contains("同じエリア") && sub && subFan != null && cpu && near != null);
+            }
+
             // ---- 11.5 ライバルマス ----
             {
                 var rivalSq = board.Squares.Values.FirstOrDefault(s => s.Type == "ライバル" && s.Neighbors.Count > 0);

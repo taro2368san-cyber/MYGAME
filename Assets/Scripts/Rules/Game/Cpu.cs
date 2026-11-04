@@ -57,10 +57,10 @@ namespace Sugoroku.Rules
                 if (Has("のろいのふだ")) yield return Use("のろいのふだ", o.Id);
                 if (Has("キャッチャ")) yield return Use("キャッチャ", o.Id);
             }
-            // バトルサーチャー：ほかの人のファンを1人もらう（点数が高い人のファンから）
+            // バトルサーチャー：同じエリアの ほかの人のファンを1人もらう（点数が高い人のファンから）。使えるかは処理役と同じ判定（8.3、食い違い12）
             if (Has("バトルサーチャー"))
                 foreach (var fan in s.Owners.Where(o => o.Value != p.Id).OrderByDescending(o => g.Score(s.Players[o.Value])).Select(o => o.Key))
-                    yield return Use("バトルサーチャー", fan);
+                    if (g.Validate(Use("バトルサーチャー", fan)) == null) yield return Use("バトルサーチャー", fan);
             // 自転車：サイコロを増やす（なくならない）
             foreach (var bike in new[] { "ロトム自転車", "マッハ自転車", "自転車" }) if (Has(bike)) yield return Use(bike);
         }

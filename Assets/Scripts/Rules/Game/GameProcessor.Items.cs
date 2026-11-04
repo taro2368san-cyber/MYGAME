@@ -38,7 +38,8 @@ namespace Sugoroku.Rules
                     return null;
                 }
                 case ItemUse.Searcher:
-                    return State.Owners.TryGetValue(target, out int owner) && owner != p.Id && board.Squares.ContainsKey(target) && board[target].Type == "トレーナー" ? null : "ほかの人のファン（トレーナーマス）を 選んでください";
+                    if (!(State.Owners.TryGetValue(target, out int owner) && owner != p.Id && board.Squares.ContainsKey(target) && board[target].Type == "トレーナー")) return "ほかの人のファン（トレーナーマス）を 選んでください";
+                    return AreaKey(target) == AreaKey(p) ? null : "同じエリアの ファンにしか 使えません"; // エリアを越えて届くアイテムは作らない（8.3、食い違い12）
                 case ItemUse.Ticket: case ItemUse.FanTicket:
                 {
                     bool ok = use == ItemUse.Ticket ? p.VisitedCenters.Contains(target) : State.Owners.TryGetValue(target, out int o) && o == p.Id;
