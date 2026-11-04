@@ -134,6 +134,12 @@ namespace Sugoroku.Rules
                     problems.Add($"[警告] 盤面: 行けないマス（{g.Key}）{g.Count()}個：" + string.Join("、", g.Take(8).Select(s => $"{s.Id} {s.Place}")) + (g.Count() > 8 ? $" ほか{g.Count() - 8}個" : ""));
             }
 
+            // マップをまたぐ道（3.4「入口マスに止まると中に入る。1回の移動は必ず1枚のマップの中で完結する」）。ワープ（入口と出口の対）は またいでよいので数えない
+            string MapName(BoardSquare s) => s.MapId == "" ? "本マップ" : s.MapId;
+            var crossRoads = all.SelectMany(s => s.Neighbors.Where(n => n > s.Id && board[n].MapId != s.MapId).Select(n => (a: s, b: board[n]))).ToList();
+            if (crossRoads.Count > 0)
+                problems.Add($"[警告] 盤面: マップをまたぐ道が{crossRoads.Count}本あります（入口はワープにする）：" + string.Join("、", crossRoads.Select(x => $"{x.a.Id} {x.a.Place}（{MapName(x.a)}）－{x.b.Id} {x.b.Place}（{MapName(x.b)}）")));
+
             // ジム（3.3）は ジムのある町ごとに あるか。ジムトレーナーは 町ごとに3人（3.3.1）
             var gymTowns = data.Places.Where(p => !string.IsNullOrEmpty(p.Gym)).ToList();
             var noGym = gymTowns.Where(t => !all.Any(s => s.Type == "ジム" && s.Place == t.Name)).Select(t => t.Gym).ToList();

@@ -171,6 +171,20 @@ namespace Sugoroku.Rules
                 Check(log, "データチェック：どこにもつながっていないマスは スタートから行けないと出る", withDetour.SequenceEqual(new[] { 6 }) && warns.Any(w => w.Contains("行けないマス") && w.Contains("6 2番道路")));
                 Check(log, "データチェック：カビゴンでふさいだ道に回り道があれば その先は行ける、なければ行けないと出る（カビゴンのマス自身は数えない）", !withDetour.Contains(4) && noDetour.Contains(4) && !noDetour.Contains(3));
                 Check(log, "データチェック：ジムが1つ足りないと そのジムの名前が出る", warns.Any(w => w.Contains("ないジム：ハナダジム")) && !warns.Any(w => w.Contains("ないジム") && w.Contains("ニビジム")));
+                // マップをまたぐ道（3.4）：道でつなぐと警告（両端のマスID つき）、ワープでつなぐなら警告なし
+                BoardData Cross(bool warp)
+                {
+                    var cs = new[] {
+                        new BoardSquare { Id = 1, Name = "c1", Type = "スタート", Place = "マサラタウン" },
+                        new BoardSquare { Id = 2, Name = "c2", Type = warp ? "ワープ" : "空マス", Place = "マサラタウン", WarpId = warp ? 7 : 0 },
+                        new BoardSquare { Id = 3, Name = "c3", Type = warp ? "ワープ" : "空マス", Place = "テスト洞窟", MapId = "testcave", WarpId = warp ? 7 : 0 },
+                        new BoardSquare { Id = 4, Name = "c4", Type = "空マス", Place = "テスト洞窟", MapId = "testcave" } };
+                    return BoardData.Create(cs, warp ? new[] { (1, 2), (3, 4) } : new[] { (1, 2), (2, 3), (3, 4) }, new List<string>());
+                }
+                var roadWarns = new List<string>(); BoardData.CheckLayout(Cross(false), ld, roadWarns);
+                var warpWarns = new List<string>(); BoardData.CheckLayout(Cross(true), ld, warpWarns);
+                Check(log, "データチェック：マップのちがう2マスを道でつなぐと 2つのマスIDつきで警告、ワープでつなぐなら警告なし",
+                    roadWarns.Any(w => w.Contains("マップをまたぐ道") && w.Contains("2 マサラタウン") && w.Contains("3 テスト洞窟")) && !warpWarns.Any(w => w.Contains("マップをまたぐ道")));
             }
             return log;
         }
