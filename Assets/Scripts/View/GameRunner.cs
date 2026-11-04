@@ -161,8 +161,8 @@ public partial class GameRunner : MonoBehaviour
     string NameOf(int i) => string.IsNullOrWhiteSpace(names[i]) ? CharacterOf(i).Name : names[i].Trim();
 
     // ---- 始まりの流れ（ロードマップ 3-1、仕様書1.1・16.1 #5〜#10）----
-    // ゲーム設定 → プレイヤーごとに キャラクター → 名前（CPU はキャラクターの名前）→ 最初のポケモン → 確認 → 手番の発表
-    // 同じキャラクター・同じポケモンは選べない（先に選んだ人のものは押せない）。× で1つ前の画面へ
+    // コントローラー登録 → ゲーム設定 → プレイヤーごとに キャラクター（人は移動方式も）→ 名前（CPU はとばしてキャラクターの名前）→ 最初のポケモン → 確認 → 手番の発表（相談.md 食い違い3）
+    // 同じキャラクター・同じポケモンは選べない（先に選んだ人のものは押せない）。× で1つ前の画面へ（名前は ×で1文字けす（16.1 #7）。手番の発表は もう順番が決まったので もどらない）
 
     // 先に選んだ人（i より前）と かぶっているか
     bool CharacterTakenBefore(int i, int k) => Enumerable.Range(0, i).Any(j => characterIndex[j] % data.Characters.Count == k);
@@ -195,7 +195,7 @@ public partial class GameRunner : MonoBehaviour
         if (data.Characters.Count == 0) { Ui.Line(col, "キャラクター.csv がありません（設計メモに置いてください）", 30, Color.red); return; }
         row = Row(col);
         Ui.Button(row, "つぎへ", () => ShowCharacterPick(0), 300, 70);
-        Ui.Button(row, "タイトルへ", ShowTitle, 220, 70);
+        Ui.Button(row, "もどる（コントローラー登録）", () => RegisterThen(ShowSetup, ShowTitle), 460, 70); // ×で1つ前（登録）へ。登録の × でタイトルへ
     }
 
     string PlayerTitle(int i) => $"P{i + 1}" + (cpus[i] ? "（CPU）" : "");
