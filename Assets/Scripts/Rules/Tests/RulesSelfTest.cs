@@ -1824,6 +1824,7 @@ namespace Sugoroku.Rules
             }
             BattleRules(data, board, log); // 6・7章（RulesSelfTest.Battle.cs）
             ItemRules(data, board, log);   // 8〜11章（RulesSelfTest.Items.cs）
+            GameRules(data, board, log);   // 1・2・3・5・12章（RulesSelfTest.Game.cs）
 
             var summary = new Dictionary<string, int>();
             for (ulong seed = 1; seed <= 5; seed++)
