@@ -304,6 +304,41 @@ namespace Sugoroku.Rules
                 Check(log, "7.9 全滅：その場で いちばん近いセンター（となりのマス）へ送られて、全回復（状態異常も）", sent);
             }
 
+            // ---- 7.9 イベントマスのクイックバトルの負け（相談1：HP1で残す）----
+            {
+                // 相手の攻撃で HP が0になって負けると、その子は HP1 で残る。所持金は1/3（切り上げ）、1回休みなし。
+                // ほかの2体がバトルの前から戦闘不能でも 送還されない。やけどは残る（7.17）
+                bool knocked = false;
+                for (ulong seed = 1; seed <= 20 && !knocked; seed++)
+                {
+                    var (g, b, p) = Fight("ヒトカゲ", 10, "ヒトカゲ", 50, BattleKind.Event, seed);
+                    var down1 = Pokemons.Create(data, "ゼニガメ", 10, "", "", 1); down1.Hp = 0;
+                    var down2 = Pokemons.Create(data, "フシギダネ", 10, "", "", 1); down2.Hp = 0;
+                    p.Party.Add(down1); p.Party.Add(down2);
+                    var me = p.Party[0];
+                    me.Hp = 1; me.Status = Status.Burn;
+                    p.Money = 1001;
+                    b.Attacker = 1; b.First = 1; b.AttackCmd = Attack.Physical; b.DefenseCmd = Defense.SpecialGuard;
+                    var ev = new List<GameEvent>();
+                    Call(g, "ResolveRound", ev);
+                    if (!ev.OfType<PokemonFainted>().Any(x => x.Side == 0)) continue; // 外れたら 種を変えて
+                    int loss = (int)Math.Ceiling(1001 * T("defeat_money_ratio") - 1e-9);
+                    knocked = ev.OfType<BattleEnded>().Any(x => x.Winner == 1) && me.Hp == 1 && !me.Fainted && me.Status == Status.Burn
+                        && p.Money == 1001 - loss && !ev.OfType<RestNextTurn>().Any() && !ev.OfType<SentToCenter>().Any();
+                    if (!knocked) break;
+                }
+                // 判定で負けたときは HP そのまま
+                var (jg, jb, jp) = Fight("ヒトカゲ", 10, "ヒトカゲ", 10, BattleKind.Event); // バトルのあとに進化して HP が変わらないレベル
+                int hp = (int)(MaxHp(jp.Party[0]) * 0.4);
+                jp.Party[0].Hp = hp;
+                jb.Sides[1].Current.Hp = (int)(MaxHp(jb.Sides[1].Current) * 0.5);
+                var jev = new List<GameEvent>();
+                Call(jg, "Judge", jev);
+                bool judged = jev.OfType<BattleEnded>().Any(x => x.Judged && x.Winner == 1) && jp.Party[0].Hp == hp;
+                Check(log, "7.9 イベントのクイックバトル：HPが0で負けると その子は HP1 で残り（やけどは残る）、所持金1/3を失うだけ（1回休み・送還なし。ほかの2体が戦闘不能でも）。判定の負けは HP そのまま",
+                    knocked && judged);
+            }
+
             // ---- 7.11 弱点 ----
             {
                 // ゼニガメ（水）の攻撃は ヒトカゲ（弱点 水）に weakness_mult 倍。ヒトカゲ（炎）の攻撃は ゼニガメ（弱点 雷）に ふつう

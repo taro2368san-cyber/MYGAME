@@ -790,7 +790,9 @@ namespace Sugoroku.Rules
             if (b.Kind == BattleKind.Event) Say(FindEffect(b.EventId)?.TextKey + "_lose", events, p);
             if (b.Kind == BattleKind.Event && !b.Full)
             {
-                // イベントのバトル（クイック）に負けたときは所持金だけ（戦闘不能・1回休みなし）。フル（サカキなど）は ふつうの負け
+                // イベントのバトル（クイック）に負けたときは所持金だけ（戦闘不能・1回休み・送還なし）。フル（サカキなど）は ふつうの負け
+                // HPが0で負けた子は HP1 で残す（相談1）。判定の負けは HPそのまま。状態異常は CureAfterBattle のとおり（やけど・どくは残る）
+                if (lose.Current.Hp <= 0) lose.Current.Hp = 1;
                 AddMoney(p, -loss, "負けて落とした", events);
                 return;
             }
