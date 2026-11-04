@@ -4,7 +4,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 
 // 見渡しモード「マップ」（16.7、旧「探索」）。サイコロを振る前に盤面を見て回る
-// WASD・矢印キーで動く、ホイールで寄る・引く、マスをクリックで情報と距離、Esc でもどる（回転はしない）
+// コントローラー：左スティック・十字キーで動く、R1 で寄る・L1 で引く、まん中の目印の下のマスの情報と距離を出す、×でもどる（GameRunner.Pad.cs）
+// キーボード・マウス（開発中の確認用）：WASD・矢印キーで動く、ホイールで寄る・引く、マスをクリックで情報と距離、Esc でもどる（回転はしない）
 public partial class GameRunner
 {
     bool exploring;
@@ -25,12 +26,16 @@ public partial class GameRunner
         cameraTarget = exploreFocus;
         subMenu = ExploreMenu;
         exploreRect = MapRect(board[S.CurrentPlayer.Square].MapId);
+        aimAt = new Vector3(float.NaN, 0, 0);
+        ShowAimMark(true);
         RefreshAll();
     }
 
     void EndExplore()
     {
         exploring = false;
+        ShowAimMark(false);
+        if (exploreSquare >= 0 && squares.TryGetValue(exploreSquare, out var lit)) lit.SetGlow(Color.white, 0);
         if (exploreFocus != null) Destroy(exploreFocus.gameObject);
         cameraTarget = pieces[S.CurrentPlayer.Id];
         subMenu = null;
@@ -120,7 +125,7 @@ public partial class GameRunner
     void ExploreMenu()
     {
         Add("もどる", EndExplore, KeyCode.Escape);
-        DrawMenu(exploreSquare < 0 ? "マップ：WASD・矢印で移動、マスをクリックで くわしく（Escで もどる）" : SquareInfo(exploreSquare));
+        DrawMenu(exploreSquare < 0 ? "マップ：左スティックで うごく　R1・L1で 寄る・引く\nまん中の目印の マスを くわしく　×で もどる" : SquareInfo(exploreSquare));
     }
 
     // マスの名前・説明・持ち主・解放・今いるマスからの距離（16.7）
@@ -160,11 +165,61 @@ public partial class GameRunner
         if (!Physics.Raycast(Camera.main.ScreenPointToRay(Input.mousePosition), out var hit)) return;
         var sq = hit.collider.GetComponentInParent<SugorokuSquare>();
         if (sq == null || !board.Squares.ContainsKey(sq.id)) return;
+        SelectExploreSquare(sq.id);
+    }
+
+    // 選ぶマスを変える（-1 なら 選んでいない）。光らせて、説明（SquareInfo）を出す
+    void SelectExploreSquare(int id)
+    {
         if (exploreSquare >= 0 && squares.TryGetValue(exploreSquare, out var old)) old.SetGlow(Color.white, 0);
-        exploreSquare = sq.id;
-        sq.SetGlow(new Color(1, 0.9f, 0.3f), 0.8f);
+        exploreSquare = id;
         RefreshAll();
-        sq.SetGlow(new Color(1, 0.9f, 0.3f), 0.8f); // RefreshAll が盤面の光を消すので、もう一度
-        if (debugPanel != null && labelMode == 2) ShowRoute(sq.id); // デバッグ：道順（17.1）
+        if (id >= 0 && squares.TryGetValue(id, out var sq)) sq.SetGlow(new Color(1, 0.9f, 0.3f), 0.8f); // RefreshAll が盤面の光を消すので、そのあとで
+        if (id >= 0 && debugPanel != null && labelMode == 2) ShowRoute(id); // デバッグ：道順（17.1）
+    }
+
+    // ---- まん中の目印（コントローラーでマスを選ぶ、16.7）----
+    // カメラは いつも exploreFocus を画面のまん中に映すので、そこから 今いるマップの いちばん近いマス（マスの半径くらいまで）を選ぶ。なければ 選ばない
+    // カメラが動いていないあいだは 選び直さない（マウスで選んだマスが そのまま残る）
+    const float AimRadius = 1f;  // マスの円柱は 直径1.6
+    Vector3 aimAt;
+    GameObject aimMark;
+
+    void AimSquare()
+    {
+        if ((exploreFocus.position - aimAt).sqrMagnitude < 1e-4f) return;
+        aimAt = exploreFocus.position;
+        // exploreFocus はコマの高さにあるので、画面のまん中の線が 地面（マスの高さ 0）と交わるところで選ぶ
+        var f = aimAt - cameraOffset * (aimAt.y / cameraOffset.y);
+        string map = board[S.CurrentPlayer.Square].MapId;
+        int best = -1; float bestD = AimRadius * AimRadius;
+        foreach (var s in board.Squares.Values)
+        {
+            if (s.MapId != map) continue;
+            var d = SquarePosition(s.Id) - f; float dd = d.x * d.x + d.z * d.z;
+            if (dd < bestD) { bestD = dd; best = s.Id; }
+        }
+        if (best != exploreSquare) SelectExploreSquare(best);
+    }
+
+    // 画面のまん中の 小さな十字（こい色、白いふち。明るい地面でも 木の上でも 見えるように）。ponytail: 2本の棒だけ。絵ができたら差し替える
+    void ShowAimMark(bool on)
+    {
+        if (aimMark == null)
+        {
+            if (!on) return;
+            var root = Ui.Rect(canvas.transform, "AimMark", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
+            root.sizeDelta = new Vector2(48, 48);
+            foreach (var (min, max) in new[] { (new Vector2(0.42f, 0), new Vector2(0.58f, 1)), (new Vector2(0, 0.42f), new Vector2(1, 0.58f)) })
+            {
+                var bar = Ui.Panel(root, "Bar", min, max, new Color(0.15f, 0.15f, 0.2f));
+                bar.raycastTarget = false;
+                var line = bar.gameObject.AddComponent<UnityEngine.UI.Outline>();
+                line.effectColor = Color.white; line.effectDistance = new Vector2(2, 2);
+            }
+            aimMark = root.gameObject;
+        }
+        aimMark.SetActive(on);
+        if (on) aimMark.transform.SetAsFirstSibling(); // メニューや知らせの下
     }
 }

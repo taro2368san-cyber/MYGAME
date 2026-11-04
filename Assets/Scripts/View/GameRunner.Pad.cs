@@ -97,10 +97,16 @@ public partial class GameRunner
         if (g == null) return false;
         if (DexOpen) return PadDex(g);
         if (overlay != null) return PadScreen(g);
+        // 見渡し（16.7）：左スティック・十字キーで動く、R1 で寄る・L1 で引く（ここだけ。袋の切りかえとは ぶつからない）、×で もどる。マスは まん中の目印で選ぶ（AimSquare）
+        // ほかのコントローラーの操作（メニューの↑↓・○）には渡さない。false を返すので キーボード・マウスは そのまま使える
         if (exploring)
         {
             var stick = g.leftStick.ReadValue() + g.dpad.ReadValue();
             if (stick.sqrMagnitude > 0.04f) exploreFocus.position += new Vector3(stick.x, 0, stick.y).normalized * 15f * zoom * Time.deltaTime;
+            float z = (g.leftShoulder.isPressed ? 1 : 0) - (g.rightShoulder.isPressed ? 1 : 0);
+            if (z != 0) zoom = Mathf.Clamp(zoom + z * 1.5f * Time.deltaTime, 0.3f, 3f); // 引きすぎは ClampExploreCamera が止める
+            if (Down(g, x => x.buttonSouth)) { EndExplore(); return true; }
+            return false;
         }
         // バトルのコマンド（UI仕様書 7.2）：□ ○ △ R1 を、そのコマンドのキー（A S D F）として押す。攻撃も防御も同じ記号は同じボタン
         // プレイヤー戦の選出も同じ：□ ○ △ が 手持ちの1・2・3番目（A S D）。押した人のコントローラーは ActingPad（1＝仕掛けた側、2＝仕掛けられた側）

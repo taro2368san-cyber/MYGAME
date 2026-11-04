@@ -1208,7 +1208,7 @@ public partial class GameRunner : MonoBehaviour
         AnimateEvent();   // イベント画面のセリフ（GameRunner.Event.cs）
         var cam = Camera.main;
         if (cam == null || cameraTarget == null) return;
-        if (exploring) ClampExploreCamera(cam); // 見渡しは 今いるマップの中だけ（16.7）
+        if (exploring) { ClampExploreCamera(cam); AimSquare(); } // 見渡しは 今いるマップの中だけ。まん中の目印のマスを選ぶ（16.7）
         SyncShownMap(false); // 手番やワープで 映すマップが変わったら 切り替える（3.4）
         Vector3 want = cameraTarget.position + camPan + cameraOffset * zoom;
         cam.transform.position = Vector3.Lerp(cam.transform.position, want, 1 - Mathf.Exp(-6 * Time.deltaTime));
