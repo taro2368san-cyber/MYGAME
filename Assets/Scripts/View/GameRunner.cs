@@ -480,6 +480,7 @@ public partial class GameRunner : MonoBehaviour
                     break;
                 case WeekEventHappened we: yield return Banner(text, new Color(0.7f, 0.9f, 1f), 2); continue;            // 週イベントの告知（17.6）
                 case DiceRolled dr: yield return DiceAnim(dr); continue;          // 17.6
+                case BallTierUsed bu when bu.Prize: yield return PrizeAnim(text, bu.Player); continue; // 鍵付きボールの当たり（8.8.3）
                 case CardsDealt cd: yield return DealCards(cd); continue;           // 先攻・後攻のカード（UI仕様書 7.3 ②）
                 case InitiativeDrawn idr: yield return RevealCard(idr); continue;
                 case CommandsRequested cr: yield return SwapSides(cr.Attacker); break; // 攻守の交代（⑥）

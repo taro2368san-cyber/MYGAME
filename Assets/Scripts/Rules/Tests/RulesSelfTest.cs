@@ -375,16 +375,21 @@ namespace Sugoroku.Rules
                 var (_, kev) = LandEvents(sq, "ヒトカゲ", s => s.Players[0].TrainerBag.Add("カギ"));
                 var (ng, nev) = LandEvents(sq, "ヒトカゲ");
                 sq.Type = keep;
-                int prizes = 0;
+                // 種を変えて開け、結果の「当たり（Prize）／通常」と 引いた行の表が合っているか（当たり＝鍵付きボールマスの当たり.csv の bt0、通常＝モンスターボールマスの1つ上の段階）
+                int prizes = 0, normals = 0;
+                string up = data.TierFor(0, true)?.Id;
                 for (ulong seed = 1; seed <= 40 && data.KeyPrizeItems.Count > 0; seed++)
                 {
                     sq.Type = "鍵付きモンスターボール";
                     var (pg, pev) = LandEvents(sq, "ヒトカゲ", s => { s.Players[0].TrainerBag.Add("カギ"); s.Rng = seed * 7919; });
                     sq.Type = keep;
                     var got = pev.OfType<ItemGained>().FirstOrDefault()?.Item;
-                    if (pev.OfType<BallTierUsed>().Any(x => x.Prize)) { prizes++; if (!data.KeyPrizeItems.Any(x => x.Item == got && x.Weights["bt0"] > 0)) prizes = -999; }
+                    var used = pev.OfType<BallTierUsed>().Single();
+                    if (used.Prize) { prizes++; if (!data.KeyPrizeItems.Any(x => x.Item == got && x.Weights["bt0"] > 0)) prizes = -999; }
+                    else if (used.Keyed) { normals++; if (up == null || !data.BallSquareItems.Any(x => x.Item == got && x.Weights[up] > 0)) normals = -999; }
                 }
                 Check(log, "カギ：鍵付きボールマスを開けると当たり枠か1つ上の表、カギがなければ開かない", (data.KeyPrizeItems.Count == 0 || prizes > 0) && kev.OfType<BallTierUsed>().Any(x => x.Keyed) && kev.OfType<ItemUsed>().Any(x => x.Item == "カギ") && !nev.OfType<BallTierUsed>().Any());
+                Check(log, $"カギ：結果に 当たり／通常 が入り、引いたものは その枠の表の行（当たり{prizes}回・通常{normals}回）", data.KeyPrizeItems.Count == 0 || prizes > 0 && normals > 0);
             }
             if (data.Jobs.Any(j => j.Name == "だいすきくらぶ"))
             {

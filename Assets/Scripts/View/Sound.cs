@@ -3,7 +3,7 @@ using UnityEngine;
 
 // BGM と効果音（仕様書1.3、17.7）。音の素材は Resources/Audio/BGM/<名前> と Resources/Audio/SE/<名前> に置く（mp3・ogg・wav）
 // ファイルがなければ鳴らないだけ。BGM の名前：title, board, board_area1〜, wild, trainer, gym, legend, endroll
-// 効果音の名前：dice, step, hit, guard, miss, faint, ball, catch, levelup, evolve, badge, money, item, heal, lowhp（HPが赤いあいだ くり返す）
+// 効果音の名前：dice, step, hit, guard, miss, faint, ball, catch, levelup, evolve, badge, money, item, heal, prize（鍵付きボールの当たり。なければ badge）, lowhp（HPが赤いあいだ くり返す）
 // 音量はマスター（AudioListener.volume）× BGM／効果音。設定は PlayerPrefs に残る
 public class Sound : MonoBehaviour
 {
@@ -49,10 +49,11 @@ public class Sound : MonoBehaviour
         bgm.Stop();
     }
 
-    public void PlaySe(string name)
+    // names は先に見つかったものを鳴らす（例：prize がなければ badge）
+    public void PlaySe(params string[] names)
     {
-        var clip = Load("Audio/SE/" + name);
-        if (clip != null) se.PlayOneShot(clip);
+        foreach (var name in names)
+            if (Load("Audio/SE/" + name) is AudioClip clip) { se.PlayOneShot(clip); return; }
     }
 
     // HPが赤いあいだ くり返し鳴る警告音（効果音の名前 lowhp。ファイルがなければ ピコピコを作って鳴らす）

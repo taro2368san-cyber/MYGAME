@@ -74,6 +74,38 @@ public partial class GameRunner
         banner.transform.parent.gameObject.SetActive(false);
     }
 
+    // 鍵付きボールマスの当たり（8.8.3）：ボールが金色に光って脈打ち、画面も少し白く光る。1.5秒、○で早送り。通常の枠は ふつうの知らせのまま
+    // ponytail: ボールの絵と白い板だけの仮の演出。素材ができたら ここだけ差し替える（音は SE の prize）
+    UnityEngine.UI.Image screenFlash;
+    IEnumerator PrizeAnim(string text, int player)
+    {
+        if (screenFlash == null)
+        {
+            screenFlash = Ui.Panel(canvas.transform, "PrizeFlash", Vector2.zero, Vector2.one, Color.clear);
+            screenFlash.raycastTarget = false;
+        }
+        sound.PlaySe("prize", "badge");
+        bannerIcon.sprite = Ui.Ball(new Color(1f, 0.8f, 0.2f));
+        bannerIcon.enabled = true;
+        banner.text = text; banner.color = PlayerColor(S.Players[player]);
+        banner.transform.parent.gameObject.SetActive(true);
+        banner.transform.parent.SetAsLastSibling();
+        screenFlash.transform.SetAsLastSibling();
+        const float total = 1.5f;
+        for (float t = 0; t < total && !SkipHeld(); t += Time.deltaTime)
+        {
+            float glow = Mathf.PingPong(t * 4, 1);
+            bannerIcon.color = Color.Lerp(Color.white, new Color(1f, 1f, 0.5f), glow);
+            bannerIcon.rectTransform.localScale = Vector3.one * (1 + 0.25f * glow);
+            screenFlash.color = new Color(1f, 1f, 0.9f, 0.35f * Mathf.Sin(Mathf.PI * t / total));
+            yield return null;
+        }
+        screenFlash.color = Color.clear;
+        bannerIcon.color = Color.white;
+        bannerIcon.rectTransform.localScale = Vector3.one;
+        banner.transform.parent.gameObject.SetActive(false);
+    }
+
     // 技の演出（17.6）：1.5秒（短縮で0.5秒）。攻撃側が前に出て、当たれば受けた側が揺れて光る
     // ガードは青く光るだけ、はずれは よける、カウンターは攻撃側が揺れる。急所・弱点は大きく揺れる。光の色は 物理 白・特殊 紫・必殺 オレンジ
     // ダメージを受けた側は点滅する。このあと HPバーが ゆっくり減る（PlayQueue の RoundResolved）
