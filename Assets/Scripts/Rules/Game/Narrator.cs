@@ -63,7 +63,7 @@ namespace Sugoroku.Rules
 
         // 画面に出す呼び名（UI仕様書 7.2：仕様書の 物理攻撃・特殊攻撃・必殺技・まもる・特殊守り は ひらがなの呼び名で出す）
         public static string AttackName(Attack a) => a == Attack.Physical ? "こうげき" : a == Attack.Special ? "とくこう" : a == Attack.Super ? "必殺" : "どうぐ";
-        public static string DefenseName(Defense d) => d == Defense.Guard ? "ぼうぎょ" : d == Defense.SpecialGuard ? "とくぼう" : d == Defense.Counter ? "カウンター" : "にげる";
+        public static string DefenseName(Defense d) => d == Defense.Guard ? "ぼうぎょ" : d == Defense.SpecialGuard ? "とくぼう" : d == Defense.Counter ? "カウンター" : d == Defense.Asleep ? "ねむっていて 守れない" : "にげる";
 
         // 表示しなくてよい出来事は null
         public string Describe(GameEvent e)

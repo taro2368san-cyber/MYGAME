@@ -118,7 +118,7 @@ public partial class GameRunner
             bool mine = i == promptSide && subMenu == null && menu.Count == 4;
             pad.SetEnabled(k => mine && menu[k].enabled);
             bool chosen = b.Sides[i].Player >= 0 && (attack ? b.AttackCmd != null : b.DefenseCmd != null);
-            pad.SetState(mine ? "えらんでください" : chosen ? "選択済み" : "");
+            pad.SetState(!attack && b.DefenseCmd == Defense.Asleep ? "ねむっている" : mine ? "えらんでください" : chosen ? "選択済み" : "");
         }
         // カード：選ぶのを待っているなら、カーソルのカードを少し持ち上げる（読み込んだ直後などで並んでいなければ 裏のまま並べる）
         if (b.Step == BattleStep.Initiative)
@@ -158,6 +158,7 @@ public partial class GameRunner
         int ai = (int)r.Attack, di = (int)r.Defense;
         pads[a].Reveal(ai);
         yield return cards[a].PowerUp(CommandColors[ai]);
+        if (r.Defense == Defense.Asleep) { pads[d].SetState("ねむっている"); yield break; } // 守りを選んでいない（相談10-2）
         pads[d].Reveal(di);
         yield return cards[d].PowerUp(CommandColors[di]);
     }

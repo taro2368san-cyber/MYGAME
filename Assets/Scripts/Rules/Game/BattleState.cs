@@ -5,7 +5,7 @@ namespace Sugoroku.Rules
 {
     public enum BattleKind { Wild, Trainer, Gym, Rival, Player, Event, Rocket, Job, Tournament, League } // League: ポケモンリーグの四天王・チャンピオン（3.3.2） // Tournament: 突発バトルイベントのミニトーナメント（プレイヤーどうし、5.3） // Job: 職業マスの職業トレーナー（9.2） // Event: ランダムイベント（チャンピオンなど）
     public enum Attack { Physical, Special, Super, Item }           // □こうげき ○とくこう △必殺 R1どうぐ（仕様書7.3、UI仕様書 7.2）
-    public enum Defense { Guard, SpecialGuard, Counter, Flee }      // □ぼうぎょ ○とくぼう △カウンター R1にげる（同じ記号どうしでガード成功）
+    public enum Defense { Guard, SpecialGuard, Counter, Flee, Asleep } // □ぼうぎょ ○とくぼう △カウンター R1にげる（同じ記号どうしでガード成功）。Asleep：ねむっていて守れない（処理役が入れる。選べない、相談10-2）
     public enum BattleStep { Select, Commands, Ball, Reward, Initiative } // Initiative：仕掛けた側が 先攻・後攻のカードを1枚選ぶのを待つ
     public enum Reward { Item, Fan, Forgive, Trade }                 // プレイヤー戦の勝利報酬（7.7）
 

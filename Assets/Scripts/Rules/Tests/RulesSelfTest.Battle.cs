@@ -661,6 +661,72 @@ namespace Sugoroku.Rules
                     a && c && d && cheap != null && cheap.Contains("コスト") && same == null && alone != null && alone.Contains("1体"));
             }
 
+            // ---- 7.17 ねむり中は 守る番も止まり、1倍で受ける。ねむりの残りはラウンドごとに数える（相談10-2）----
+            {
+                // 1倍：物理・特殊・必殺の どれでも 7.3 の倍率をかけない。必殺は反射しない
+                var (g, b, _) = Fight("ヒトカゲ", 50, "ヒトカゲ", 50, BattleKind.Trainer);
+                var bad = new List<string>();
+                foreach (var atk in new[] { Attack.Physical, Attack.Special, Attack.Super })
+                {
+                    g.State.Rng = 4321;
+                    RoundResolved ev; int tries = 0;
+                    do { Heal(b); ev = Hit(g, b, 0, atk, Defense.Asleep); } while (ev.Missed && ++tries < 50);
+                    var A = b.Sides[0].Current;
+                    if (ev.Missed || ev.Guarded || ev.Reflected || A.Hp != MaxHp(A) || ev.Damage != Expected(b, 0, atk, 1, ev)) bad.Add(atk.ToString());
+                }
+                // 守っていないので 急所は起こる。技の追加効果も（ガード失敗と同じく）返る
+                g.State.Rng = 99;
+                int crits = 0;
+                for (int i = 0; i < 400; i++) { Heal(b); if (Hit(g, b, 0, Attack.Physical, Defense.Asleep).Critical) crits++; }
+                var withFx = data.Species.FirstOrDefault(s => s.PhysicalEffect != null && !s.Ability.StartsWith("へんしん"));
+                bool fx = false;
+                if (withFx != null)
+                {
+                    var (xg, xb, _) = Fight(withFx.Name, 50, "ヒトカゲ", 50, BattleKind.Trainer);
+                    for (int i = 0; i < 20 && !fx; i++) { Heal(xb); xb.Attacker = 0; xb.First = 0; var ev = new RoundResolved(); fx = Call(xg, "Hit", xb.Sides[0], xb.Sides[1], Attack.Physical, Defense.Asleep, ev) != null; }
+                }
+                // プレイヤー戦：守る側がねむっていると 防御のコマンドは断られ、攻撃側のコマンドだけで そのラウンドが進む
+                var (pg, pb) = PvP("ヒトカゲ", 50, "ヒトカゲ", 50);
+                bool pvp = false, countdown = false;
+                if (pb != null)
+                {
+                    var A = pb.Sides[pb.Attacker]; var D = pb.Sides[1 - pb.Attacker];
+                    D.Current.Status = Status.Sleep; D.Current.SleepRounds = 3;
+                    Call(pg, "BeginCommands", new List<GameEvent>()); // 守る側がねむった状態で コマンドを待ち直す
+                    string refused = pg.Validate(new ChooseDefense { Player = D.Player, Defense = Defense.Guard });
+                    var ev = Apply(pg, new ChooseAttack { Player = A.Player, Attack = Attack.Physical });
+                    pvp = refused != null && refused.Contains("ねむって") && ev.OfType<RoundResolved>().Any(x => x.Defense == Defense.Asleep);
+                }
+                // ねむりの残りは 守る番（このテストの最初の1回）・攻撃の番・守る番 の両方で1つずつ減り、決めた長さ（3）で目を覚ます
+                var (cg, cb) = PvP("ヒトカゲ", 50, "ヒトカゲ", 50);
+                if (cb != null)
+                {
+                    var sleeper = cb.Sides[0].Current;
+                    sleeper.Status = Status.Sleep; sleeper.SleepRounds = 3;
+                    var left = new List<int>();
+                    void Round(int attacker, Defense def)
+                    {
+                        cb.Attacker = attacker; cb.First = attacker; cb.AttackCmd = Attack.Physical; cb.DefenseCmd = def;
+                        Call(cg, "ResolveRound", new List<GameEvent>());
+                        Heal(cb);
+                        left.Add(sleeper.Status == Status.Sleep ? sleeper.SleepRounds : 0);
+                    }
+                    Round(1, Defense.Asleep);   // 守る番
+                    Round(0, Defense.Guard);    // 攻撃の番（動けない）
+                    Round(1, Defense.Asleep);   // 守る番 → 目を覚ます
+                    countdown = left.SequenceEqual(new[] { 2, 1, 0 }) && sleeper.Status == Status.None;
+                }
+                // NPC の攻撃を ねむっている人が受けるときは、だれの操作も待たずに そのラウンドが進む
+                var (ng, nb, _) = Fight("ヒトカゲ", 50, "ヒトカゲ", 50, BattleKind.Trainer);
+                nb.Sides[0].Current.Status = Status.Sleep; nb.Sides[0].Current.SleepRounds = 3;
+                nb.Attacker = 1; nb.TurnRounds = 0;
+                var nev = new List<GameEvent>();
+                Call(ng, "BeginCommands", nev);
+                bool npc = nev.OfType<RoundResolved>().Any(x => x.Attacker == 1 && x.Defense == Defense.Asleep);
+                Check(log, "7.17 ねむり：守る番も止まり（防御のコマンドは断られ、相手のコマンドだけで進む。NPCの攻撃なら そのまま進む）、物理・特殊・必殺とも1倍で受け、反射しない。急所・追加効果は起こる。ねむりの残りは 攻撃の番と守る番の両方で減る" + (bad.Count > 0 ? "（合わない：" + string.Join("、", bad) + "）" : ""),
+                    bad.Count == 0 && crits > 0 && (withFx == null || fx) && pvp && countdown && npc);
+            }
+
             // ---- 7.18 絆による回避 ----
             {
                 // NPC戦で、プレイヤーの子のHPが bond_hp_threshold を下回ると、回避が bond_evasion_bonus 上がる（すばやさが同じなら 物理は必ず当たるので、外れた分が絆）

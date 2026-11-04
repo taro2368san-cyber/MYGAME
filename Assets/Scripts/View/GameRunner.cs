@@ -1033,6 +1033,7 @@ public partial class GameRunner : MonoBehaviour
                     Add("どうぐ", () => { subMenu = () => BattleItemMenu(pl, usable); RefreshAll(); }, KeyCode.F, usable.Count > 0);
                     return $"{a.Name}さん（攻撃）：{a.Current.Species}の コマンド";
                 }
+                if (b.DefenseCmd == Defense.Asleep) return $"{d.Current.Species}は ねむっている（守れない）"; // 守る番も止まる（相談10-2）
                 int dp = d.Player;
                 promptSide = 1 - b.Attacker;
                 Add("ぼうぎょ", () => Send(new ChooseDefense { Player = dp, Defense = Defense.Guard }), KeyCode.A);

@@ -187,8 +187,11 @@ namespace Sugoroku.Rules
             var d = b.Sides[1 - b.Attacker];
             // ponytail: NPC はランダムに選ぶ。強くするなら CPU（1.4）と同じ考え方でここを差し替える
             if (a.Player < 0) b.AttackCmd = b.Kind == BattleKind.Wild ? WildAttack(a) : (Attack)Roll(0, a.LastWasSuper || Transforms(a) ? 1 : 2);
-            if (d.Player < 0) b.DefenseCmd = (Defense)Roll(0, 2);
+            // ねむっている子は 守る番も止まる：守りを選ばず ふつうに受ける（相談10-2）。人もNPCも 選ばせない（プレイヤー戦でも 待たない）
+            if (d.Current.Status == Status.Sleep) b.DefenseCmd = Defense.Asleep;
+            else if (d.Player < 0) b.DefenseCmd = (Defense)Roll(0, 2);
             events.Add(new CommandsRequested { Attacker = b.Attacker, AttackPlayer = a.Player, DefensePlayer = d.Player, SuperLocked = a.LastWasSuper || Transforms(a) });
+            if (b.AttackCmd != null && b.DefenseCmd != null) ResolveRound(events); // NPC の攻撃を ねむっている人が受ける：だれの操作も待たずに進む
         }
 
         // 野生の攻撃：必殺技は 調整値 wild_super_rate の確率（必殺が使えないときは出さない）。のこりは 物理・特殊を半分ずつ
@@ -233,7 +236,9 @@ namespace Sugoroku.Rules
                 {
                     if (b.Step != BattleStep.Commands) return "今はコマンドを選ぶときではありません";
                     if (b.Sides[1 - b.Attacker].Player != c.Player) return "防御のコマンドを選ぶのはあなたではありません";
+                    if (b.DefenseCmd == Defense.Asleep) return "ねむっていて 守れません";
                     if (b.DefenseCmd != null) return "もう選んでいます";
+                    if (d.Defense == Defense.Asleep) return "その守りは 選べません";
                     return d.Defense == Defense.Flee && b.Kind == BattleKind.Gym ? "ジム戦からは にげられません" : null;
                 }
                 case PickCard pc:
@@ -342,6 +347,13 @@ namespace Sugoroku.Rules
                 if (atk != Attack.Item) AfterHit(atk, ev, fx, events);
             }
             A.LastWasSuper = !stuck && atk == Attack.Super;
+            // ねむりの残りは ラウンドごとに数える（相談10-2）：攻撃の番は CantAct で、守る番は ここで1つ減らす。0 になったら目を覚ます
+            var dm = D.Current;
+            if (def == Defense.Asleep && !dm.Fainted && dm.Status == Status.Sleep)
+            {
+                if (--dm.SleepRounds <= 0) { dm.Status = Status.None; dm.SleepRounds = 0; }
+                events.Add(new CantMove { Side = 1 - b.Attacker, Pokemon = dm.Species, Status = Status.Sleep, Woke = dm.Status == Status.None });
+            }
 
             // 砂あらし：攻守が1往復するたびに、闘タイプ以外は最大HPの1/10（7.13）
             if (b.Weather == "砂あらし" && b.Rounds % 2 == 0)
@@ -512,7 +524,9 @@ namespace Sugoroku.Rules
 
             // ガードの成否と倍率（7.3の表）
             bool guarded; double mult;
-            if (atk == Attack.Super)
+            // ねむっていて守れない：どの攻撃も1倍（相談10-2。必殺も1倍で、反射もしない）。守っていないので ガード失敗と同じく 急所・追加効果・接触の効果は起こる
+            if (def == Defense.Asleep) { guarded = false; mult = 1; }
+            else if (atk == Attack.Super)
             {
                 guarded = def == Defense.Counter;
                 mult = guarded ? Tune("reflect_mult") : Tune("special_through_mult");
