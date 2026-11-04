@@ -42,3 +42,4 @@ Thumbs.db
 # tools/duo（相談役と Claude Code の会話ツール）
 tools/duo/node_modules/
 tools/duo/logs/
+tools/duo/inbox.md

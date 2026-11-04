@@ -2,7 +2,7 @@
 // 使い方: node tools/duo/duo.mjs "やりたいこと"   （ANTHROPIC_API_KEY が要る）
 import Anthropic from "@anthropic-ai/sdk";
 import { spawn, execSync } from "node:child_process";
-import { readFileSync, readdirSync, mkdirSync, appendFileSync } from "node:fs";
+import { readFileSync, readdirSync, mkdirSync, appendFileSync, existsSync, renameSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
@@ -53,7 +53,18 @@ const log = join(here, "logs", new Date().toISOString().replace(/[:T]/g, "-").sl
 mkdirSync(dirname(log), { recursive: true });
 const write = (who, text) => { console.log(`\n===== ${who} =====\n${text}`); appendFileSync(log, `\n## ${who}\n\n${text}\n`); };
 
+// tools/duo/inbox.md を置くと、次に相談役へ話すときに いっしょに渡す（動かしたまま 回答や指示を足せる）。渡したら logs へ移す
+const inbox = join(here, "inbox.md");
+function takeInbox() {
+  if (!existsSync(inbox)) return "";
+  const text = readFileSync(inbox, "utf8").replace(/^﻿/, "").trim();
+  renameSync(inbox, log.replace(/\.md$/, `-inbox-${Date.now()}.md`));
+  return text;
+}
+
 async function consult(userText) {
+  const extra = takeInbox();
+  if (extra) { write("ユーザー（inbox）", extra); userText = `ユーザーからの回答・指示（これを最優先にして、次の指示を決め直す）:\n${extra}\n\n${userText}`; }
   messages.push({ role: "user", content: userText });
   const res = await client.beta.messages.stream({
     model: "claude-opus-5-5",
