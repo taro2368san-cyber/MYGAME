@@ -5,6 +5,7 @@ using System.Linq;
 namespace Sugoroku.Rules
 {
     // 週イベントのうち、ポケニュース・ポケニュース特番・突発バトルイベント（仕様書5.3）
+    // 天候は weather_event_weeks 週、セールは sale_weeks 週、ストライキは strike_weeks 週（相談11）
     // ポケニュース：event_weeks 週、指定の道路の草むらで「レア枠」（その場所でいちばん出現率が低い行）が news_rare_mult 倍 出やすい
     // ポケニュース特番：event_weeks 週、指定の道路の草むらで news_legend_rate の確率で 準伝説（エンテイ・スイクン・ライコウ・ラティアス・ラティオス）
     // 突発バトルイベント：週のはじめに 同じエリアにいる人たちでミニトーナメント（2人いなければ 別の週イベントを引き直す。ステップ2 2-C-2、仮）（クイックバトル）。優勝するとポケベル
@@ -23,16 +24,19 @@ namespace Sugoroku.Rules
         }
 
         // 週イベントを起こす。トーナメントが始まって 手番を始めるのを待つときは false
+        // 枠は3つ：天候（雨季・乾季・すなあらしの日）、お店（セール・ストライキ）、ポケニュース。同じ枠に新しいものが来たら 前のものは消えて、新しいほうの週数で数え直す。ちがう枠どうしは両方続く（相談11）
         internal bool ApplyWeekEvent(string name, List<GameEvent> events)
         {
-            int weeks = TuneInt("event_weeks");
+            int weeks = TuneInt("event_weeks"); // ポケニュース・特番
             switch (name)
             {
                 case "雨季": case "乾季": case "すなあらしの日":
+                    weeks = TuneInt("weather_event_weeks");
                     State.Weather = name; State.WeatherWeeks = weeks;
                     events.Add(new WeekEventHappened { Name = name, Weeks = weeks });
                     return true;
                 case "セール": case "ストライキ":
+                    weeks = TuneInt(name == "セール" ? "sale_weeks" : "strike_weeks");
                     State.WeekEvent = name; State.WeekEventWeeks = weeks;
                     events.Add(new WeekEventHappened { Name = name, Weeks = weeks });
                     return true;

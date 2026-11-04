@@ -1516,6 +1516,44 @@ namespace Sugoroku.Rules
                 var (_, wev) = LandEvents(gymTrainerSq, "ヒトカゲ", s => { s.Weather = "雨季"; s.WeatherWeeks = 3; s.FluteWeather = "晴れ"; s.FluteWeeks = 3; });
                 Check(log, "三竜のふえ：週イベントの雨より、ふえの晴れが優先", wev.OfType<BattleWeatherChanged>().FirstOrDefault()?.Weather == "晴れ");
             }
+            {
+                // 週イベントの続く週数（相談11）：天候 weather_event_weeks・セール sale_weeks・ストライキ strike_weeks。同じ枠に来たら 新しいほうで上書き、ちがう枠どうしは両方続く
+                // 週イベントはデバッグで起こす（週イベントと同じ処理を通る）。途中で ほかの週イベントが引かれないよう、次の抽選を遠くにする
+                GameProcessor Week()
+                {
+                    var g = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ") }, 50, 5, out _);
+                    g.DebugEnabled = true;
+                    g.State.NextEventWeek = 9999;
+                    return g;
+                }
+                void Weather(GameProcessor g, string w) => Apply(g, new DebugCommand { Player = 0, Action = DebugAction.Weather, Text = w });
+                void Shop(GameProcessor g, string e) => Apply(g, new DebugCommand { Player = 0, Action = DebugAction.WeekEvent, Text = e });
+                void Next(GameProcessor g, int n = 1) { for (int i = 0; i < n; i++) Apply(g, new DebugCommand { Player = 0, Action = DebugAction.NextWeek }); }
+                int wW = (int)data.Required("weather_event_weeks"), sW = (int)data.Required("sale_weeks"), kW = (int)data.Required("strike_weeks");
+                // 何週続くか：起きた週を1週目として、n 週たつと終わる
+                int Lasts(Action<GameProcessor> start, Func<GameProcessor, bool> on)
+                {
+                    var g = Week(); start(g);
+                    int n = 0;
+                    while (on(g) && n < 20) { Next(g); n++; }
+                    return n;
+                }
+                bool lengths = Lasts(g => Weather(g, "雨季"), g => g.State.Weather == "雨季") == wW
+                    && Lasts(g => Shop(g, "セール"), g => g.State.WeekEvent == "セール") == sW
+                    && Lasts(g => Shop(g, "ストライキ"), g => g.State.WeekEvent == "ストライキ") == kW;
+                // 雨季の途中で乾季：雨季は消えて、乾季がそこから weather_event_weeks 週
+                bool weather = Lasts(g => { Weather(g, "雨季"); Next(g); Weather(g, "乾季"); }, g => g.State.Weather == "乾季") == wW;
+                // セールの途中でストライキ（逆も）：前のほうは消えて、新しいほうの週数
+                bool shop = Lasts(g => { Shop(g, "セール"); Weather(g, ""); Shop(g, "ストライキ"); }, g => g.State.WeekEvent == "ストライキ") == kW
+                    && Lasts(g => { Shop(g, "ストライキ"); Shop(g, "セール"); }, g => g.State.WeekEvent == "セール") == sW;
+                // 雨季とセール：ちがう枠なので 両方続く
+                var both = Week(); Weather(both, "雨季"); Shop(both, "セール");
+                bool together = both.State.Weather == "雨季" && both.State.WeekEvent == "セール";
+                Next(both);
+                together &= both.State.Weather == "雨季" && both.State.WeekEvent == (sW > 1 ? "セール" : "");
+                Check(log, $"週イベント：天候は{wW}週・セールは{sW}週・ストライキは{kW}週で終わる。同じ枠（天候どうし、セールとストライキ）に来たら 前のほうは消えて 新しいほうの週数、ちがう枠（雨季とセール）は両方続く",
+                    lengths && weather && shop && together);
+            }
             if (center != null)
             {
                 var (cg2, _) = LandEvents(center, "ヒトカゲ", s => s.Players[0].Ailments.Add(new PlayerAilment { Name = "のろい", Weeks = 3 }));

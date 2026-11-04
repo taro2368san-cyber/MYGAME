@@ -91,10 +91,9 @@ namespace Sugoroku.Rules
                     EndBattle(1 - loser, false, events);
                     return;
                 }
-                case DebugAction.Weather:
-                    State.Weather = d.Text; State.WeatherWeeks = d.Text == "" ? 0 : TuneInt("event_weeks");
-                    if (d.Text != "") events.Add(new WeekEventHappened { Name = d.Text, Weeks = State.WeatherWeeks });
-                    else text = "天候を なしにした";
+                case DebugAction.Weather: // 週イベントと同じ処理（同じ枠なら上書き、週数も同じ。相談11）
+                    if (d.Text != "") ApplyWeekEvent(d.Text, events);
+                    else { State.Weather = ""; State.WeatherWeeks = 0; text = "天候を なしにした"; }
                     break;
                 case DebugAction.NextWeek:
                 {
@@ -116,10 +115,9 @@ namespace Sugoroku.Rules
                     events.Add(new DebugDone { Text = $"野生の {d.Text} Lv{System.Math.Max(1, d.Value)} と バトル" });
                     StartBattle(BattleKind.Wild, false, Npc($"野生の{d.Text}", new[] { (d.Text, System.Math.Max(1, d.Value)) }), events);
                     return;
-                case DebugAction.WeekEvent:
-                    State.WeekEvent = d.Text; State.WeekEventWeeks = d.Text == "" ? 0 : TuneInt("event_weeks");
-                    if (d.Text != "") events.Add(new WeekEventHappened { Name = d.Text, Weeks = State.WeekEventWeeks });
-                    else text = "週イベントを なしにした";
+                case DebugAction.WeekEvent: // 週イベントと同じ処理（セールとストライキは同じ枠、週数も同じ。相談11）
+                    if (d.Text != "") ApplyWeekEvent(d.Text, events);
+                    else { State.WeekEvent = ""; State.WeekEventWeeks = 0; text = "週イベントを なしにした"; }
                     break;
             }
             if (text != null) events.Add(new DebugDone { Text = text });
