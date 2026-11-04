@@ -1431,7 +1431,7 @@ namespace Sugoroku.Rules
                     // 他人のファン：有料回復の代金が持ち主に入り、そのあと職業バトル
                     var pg = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ"), ("B", MoveMode.Highlight, "ヒトカゲ") }, 50, 7, out _);
                     var payer = pg.State.CurrentPlayer; var fanOwner = pg.State.Players.First(x => x != payer);
-                    for (int i = 0; i < 4; i++) payer.Gyms.Add("ジム" + i);
+                    for (int i = 0; i < 8; i++) payer.Gyms.Add("ジム" + i); // 職業マスが どのエリア（グレンなど）に出ても 歩いて入れるように 8個
                     payer.Party[0] = Pokemons.Create(data, "リザードン", 100, "", "", 1); payer.Party[0].Hp = 1;
                     pg.State.Owners[fireSq] = fanOwner.Id;
                     pg.State.JobSquares[fireSq] = "ひふきやろう"; // 職業マスの置き場所は ゲームの始めに乱数で決まるので、同じマスにしておく
