@@ -1686,6 +1686,7 @@ namespace Sugoroku.Rules
                     ok && sameChar && sameMon && wrongGen && count && badName && weeks);
             }
             BattleRules(data, board, log); // 6・7章（RulesSelfTest.Battle.cs）
+            ItemRules(data, board, log);   // 8〜11章（RulesSelfTest.Items.cs）
 
             var summary = new Dictionary<string, int>();
             for (ulong seed = 1; seed <= 5; seed++)
