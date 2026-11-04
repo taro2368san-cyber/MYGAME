@@ -437,13 +437,19 @@ namespace Sugoroku.Rules
             var status = GymStatusFor(p, sq);
             if (!status.CanChallenge) return Nothing(status.Block, events);
             string gym = status.Gym;
+            return StartBattle(BattleKind.Gym, true, GymTeam(gym, p), events, gym);
+        }
+
+        // ジムリーダーの手持ち：ジム.csv の並び。Lv は このプレイヤーの何個目のバッジか（エースが gym_ace_level_○、ほかは gym_level_step ずつ下）
+        BattleSide GymTeam(string gym, PlayerState p)
+        {
             var members = data.GymMembers.Where(m => m.Gym == gym).ToList();
             int order = Math.Min(p.Badges + 1, 8);
             int ace = TuneInt($"gym_ace_level_{order}"), step = TuneInt("gym_level_step");
             int aceIndex = members.FindLastIndex(m => m.Role == "エース");
             if (aceIndex < 0) aceIndex = members.Count - 1;
             var team = members.Select((m, i) => (m.Pokemon, Math.Max(1, ace - step * Math.Abs(aceIndex - i))));
-            return StartBattle(BattleKind.Gym, true, Npc(members[0].Leader, team), events, gym);
+            return Npc(members[0].Leader, team);
         }
 
         // ライバルマス（11.5）。持ち主のいないマスだけ戦える（所有権は固定）

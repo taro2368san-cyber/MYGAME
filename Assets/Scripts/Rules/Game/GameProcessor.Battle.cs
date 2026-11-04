@@ -883,6 +883,7 @@ namespace Sugoroku.Rules
         // 格闘道場（効果の型「道場」）は、職に就くか ポケモンと交換するかを選ぶ（DojoWon）
         void EventBattleWon(PlayerState p, List<GameEvent> events)
         {
+            if (B.EventId == GiovanniRematch) { UnlockJob(p, RocketJob, events); OfferJob(p, RocketJob, events); return; } // ポケベルのサカキに勝った（相談8）
             var e = FindEffect(B.EventId);
             if (e == null) return;
             Say(e.TextKey + "_win", events, p);

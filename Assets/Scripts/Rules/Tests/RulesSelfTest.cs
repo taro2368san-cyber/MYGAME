@@ -367,6 +367,55 @@ namespace Sugoroku.Rules
                 var called = g.Apply(new ChooseOption { Player = me.Id, Index = 0 }, out string e4);
                 Check(log, "ポケベル：4人から選ぶ、やめたら戻る、呼ぶとイベント", e1 == null && options == 5 && e2 == null && back && e3 == null && e4 == null && !me.TrainerBag.Contains("ポケベル") && called.OfType<EventStarted>().Any());
             }
+            var giovanni = data.RandomEvents.FirstOrDefault(x => x.Bell && x.Id == "ev_giovanni");
+            if (giovanni != null && data.Jobs.Any(j => j.Name == "ロケット団") && data.GymMembers.Any(m => m.Gym == "トキワジム"))
+            {
+                // ポケベルのサカキ（相談8、9.2）：バッジ8個で ニューラかマニューラを持っていれば（控えでもよい）、サカキとフルバトル（手持ちはトキワジムと同じ）。勝つとロケット団職、就くかを聞かれる
+                // 候補の4人は乱数なので、呼ぶ候補を サカキだけにする
+                (GameProcessor g, PlayerState me, List<GameEvent> ev) Call8(int badges, bool mon, bool unlocked = false)
+                {
+                    var (g, me, _) = Two("ポケベル");
+                    for (int i = 0; i < badges; i++) me.Gyms.Add("ジム" + i);
+                    me.Party[0] = Pokemons.Create(data, "リザードン", 60, "", "", 1);
+                    if (mon) me.Box.Add(Pokemons.Create(data, "マニューラ", 30, "", "", 1));
+                    if (unlocked) me.UnlockedJobs.Add("ロケット団");
+                    g.Apply(new UseItem { Player = me.Id, Item = "ポケベル" }, out _);
+                    var f = g.State.Facility;
+                    f.Options.Clear(); f.Options.Add(giovanni.Name); f.Options.Add("やめておく");
+                    var ev = g.Apply(new ChooseOption { Player = me.Id, Index = 0 }, out string err);
+                    if (err != null) throw new Exception("テスト失敗: ポケベルでサカキを呼べない：" + err);
+                    if (g.State.Battle?.Step == BattleStep.Select) Apply(g, new SelectPokemon { Player = me.Id, Slot = 0 }); // フルバトルは 出す子を選んでから
+                    g.DebugEnabled = true;
+                    return (g, me, ev);
+                }
+                var (wg, wme, wev) = Call8(8, true);
+                var started = wev.OfType<BattleStarted>().FirstOrDefault();
+                var leader = data.GymMembers.First(m => m.Gym == "トキワジム");
+                bool sameTeam = wg.State.Battle != null && wg.State.Battle.Sides[1].Team.Select(m => m.Species).SequenceEqual(data.GymMembers.Where(m => m.Gym == "トキワジム").Select(m => m.Pokemon));
+                var won = wg.State.Battle != null ? wg.Apply(new DebugCommand { Player = wme.Id, Action = DebugAction.WinBattle }, out _) : new List<GameEvent>();
+                bool win = started != null && started.Full && started.Opponent == leader.Leader && sameTeam && won.OfType<JobUnlocked>().Any(x => x.Job == "ロケット団") && wg.State.Facility?.Kind == FacilityKind.JobOffer;
+                // バッジ7個・ニューラもマニューラもいない人は バトルにならない（今までどおり 謎のチケット）
+                var (_, _, sev) = Call8(7, true);
+                var (_, _, nev) = Call8(8, false);
+                bool notOpen = !sev.OfType<BattleStarted>().Any() && !nev.OfType<BattleStarted>().Any();
+                // 負けると ふつうのフルバトルの負け（お金を失う）。ロケット団職は解放されない
+                var (lg, lme, _) = Call8(8, true);
+                lme.Money = 1000;
+                var lost = lg.State.Battle != null ? lg.Apply(new DebugCommand { Player = lme.Id, Action = DebugAction.LoseBattle }, out _) : new List<GameEvent>();
+                bool lose = lost.OfType<BattleEnded>().Any(x => x.Winner == 1) && lost.OfType<MoneyChanged>().Any(x => x.Player == lme.Id && x.Amount < 0) && !lme.UnlockedJobs.Contains("ロケット団");
+                // もう解放した人は 何も起きない（バトルも チケットもない）
+                var (ug, ume, uev) = Call8(8, true, true);
+                bool already = !uev.OfType<BattleStarted>().Any() && !uev.OfType<ItemGained>().Any() && uev.OfType<NothingHappened>().Any();
+                Check(log, "ポケベルのサカキ：バッジ8個で マニューラを控えに持っていれば フルバトル（手持ちはトキワジムと同じ）、勝つとロケット団職で 就くかを聞かれる。バッジ7個・ニューラもマニューラもいなければ バトルにならず、負ければ ふつうの負けで解放されない。もう解放した人には 何も起きない",
+                    win && notOpen && lose && already);
+                // スカウト（12章）：バッジ rocket_scout_badges 個以上で 最下位が rocket_scout_weeks 週つづくと ロケット団職が解放される（どちらの道でも 同じ職）
+                var (cg, cme, _) = Two("キズくすり");
+                for (int i = 0; i < (int)data.Required("rocket_scout_badges"); i++) cme.Gyms.Add("ジム" + i);
+                cme.LastPlaceWeeks = (int)data.Required("rocket_scout_weeks");
+                var cev = new List<GameEvent>();
+                Call(cg, "CheckRocketScout", cme, cev);
+                Check(log, "ロケット団職のスカウト：バッジと 最下位の週数が そろうと 解放される", cev.OfType<JobUnlocked>().Any(x => x.Job == "ロケット団") && cme.UnlockedJobs.Contains("ロケット団"));
+            }
             {
                 // 鍵付きモンスターボール：カギがあれば開いて1つ上の表、なければ開かない（盤面には8つあるが、盤面が変わっても同じに試せるよう、空マスの種類を一時的に変えて試す）
                 var sq = board.Squares.Values.First(x => x.Type == "空マス" && x.Neighbors.Count > 0);

@@ -80,8 +80,22 @@ namespace Sugoroku.Rules
             var e = data.RandomEvents.First(x => x.Bell && x.Name == f.Options[index]);
             RemoveItem(p, "ポケベル");
             Say("ev_bell_answer", events, p, ("名前", e.Name));
+            // サカキ（ev_giovanni）：バッジ8個で ニューラかマニューラを持っていれば（手持ちか控え）、謎のチケットの代わりに再戦。もう解放した人には 何も起きない（相談8）
+            if (e.Id == GiovanniEvent && GiovanniRematchOpen(p))
+            {
+                if (p.UnlockedJobs.Contains(RocketJob)) return Nothing("サカキは もう 何も 言わなかった", events);
+                StartBattle(BattleKind.Event, true, GymTeam(GiovanniGym, p), events);
+                B.EventId = GiovanniRematch;
+                return true;
+            }
             return StartEvent(e, events);
         }
+
+        // サカキとの再戦（相談8、9.2）：手持ちはトキワジムと同じ（Lv は8個目のバッジの枠）、フルバトル。勝つとロケット団職が解放され、その場で就ける
+        const string GiovanniEvent = "ev_giovanni", GiovanniRematch = "giovanni_rematch", GiovanniGym = "トキワジム", RocketJob = "ロケット団";
+        bool GiovanniRematchOpen(PlayerState p) =>
+            p.Badges >= 8 && p.Party.Concat(p.Box).Any(m => m.Species == "ニューラ" || m.Species == "マニューラ")
+            && data.Jobs.Any(j => j.Name == RocketJob) && data.GymMembers.Any(m => m.Gym == GiovanniGym);
 
         // 施設で持ち主と同じ扱いになるか（へんそう中なら、ほかの人のライバルマスでも）
         public bool ActsAsOwner(FacilityState f, PlayerState p) => f.Owner == p.Id || p.Has("へんそう");
