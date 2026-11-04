@@ -13,7 +13,8 @@ namespace Sugoroku.Rules
         {
             var player = Current;
             var sq = board[player.Square];
-            var other = State.Players.FirstOrDefault(p => p != player && p.Square == player.Square && p.Party.Any(m => !m.Fainted) && p.PendingBattle == null && !OnIsland(player)); // バトルの途中の人とは戦わない。島はその人だけのエリア
+            // 同じマスに相手がいれば プレイヤー戦（7.6）。マスの効果の代わりになる（島の港・シンボルでも同じ。3.4、食い違い17）。バトルの途中の人とは戦わない
+            var other = State.Players.FirstOrDefault(p => p != player && p.Square == player.Square && p.Party.Any(m => !m.Fainted) && p.PendingBattle == null);
             if (other != null && player.Party.Any(m => !m.Fainted)) return StartPlayerBattle(other, events);
             if (SafariGate(player, sq, events)) return false;
             if (sq.Neighbors.Any(SleepingSnorlax)) Say("ev_snorlax_block", events, player); // となりで 道をふさいで ねむっている（ふえで起こせる）

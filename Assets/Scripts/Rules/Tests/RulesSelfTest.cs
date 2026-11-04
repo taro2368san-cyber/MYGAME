@@ -914,6 +914,26 @@ namespace Sugoroku.Rules
                     for (int i = 0; i < 12 && tp.Square != 2; i++) { var ev = Go(tg, i % 2 == 0 ? 9 : 10, i % 2 == 0 ? 10 : 9); moves++; if (ev.OfType<ReturnedFromIsland>().Any()) break; }
                     Check(log, $"島：{(int)data.Required("ticket_island_turns")}手番 動いたら、次の手番の始めに クチバへ（{moves}手番で戻った）", tp.Square == 2 && moves == (int)data.Required("ticket_island_turns"));
 
+                    // 島でも 同じマスに止まれば プレイヤー戦（3.4・7.6、食い違い17）。バトルの途中の人とは戦わない。港でも プレイヤー戦がマスの効果の代わり（クチバへ戻らない。本マップと同じ順番）
+                    (GameProcessor g, PlayerState me, PlayerState you) Meet(int youAt)
+                    {
+                        var g = IGame(3, 2);
+                        var me = g.State.CurrentPlayer; var you = g.State.Players.First(x => x != me);
+                        you.Square = youAt;
+                        return (g, me, you);
+                    }
+                    var (mg, _, _) = Meet(9);
+                    var met = Go(mg, 8, 9).OfType<BattleStarted>().FirstOrDefault();
+                    var (bg, _, busy) = Meet(9);
+                    busy.PendingBattle = new BattleState(); // バトルの途中の人（中身は空なので、その人の番は1回休みで とばす）
+                    busy.Ailments.Add(new PlayerAilment { Name = "1回休み", Weeks = 1 });
+                    bool skipBusy = !Go(bg, 8, 9).OfType<BattleStarted>().Any();
+                    var (pg, pme, _) = Meet(4);
+                    var pev = Go(pg, 5, 4);
+                    bool atPort = pev.OfType<BattleStarted>().Any(x => x.Kind == BattleKind.Player) && !pev.OfType<ReturnedFromIsland>().Any() && pme.Square == 4;
+                    Check(log, "島：同じマスに止まると プレイヤー戦（クイック）。バトルの途中の人とは戦わない。島の港でも プレイヤー戦になり、クチバへは戻らない（本マップと同じく プレイヤー戦がマスの効果の代わり）",
+                        met?.Kind == BattleKind.Player && !met.Full && skipBusy && atPort);
+
                     // 謎のチケット → 不思議なチケット：最下位の週だけ数える
                     var cg = IGame(3, 2);
                     cg.DebugEnabled = true;
