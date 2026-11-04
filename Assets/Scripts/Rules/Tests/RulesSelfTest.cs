@@ -368,7 +368,7 @@ namespace Sugoroku.Rules
                 Check(log, "ポケベル：4人から選ぶ、やめたら戻る、呼ぶとイベント", e1 == null && options == 5 && e2 == null && back && e3 == null && e4 == null && !me.TrainerBag.Contains("ポケベル") && called.OfType<EventStarted>().Any());
             }
             {
-                // 鍵付きモンスターボール：カギがあれば開いて1つ上の表、なければ開かない（盤面にまだないので、マスの種類を一時的に変えて試す）
+                // 鍵付きモンスターボール：カギがあれば開いて1つ上の表、なければ開かない（盤面には8つあるが、盤面が変わっても同じに試せるよう、空マスの種類を一時的に変えて試す）
                 var sq = board.Squares.Values.First(x => x.Type == "空マス" && x.Neighbors.Count > 0);
                 string keep = sq.Type;
                 sq.Type = "鍵付きモンスターボール";
