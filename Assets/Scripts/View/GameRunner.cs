@@ -674,7 +674,7 @@ public partial class GameRunner : MonoBehaviour
         SyncSnorlax();
         SyncLocks();
         SyncFishMarks();
-        HideOtherMaps(); // 見渡しの間は 今いるマップの外を消す（16.7。あとから作られたマークも）
+        SyncShownMap(true); // 映すのは カメラが追っている人がいるマップだけ（3.4・16.7。あとから作られたマークも）
         TryCpu();
     }
 
@@ -1183,6 +1183,7 @@ public partial class GameRunner : MonoBehaviour
         var cam = Camera.main;
         if (cam == null || cameraTarget == null) return;
         if (exploring) ClampExploreCamera(cam); // 見渡しは 今いるマップの中だけ（16.7）
+        SyncShownMap(false); // 手番やワープで 映すマップが変わったら 切り替える（3.4）
         Vector3 want = cameraTarget.position + camPan + cameraOffset * zoom;
         cam.transform.position = Vector3.Lerp(cam.transform.position, want, 1 - Mathf.Exp(-6 * Time.deltaTime));
         cam.transform.LookAt(cam.transform.position - cameraOffset);

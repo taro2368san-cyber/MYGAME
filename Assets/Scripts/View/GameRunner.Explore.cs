@@ -11,11 +11,9 @@ public partial class GameRunner
     Transform exploreFocus;
     int exploreSquare = -1;
 
-    // 見渡せるのは 自分が今いるマップだけ（16.7）。別マップの板は 同じシーンの離れた場所にある（3.4）ので、
-    // そのマップのマスを囲む範囲（exploreRect）の外にある絵（板・マス・道・コマ・シンボル・マーク）を 見渡しの間だけ消し、カメラも その範囲の中だけで動かす
+    // 見渡しのカメラは 自分が今いるマップのマスを囲む範囲（exploreRect）の中だけで動かす（16.7）
     const float ExplorePad = 4f;              // マスの外側に 板の縁として残す幅
     Rect exploreRect;
-    readonly System.Collections.Generic.List<Renderer> exploreHidden = new System.Collections.Generic.List<Renderer>();
 
     void StartExplore()
     {
@@ -27,17 +25,72 @@ public partial class GameRunner
         cameraTarget = exploreFocus;
         subMenu = ExploreMenu;
         exploreRect = MapRect(board[S.CurrentPlayer.Square].MapId);
-        RefreshAll(); // 最後に HideOtherMaps
+        RefreshAll();
     }
 
     void EndExplore()
     {
         exploring = false;
-        ShowOtherMaps();
         if (exploreFocus != null) Destroy(exploreFocus.gameObject);
         cameraTarget = pieces[S.CurrentPlayer.Id];
         subMenu = null;
         RefreshAll();
+    }
+
+    // ---- 映すのは 1つのマップだけ（3.4・16.7）----
+    // 別マップの板は 同じシーンの離れた場所にある（3.4）が、となりのマップや 本マップの中にある板（サントアンヌ号の Deck）が 引くと画面に入る。
+    // そこで ふだんも見渡しも、カメラが追っている人（見渡しなら手番の人）がいるマップ以外の絵（板・マス・道・コマ・シンボル・マーク）の表示を切る。
+    // どのマップの絵かは 四角い範囲ではなく 絵ごとに決める（板・マス・道は持っているマップID、コマと ついて歩くポケモンは その人のマス、ほかは いちばん近いマス）
+    string shownMap;                                                  // いま映しているマップ（null なら 全部出している）
+    readonly System.Collections.Generic.List<Renderer> mapHidden = new System.Collections.Generic.List<Renderer>();
+    readonly System.Collections.Generic.Dictionary<Renderer, string> rendererMap = new System.Collections.Generic.Dictionary<Renderer, string>(); // 動かない絵のマップ（覚えておく）
+
+    string ViewMap()
+    {
+        int i = pieces.IndexOf(cameraTarget);
+        var p = i >= 0 && i < S.Players.Count ? S.Players[i] : S.CurrentPlayer;
+        return board[p.Square].MapId;
+    }
+
+    // rescan：マップが同じでも 新しくできた絵を見直す（RefreshAll から）。LateUpdate からは マップが変わったときだけ。デバッグの「見渡しの制限：なし」なら 全部出す
+    void SyncShownMap(bool rescan)
+    {
+        string want = game == null || seeAll || pieces.Count == 0 ? null : ViewMap();
+        if (want == shownMap && !rescan) return;
+        if (want != shownMap) { ShowAllMaps(); shownMap = want; }
+        if (want == null) return;
+        foreach (var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+            if (r.enabled && MapOf(r) != want) { r.enabled = false; mapHidden.Add(r); }
+    }
+
+    void ShowAllMaps()
+    {
+        foreach (var r in mapHidden) if (r != null) r.enabled = true;
+        mapHidden.Clear();
+    }
+
+    string MapOf(Renderer r)
+    {
+        for (int i = 0; i < pieces.Count && i < S.Players.Count; i++)
+            if (r.transform.IsChildOf(pieces[i]) || (i < buddies.Count && r.transform.IsChildOf(buddies[i]))) return board[S.Players[i].Square].MapId;
+        if (rendererMap.TryGetValue(r, out string known)) return known;
+        string m;
+        if (r.GetComponentInParent<SugorokuSquare>() is SugorokuSquare sq && board.Squares.ContainsKey(sq.id)) m = board[sq.id].MapId;
+        else if (r.GetComponentInParent<SugorokuRoad>() is SugorokuRoad road && road.squareA != null && board.Squares.ContainsKey(road.squareA.id)) m = board[road.squareA.id].MapId;
+        else if (r.GetComponentInParent<SugorokuBoard>() is SugorokuBoard bd) m = bd.mapId ?? "";
+        else
+        {
+            // マークやシンボルなど：いちばん近いマスのマップ（動かないので 覚えておく）
+            var c = r.bounds.center; float best = float.MaxValue; m = "";
+            foreach (var kv in squares)
+            {
+                if (!board.Squares.ContainsKey(kv.Key)) continue;
+                var d = kv.Value.transform.position - c; float dd = d.x * d.x + d.z * d.z;
+                if (dd < best) { best = dd; m = board[kv.Key].MapId; }
+            }
+        }
+        rendererMap[r] = m;
+        return m;
     }
 
     // そのマップのマスを囲む範囲（x・z）。縁を少し足す
@@ -46,26 +99,6 @@ public partial class GameRunner
         var pts = board.Squares.Values.Where(s => s.MapId == mapId).Select(s => SquarePosition(s.Id)).ToList();
         if (pts.Count == 0) return new Rect(-1e5f, -1e5f, 2e5f, 2e5f);
         return Rect.MinMaxRect(pts.Min(p => p.x) - ExplorePad, pts.Min(p => p.z) - ExplorePad, pts.Max(p => p.x) + ExplorePad, pts.Max(p => p.z) + ExplorePad);
-    }
-
-    // 見渡しの間：範囲の外にある絵を消す（消したものだけ覚えて、出るときに戻す）。RefreshAll のたびに呼ぶ（あとから作られたマークも消す）。デバッグの「見渡しの制限：なし」なら消さない
-    void HideOtherMaps()
-    {
-        if (!exploring || seeAll) return;
-        foreach (var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None))
-        {
-            if (!r.enabled) continue;
-            var c = r.bounds.center;
-            if (exploreRect.Contains(new Vector2(c.x, c.z))) continue;
-            r.enabled = false;
-            exploreHidden.Add(r);
-        }
-    }
-
-    void ShowOtherMaps()
-    {
-        foreach (var r in exploreHidden) if (r != null) r.enabled = true;
-        exploreHidden.Clear();
     }
 
     // 見渡しのカメラ（LateUpdate から）：引きすぎると範囲の外が入るので 縮小に上限、見ているところは 画面の端が範囲に収まるところまで
