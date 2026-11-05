@@ -160,10 +160,12 @@ namespace Sugoroku.Rules
                     p.TicketChangeWeeks = 0;
                     events.Add(new TicketChanged { Player = p.Id });
                 }
-                // 下位救済：バッジがそろっていて、ちょうど決まった週数だけ最下位が続いたら（1回の連続で1枚）
-                if (p.Badges >= TuneInt("ticket_rescue_badges") && p.LastPlaceWeeks == TuneInt("ticket_rescue_weeks") && HasRoomFor(p, MysteryTicket))
+                // 下位救済：バッジがそろっていて、決まった週数以上 最下位が続いていたら。道具がいっぱいなら 空いた週に（相談25）。1回の連続で1枚
+                if (p.LastPlaceWeeks == 0) p.TicketRescueWeek = 0; // 連続が切れたら、次の連続でまた渡せる
+                if (p.Badges >= TuneInt("ticket_rescue_badges") && p.LastPlaceWeeks >= TuneInt("ticket_rescue_weeks") && p.TicketRescueWeek == 0 && HasRoomFor(p, MysteryTicket))
                 {
                     PutItem(p, MysteryTicket);
+                    p.TicketRescueWeek = State.Week;
                     events.Add(new RescueGiven { Player = p.Id, Item = MysteryTicket });
                 }
             }

@@ -391,23 +391,54 @@ namespace Sugoroku.Rules
                 Check(log, $"8.8.1・12 ボールマスの救済：最下位が{boost}週つづくと 1段階上の表（{tiers[0].Name}→{tiers[1].Name}）、{boost - 1}週では まだ。{tiers.Last().Name} は {tiers.Last().Name} のまま", rescue && chain);
             }
 
-            // ---- 12 なぞのチケットの救済：バッジが足りない・トレーナーの道具に空きがないと 来ない ----
+            // ---- 12 なぞのチケットの救済：道具がいっぱいなら 空いた週に。1回の最下位の連続で1枚。バッジが足りないと来ない（相談25）----
             {
                 int badges = (int)T("ticket_rescue_badges"), weeks = (int)T("ticket_rescue_weeks");
-                int Given(int myBadges, bool fullBag)
+                var filler = data.Items.First(i => ItemEffects.BagOf(i) == Bag.Trainer && i.Name != GameProcessor.MysteryTicket && i.Name != GameProcessor.WonderTicket);
+                (GameProcessor g, PlayerState poor, PlayerState rich) Setup(int myBadges)
                 {
                     var g = Town(2);
                     var poor = g.State.CurrentPlayer; var rich = g.State.Players.First(x => x != poor);
                     rich.Money = 1000000; poor.Money = 0;
                     for (int i = 0; i < myBadges; i++) poor.Gyms.Add("テスト" + i);
-                    var filler = data.Items.First(i => ItemEffects.BagOf(i) == Bag.Trainer && i.Name != GameProcessor.MysteryTicket && i.Name != GameProcessor.WonderTicket);
-                    if (fullBag) while (poor.TrainerBag.Count < g.BagLimit(poor, Bag.Trainer)) poor.TrainerBag.Add(filler.Name);
-                    int n = 0;
-                    for (int i = 0; i < weeks + 3; i++) n += NextWeek(g).OfType<RescueGiven>().Count();
-                    return n;
+                    return (g, poor, rich);
                 }
-                Check(log, $"12 なぞのチケットの救済：最下位が{weeks}週つづいても、バッジが{badges - 1}個なら来ない。トレーナーの道具に空きがなければ来ない（{badges}個で空きがあれば来る）",
-                    Given(badges - 1, false) == 0 && Given(badges, true) == 0 && Given(badges, false) == 1);
+                // 最下位の連続が streak 週になるまで 週を進めて、来た枚数
+                int Until(GameProcessor g, PlayerState p, int streak) { int n = 0; for (int i = 0; i < 200 && p.LastPlaceWeeks < streak; i++) n += NextWeek(g).OfType<RescueGiven>().Count(); return n; }
+                int More(GameProcessor g, int count) { int n = 0; for (int i = 0; i < count; i++) n += NextWeek(g).OfType<RescueGiven>().Count(); return n; }
+
+                var (tg, tp, _) = Setup(badges);
+                while (tp.TrainerBag.Count < tg.BagLimit(tp, Bag.Trainer)) tp.TrainerBag.Add(filler.Name);
+                int whileFull = Until(tg, tp, weeks + 1);          // 20週目（と21週目）は いっぱいなので 来ない
+                tp.TrainerBag.Remove(filler.Name);                // 22週目の前に 1つ空く
+                int whenFree = More(tg, 1);                       // 22週目の終わりに来る
+                bool at22 = tp.LastPlaceWeeks == weeks + 2 && tp.TicketRescueWeek == tg.State.Week;
+                int afterGiven = More(tg, 10);                    // 最下位が続いても もう来ない
+                // 最下位でなくなると 連続が切れて、また 20週続けば もう一度来る
+                tp.Money = 3000000; More(tg, 1);
+                bool reset = tp.LastPlaceWeeks == 0 && tp.TicketRescueWeek == 0;
+                tp.Money = 0; tp.TrainerBag.Clear();
+                int again = Until(tg, tp, weeks);
+                var (bg, bp, _) = Setup(badges - 1);
+                int fewBadges = Until(bg, bp, weeks + 3);         // バッジが足りないと 空いていても来ない
+                Check(log, $"12 なぞのチケットの救済：最下位が{weeks}週目に 道具がいっぱいなら来ず、{weeks + 2}週目に空くと その週に来る。来たあとは 最下位が続いても来ない。最下位でなくなってから また{weeks}週続くと もう一度来る。バッジ{badges - 1}個なら来ない（相談25）",
+                    whileFull == 0 && whenFree == 1 && at22 && afterGiven == 0 && reset && again == 1 && fewBadges == 0);
+            }
+
+            // ---- 7.1.1 イベントマスのクイックバトルの引き分け：ふつうの引き分けと同じく プレイヤーが1回休み。報酬も所持金の喪失もない（相談23）----
+            {
+                var g = Town(2);
+                var p = g.State.CurrentPlayer;
+                p.Party.Clear(); p.Party.Add(Mon("ヒトカゲ", 10));
+                int money = p.Money = 5000;
+                var ev = new List<GameEvent>();
+                Call(g, "StartBattle", BattleKind.Event, false, (BattleSide)Call(g, "Npc", "テスト", new[] { ("ヒトカゲ", 10) }), ev, null, -1);
+                // ラウンド上限の判定：どちらも HP 満タン（同じ割合）→ 引き分け
+                var jev = new List<GameEvent>();
+                Call(g, "Judge", jev);
+                bool draw = jev.OfType<BattleEnded>().Any(x => x.Draw) && jev.OfType<RestNextTurn>().Any(x => x.Player == p.Id) && p.Has("1回休み");
+                bool nothing = p.Money == money && !jev.OfType<MoneyChanged>().Any() && !jev.OfType<ItemGained>().Any() && !jev.OfType<ExpGained>().Any() && g.State.Battle == null;
+                Check(log, "7.1.1 イベントマスのクイックバトルが 引き分け（判定で同じHPの割合）なら、ふつうの引き分けと同じく プレイヤーが1回休み。報酬も 所持金の喪失もない（相談23）", draw && nothing);
             }
         }
     }

@@ -34,7 +34,8 @@ namespace Sugoroku.Rules
         public string Fossil = ""; public int FossilWeek;                    // 博物館に預けている化石と、預けた週（3.2.2）
         public BattleState PendingBattle;
         public int IslandTurns; public string IslandLegend = ""; public int IslandLegendLevel; // 島にいる手番の数と、この島に出る伝説（3.4）
-        public int TicketChangeWeeks, TicketLastWeeks;                     // 謎のチケットが変わるまでの週数と、数えた最下位の週（12章）                                  // 1往復して止めているバトル（次の自分の番に続き）
+        public int TicketChangeWeeks, TicketLastWeeks;                     // 謎のチケットが変わるまでの週数と、数えた最下位の週（12章）
+        public int TicketRescueWeek;                                       // 下位救済の謎のチケットを渡した週（今の最下位の連続のあいだ。連続が切れたら 0。12章、相談25）                                  // 1往復して止めているバトル（次の自分の番に続き）
         public int ErrandStage;                                            // お使い：0＝まだ、1＝研究室に届ける途中、2＝すんだ
         public int BoxMax;                                                 // マサキの家で増えた控えの上限（0 なら調整値 box_max のまま）
         public PokemonState DayCare; public int DayCareWeek;              // 育て屋に あずけている子と、あずけた週
