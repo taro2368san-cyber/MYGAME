@@ -15,7 +15,9 @@ public partial class GameRunner
     int debugDice = 1;
     string debugItem = "キズくすり", debugPokemon = "ピカチュウ", debugLevel = "10";
     static readonly string[] Weathers = { "", "雨季", "乾季", "すなあらしの日" };
-    static readonly string[] WeekEvents = { "", "セール", "ストライキ" };
+    static readonly string[] WeekEvents = { "", "セール", "ストライキ", "ポケニュース", "ポケニュース特番" }; // 天候は 天候のボタン。突発バトルイベントは 週のはじめの流れなので 出さない
+    int debugSlot;                 // 状態異常を付ける 手持ちの番号
+    int debugFoeKind, debugFoe;    // 相手を指定してバトル：種類（GameProcessor.DebugFoeKinds）と その中の何番目
     readonly Dictionary<SugorokuSquare, string> labelBackup = new Dictionary<SugorokuSquare, string>();
 
     void ToggleDebug()
@@ -30,7 +32,7 @@ public partial class GameRunner
     void BuildDebugPanel()
     {
         if (debugPanel != null) Destroy(debugPanel.gameObject);
-        debugPanel = Ui.Panel(canvas.transform, "Debug", new Vector2(0.74f, 0.31f), new Vector2(1, 0.935f), new Color(0.25f, 0.05f, 0.05f, 0.92f)).rectTransform;
+        debugPanel = Ui.Panel(canvas.transform, "Debug", new Vector2(0.755f, 0.02f), new Vector2(1, 0.935f), new Color(0.25f, 0.05f, 0.05f, 0.92f)).rectTransform;
         var col = Ui.Stack(debugPanel, "Rows", Vector2.zero, Vector2.one, true, 4, 8);
         Ui.Line(col, "デバッグ（F1で閉じる）", 24, new Color(1, 0.8f, 0.4f));
 
@@ -53,6 +55,8 @@ public partial class GameRunner
 
         row = DebugRow(col);
         Ui.Button(row, "バッジ＋1", () => Dbg(DebugAction.Badge), 140, 40);
+        Ui.Button(row, "バッジを8個に", () => Dbg(DebugAction.Badge, 8), 200, 40); // 全エリア解放。7個目で トキワジムも出る
+        row = DebugRow(col);
         Ui.Button(row, "レベル＋5", () => Dbg(DebugAction.LevelUp, 5), 140, 40);
         Ui.Button(row, "図鑑を見る", () => AddLog("図鑑：" + string.Join("、", S.CurrentPlayer.Dex)), 140, 40);
 
@@ -65,11 +69,29 @@ public partial class GameRunner
         Ui.Input(row, debugLevel, 3, 70, v => debugLevel = v, char.IsDigit);
         Ui.Button(row, "ポケモン追加", () => Dbg(DebugAction.AddPokemon, int.TryParse(debugLevel, out int lv) ? lv : 5, debugPokemon.Trim()), 180, 40);
         row = DebugRow(col);
-        Ui.Button(row, "↑のポケモンとバトル", () => Dbg(DebugAction.Battle, int.TryParse(debugLevel, out int lv2) ? lv2 : 5, debugPokemon.Trim()), 260, 40);
         Ui.Button(row, "週を進める", () => Dbg(DebugAction.NextWeek), 160, 40);
+
+        // 相手を指定してバトル（17.1）：種類 → 相手 → 開始。野生は ↑の ポケモンと Lv
         row = DebugRow(col);
-        foreach (var st in new[] { "やけど", "どく", "まひ", "ねむり" }) Ui.Button(row, st, () => Dbg(DebugAction.Status, 0, st), 95, 40);
-        Ui.Button(row, "治す", () => Dbg(DebugAction.Status, 0, ""), 70, 40);
+        var kinds = GameProcessor.DebugFoeKinds;
+        string kind = kinds[debugFoeKind % kinds.Length];
+        var foes = game.DebugFoes(kind);
+        Ui.Button(row, kind, () => { debugFoeKind = (debugFoeKind + 1) % kinds.Length; debugFoe = 0; BuildDebugPanel(); }, 150, 40);
+        if (kind == "野生") Ui.Button(row, $"{debugPokemon.Trim()} Lv{debugLevel}", () => { }, 200, 40).interactable = false;
+        else Ui.Button(row, foes.Count == 0 ? "（いない）" : foes[debugFoe % foes.Count].label, () => { debugFoe++; BuildDebugPanel(); }, 260, 40).interactable = foes.Count > 1;
+        row = DebugRow(col);
+        Ui.Button(row, "このあいてと バトル開始", () =>
+        {
+            if (kind == "野生") Dbg(DebugAction.Battle, int.TryParse(debugLevel, out int lv2) ? lv2 : 5, debugPokemon.Trim());
+            else if (foes.Count > 0) Dbg(DebugAction.Battle, 0, foes[debugFoe % foes.Count].text);
+        }, 300, 40);
+
+        // 状態異常の付与（17.1）：手持ちの何番目か を選んで
+        row = DebugRow(col);
+        int count = Mathf.Max(1, S.CurrentPlayer.Party.Count);
+        Ui.Button(row, $"{debugSlot % count + 1}番目", () => { debugSlot = (debugSlot + 1) % count; BuildDebugPanel(); }, 80, 40);
+        foreach (var st in new[] { "やけど", "どく", "まひ", "ねむり" }) Ui.Button(row, st, () => Dbg(DebugAction.Status, debugSlot % count, st), 80, 40);
+        Ui.Button(row, "治す", () => Dbg(DebugAction.Status, debugSlot % count, ""), 64, 40);
 
         row = DebugRow(col);
         Ui.Button(row, "即勝利", () => Dbg(DebugAction.WinBattle), 140, 40);

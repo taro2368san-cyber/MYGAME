@@ -306,16 +306,7 @@ namespace Sugoroku.Rules
             if (!owned && entry != null && entry.IsGymTrainer && GymClosed(data.Places.FirstOrDefault(x => x.Name == sq.Place)?.Gym ?? "", p))
                 return Nothing($"{name}は ジムが 開くのを 待っている（バッジ7個で開く）", events);
             // 持ち主がいなければバトル（ジムトレーナーも同じ。だれかに倒されたら、その人のファンになる）
-            if (!owned)
-            {
-                if (!TrainerMon(sq, entry, out var mon)) return Nothing("トレーナーは留守だった", events);
-                string key = TrainerDialogKey(entry);
-                Say(key, events, p, ("名前", name), ("ポケモン", mon.species), ("リーダー", leader));
-                StartBattle(BattleKind.Trainer, false, Npc(name, new[] { mon }), events);
-                B.TrainerId = entry?.Id;
-                B.DialogKey = key;
-                return true;
-            }
+            if (!owned) return StartTrainerBattle(sq, entry, events);
             if (owner == p.Id)
             {
                 // 自分のファン：回復と、ちょっとした道具（ボールマスの最初の段階の表から）
@@ -353,6 +344,21 @@ namespace Sugoroku.Rules
         }
 
         // トレーナーの相手のポケモン。表にポケモンかLvがなければ、その場所（なければ同じ解放条件の場所）の出現表からランダム。Lvは最高Lv＋1（仮）
+        // トレーナーマスの持ち主のいないトレーナーとバトル（クイック、先頭固定）。デバッグの「相手を指定してバトル」も これを使う（17.1）
+        bool StartTrainerBattle(BoardSquare sq, TrainerEntry entry, List<GameEvent> events)
+        {
+            var p = Current;
+            string name = entry != null && entry.Name != "" ? entry.Name : "トレーナー";
+            string leader = data.GymMembers.FirstOrDefault(m => m.Gym == data.Places.FirstOrDefault(x => x.Name == sq.Place)?.Gym)?.Leader ?? "ジムリーダー";
+            if (!TrainerMon(sq, entry, out var mon)) return Nothing("トレーナーは留守だった", events);
+            string key = TrainerDialogKey(entry);
+            Say(key, events, p, ("名前", name), ("ポケモン", mon.species), ("リーダー", leader));
+            StartBattle(BattleKind.Trainer, false, Npc(name, new[] { mon }), events);
+            B.TrainerId = entry?.Id;
+            B.DialogKey = key;
+            return true;
+        }
+
         bool TrainerMon(BoardSquare sq, TrainerEntry entry, out (string species, int level) mon)
         {
             if (entry != null && entry.Pokemon != "" && entry.Level != null) { mon = (entry.Pokemon, entry.Level.Value); return true; }

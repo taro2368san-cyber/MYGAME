@@ -425,6 +425,75 @@ namespace Sugoroku.Rules
                     whileFull == 0 && whenFree == 1 && at22 && afterGiven == 0 && reset && again == 1 && fewBadges == 0);
             }
 
+            // ---- 17.1 デバッグ：相手を指定してバトル（ふつうと同じ種類・同じ報酬）、状態異常の付与と出目の指定（流し直しでも同じ）----
+            {
+                GameProcessor D(int players = 2, ulong seed = 5)
+                {
+                    var g = GameProcessor.NewGame(board, data, new[] { ("たろう", MoveMode.Highlight, "ヒトカゲ"), ("はなこ", MoveMode.Highlight, "ワニノコ") }.Take(players).ToList(), 50, seed, out _, new[] { "leaf", "gold" }.Take(players).ToList()); // 読み込める設定（キャラクターつき）
+                    g.DebugEnabled = true; g.State.NextEventWeek = 9999;
+                    return g;
+                }
+                List<GameEvent> Fight(GameProcessor g, string text, int value = 0) => Apply(g, new DebugCommand { Player = g.State.CurrentPlayer.Id, Action = DebugAction.Battle, Text = text, Value = value });
+                void Select(GameProcessor g) { foreach (var s in g.State.Battle?.Sides ?? new BattleSide[0]) if (s.NeedsSelect) Apply(g, new SelectPokemon { Player = s.Player, Slot = 0 }); }
+
+                // 野生：クイック
+                var wg = D(); Fight(wg, "コラッタ", 5);
+                bool wild = wg.State.Battle?.Kind == BattleKind.Wild && !wg.State.Battle.Full && wg.State.Battle.Sides[1].Current.Level == 5;
+                // ジム：フルで にげられない。勝つと バッジと エースのLv×gym_win_money（1個目なら gym_ace_level_1）
+                string gym = data.GymMembers.OrderBy(m => m.BadgeOrder).First().Gym;
+                var gg = D(); var gp = gg.State.CurrentPlayer;
+                gp.Party[0] = Mon("リザードン", 100);
+                Fight(gg, "ジム:" + gym);
+                var gb = gg.State.Battle;
+                bool gymKind = gb?.Kind == BattleKind.Gym && gb.Full && gb.Gym == gym;
+                Select(gg);
+                gb.Step = BattleStep.Commands; gb.Attacker = 1; gb.DefenseCmd = null; // 守る番で にげられるか
+                bool noFlee = gg.Validate(new ChooseDefense { Player = gp.Id, Defense = Defense.Flee }) != null;
+                int money = gp.Money;
+                Apply(gg, new DebugCommand { Player = gp.Id, Action = DebugAction.WinBattle });
+                bool gymReward = gp.Gyms.Contains(gym) && gp.Money - money == (int)(T("gym_ace_level_1") * T("gym_win_money"));
+                // ライバル：そのマスへ移って フル。勝つと そのマスが 自分のものに
+                bool rival = false;
+                foreach (var (_, text) in D().DebugFoes("ライバル"))
+                {
+                    var rg = D(); var rp = rg.State.CurrentPlayer;
+                    rp.Party[0] = Mon("リザードン", 100);
+                    Fight(rg, text);
+                    if (rg.State.Battle == null) continue; // 条件に合う手持ちの行がない
+                    int sq = rp.Square;
+                    bool kindOk = rg.State.Battle.Kind == BattleKind.Rival && rg.State.Battle.Full && board[sq].Type == "ライバル";
+                    Select(rg);
+                    Apply(rg, new DebugCommand { Player = rp.Id, Action = DebugAction.WinBattle });
+                    rival = kindOk && rg.State.Owners.TryGetValue(sq, out int owner) && owner == rp.Id;
+                    break;
+                }
+                // プレイヤー戦：フル・クイックを選べる。両方が選ぶ
+                var pg = D(); var other = pg.State.Players.First(x => x != pg.State.CurrentPlayer);
+                Fight(pg, $"プレイヤー:{other.Id}:フル");
+                bool pvpFull = pg.State.Battle?.Kind == BattleKind.Player && pg.State.Battle.Full && pg.State.Battle.Sides[1].Player == other.Id;
+                var qg = D(); Fight(qg, $"プレイヤー:{qg.State.Players.First(x => x != qg.State.CurrentPlayer).Id}");
+                bool pvpQuick = qg.State.Battle?.Kind == BattleKind.Player && !qg.State.Battle.Full;
+                // 断る：ないジム、自分とのプレイヤー戦
+                var ng = D();
+                bool refused = Error(ng, new DebugCommand { Player = ng.State.CurrentPlayer.Id, Action = DebugAction.Battle, Text = "ジム:テストジム" }) != null
+                    && Error(ng, new DebugCommand { Player = ng.State.CurrentPlayer.Id, Action = DebugAction.Battle, Text = $"プレイヤー:{ng.State.CurrentPlayer.Id}" }) != null;
+                bool listed = new[] { "トレーナー", "ジム", "ライバル", "ロケット団", "イベント", "リーグ", "プレイヤー" }.All(k => ng.DebugFoes(k).Count > 0);
+                Check(log, "17.1 デバッグ：相手を指定したバトルは ふつうと同じ種類で始まる（野生はクイック、ジムはフルで にげられない、ライバルは そのマスで フル、プレイヤー戦は フル・クイックを選べる）。ジムに勝つと バッジと エースのLv×gym_win_money、ライバルに勝つと そのマスが自分のものに。ない相手は断る",
+                    wild && gymKind && noFlee && gymReward && rival && pvpFull && pvpQuick && refused && listed);
+
+                // 状態異常の付与（手持ちの何番目か）と 出目の指定は、命令の記録から 流し直しても同じ
+                var sg = D(2); var sp = sg.State.CurrentPlayer; // 読み込みは 2人から（はじめの設定の決まり）
+                Apply(sg, new DebugCommand { Player = sp.Id, Action = DebugAction.AddPokemon, Text = "コラッタ", Value = 5 });
+                Apply(sg, new DebugCommand { Player = sp.Id, Action = DebugAction.Status, Value = 1, Text = "どく" });
+                Apply(sg, new DebugCommand { Player = sp.Id, Action = DebugAction.SetDice, Value = 3 });
+                Apply(sg, new RollDice { Player = sp.Id });
+                bool applied = sp.Party[1].Status == Status.Poison && sp.Party[0].Status == Status.None && sg.State.Move?.Dice == 3;
+                var loaded = GameProcessor.Load(board, data, SaveFile.Write(sg.State), out _, out string lerr);
+                var lp = loaded?.State.Players[sp.Id];
+                bool replayed = lerr == null && lp != null && lp.Party[1].Status == Status.Poison && lp.Party[0].Status == Status.None && loaded.State.Move?.Dice == 3 && StateText(loaded.State) == StateText(sg.State);
+                Check(log, "17.1 デバッグ：状態異常の付与（手持ちの2番目に どく）と 出目の指定（3）が、セーブを流し直しても同じになる", applied && replayed);
+            }
+
             // ---- 7.1.1 イベントマスのクイックバトルの引き分け：ふつうの引き分けと同じく プレイヤーが1回休み。報酬も所持金の喪失もない（相談23）----
             {
                 var g = Town(2);
