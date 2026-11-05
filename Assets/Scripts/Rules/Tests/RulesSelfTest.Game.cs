@@ -267,9 +267,19 @@ namespace Sugoroku.Rules
                     return g.State.Facility == null && ev.OfType<NothingHappened>().Any(x => x.Reason.Contains("ストライキ"));
                 }
                 Action<GameProcessor> strike = g => Apply(g, new DebugCommand { Player = g.State.CurrentPlayer.Id, Action = DebugAction.WeekEvent, Text = "ストライキ" });
-                bool closed = Closed(strike, 2) && Closed(strike, 1) && Closed(strike, 3) && Closed(strike, 4);
+                bool closed = Closed(strike, 2) && Closed(strike, 3) && Closed(strike, 4);
                 bool open = !Closed(g => { }, 2) && !Closed(g => { }, 3) && !Closed(g => { }, 4);
-                Check(log, "5.3 ストライキ：ポケモンセンター（研究室も）・ショップ・ジムが使えない。ストライキでなければ使える", closed && open);
+                // 研究室は ストライキでも開いている：回復して、センターの画面（研究室）が開き、進化サービスも使える（相談26）
+                var lg = Town(1);
+                strike(lg);
+                var lp = lg.State.CurrentPlayer;
+                var itemSp = data.Species.FirstOrDefault(s => s.Evolutions.Any(e => e.Kind == EvolutionKind.Item));
+                if (itemSp != null) lp.Party.Add(Mon(itemSp.Name, 20));
+                lp.Party[0].Hp = 1; lp.Money = (int)T("lab_evolve_price");
+                var lev = Go(lg, 1);
+                bool labOpen = lg.State.WeekEvent == "ストライキ" && lg.State.Facility?.Kind == FacilityKind.Center && lg.State.Facility.IsLab && lev.OfType<PartyHealed>().Any()
+                    && (itemSp == null || lg.Validate(new LabEvolve { Player = lp.Id, Slot = 1, Target = itemSp.Evolutions.First(e => e.Kind == EvolutionKind.Item).Target }) == null);
+                Check(log, "5.3 ストライキ：ポケモンセンター・ショップ・ジムが使えない。研究室は ストライキでも 回復・進化サービスが使える（相談26）。ストライキでなければ どれも使える", closed && open && labOpen);
 
                 // セール：買うときだけ sale_discount 引き。売値は変わらない
                 var sg = Town(1);

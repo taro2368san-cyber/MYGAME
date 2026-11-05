@@ -42,7 +42,7 @@ namespace Sugoroku.Rules
                 case "シンボル": return LandSymbol(events);
                 case "ポケモンセンター":
                 case "スタート": // スタートは研究室（3.2.1）：センターの機能＋進化サービス＋けんきゅういんの解放
-                    if (State.WeekEvent == "ストライキ") return Nothing("ストライキ中で休みだった", events);
+                    if (State.WeekEvent == "ストライキ" && sq.Type != "スタート") return Nothing("ストライキ中で休みだった", events); // 研究室は ストライキでも開いている（相談26）
                     player.VisitedCenters.Add(sq.Id);
                     // のろい：センターに入れない。シオンタウンのセンターでは解いてもらえる（アイテム一覧の のろいのふだ）
                     if (player.Has("のろい") && sq.Place != "シオンタウン") return Nothing("のろわれていて ポケモンセンターに 入れない…", events);
