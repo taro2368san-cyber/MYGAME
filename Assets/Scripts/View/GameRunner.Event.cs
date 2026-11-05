@@ -12,14 +12,10 @@ using UnityEngine.UI;
 public partial class GameRunner
 {
     static readonly string[] BasePeople = { "ロケット団員", "フジろうじん", "フジ老人", "シルフの社長", "博物館の研究員", "オーキド博士" };
-    const float EventLineSeconds = 1.2f; // 1行を出しきってから 見せておく時間（○・スペースで早送り）
-
     RectTransform eventRoot, eventChoices;
     Image eventBg, eventArt;
     Text eventName, eventText, eventBgLabel, eventPrompt;
     string eventPerson;          // 立ち絵の人（開いていなければ null）
-    string eventFull = "";       // 出している1行
-    float eventTyped;
     bool EventOpen => eventPerson != null;
 
     void BuildEventScreen()
@@ -37,6 +33,8 @@ public partial class GameRunner
         box.rectTransform.offsetMin = new Vector2(3, 3); box.rectTransform.offsetMax = new Vector2(-3, -3);
         eventText = Ui.Label(box.transform, "", 30, TextAnchor.UpperLeft);
         eventText.rectTransform.offsetMin = new Vector2(24, 14); eventText.rectTransform.offsetMax = new Vector2(-24, -14);
+        eventArrow = MakeArrow(box.transform); // 全文が出て ○ を待っている印（G と同じ部品、GameRunner.Message.cs）
+        Clickable(box, ClickAdvance);          // 押すと ○ と同じ
         var plate = Ui.Panel(eventBg.transform, "NamePlate", new Vector2(0.04f, 0.3f), new Vector2(0.3f, 0.37f), new Color(0.04f, 0.25f, 0.14f, 0.96f));
         plate.gameObject.AddComponent<Outline>().effectColor = new Color(0.85f, 0.7f, 0.3f);
         eventName = Ui.Label(plate.transform, "", 26, TextAnchor.MiddleCenter, new Color(1, 0.9f, 0.5f));
@@ -71,7 +69,7 @@ public partial class GameRunner
         eventBgLabel.text = eventBg.sprite.name.StartsWith("仮") ? $"（背景：{bg}）" : "";
         eventArt.sprite = Resources.Load<Sprite>("Portraits/" + person) ?? Portrait(person);
         eventArt.color = Color.white;
-        eventName.text = person; eventText.text = ""; eventFull = ""; eventPrompt.text = "";
+        eventName.text = person; eventText.text = ""; eventWriter.Start(""); eventPrompt.text = "";
         Ui.Clear(eventChoices);
         eventRoot.gameObject.SetActive(true);
         eventRoot.SetAsLastSibling();
@@ -98,26 +96,26 @@ public partial class GameRunner
         Ui.Clear(eventChoices);
     }
 
-    // セリフを1行ずつ（文言CSVの順番どおり）。1文字ずつ出して、出しきったら少し見せる。「???」の行は 立ち絵を影にする
+    // セリフを1行ずつ（文言CSVの順番どおり）。G と同じ送り方（1文字ずつ、途中の○で全文、全文のあとの○で次の行）。「???」の行は 立ち絵を影にする
     IEnumerator EventLines(List<(string Speaker, string Text)> lines)
     {
         foreach (var (speaker, line) in lines)
         {
             if (speaker != "") eventName.text = speaker;
             eventArt.color = speaker == "???" ? new Color(0, 0, 0, 0.9f) : Color.white;
-            eventFull = line; eventTyped = 0;
+            eventWriter.Start(line);
             eventText.text = "";
-            while (eventTyped < eventFull.Length) yield return null; // AnimateEvent が進める
-            yield return Wait(EventLineSeconds);
+            yield return ReadMessage(eventWriter); // AnimateEvent が 1文字ずつ進める
         }
     }
 
-    // LateUpdate から：セリフの1文字ずつ（○・スペースで全文）
+    // LateUpdate から：セリフの1文字ずつ（途中の○で全文）と ▼
     void AnimateEvent()
     {
-        if (!EventOpen || eventTyped >= eventFull.Length) return;
-        eventTyped = SkipHeld() ? eventFull.Length : eventTyped + TypeSpeed * Time.deltaTime;
-        eventText.text = eventFull.Substring(0, Mathf.Min(eventFull.Length, (int)eventTyped));
+        ShowArrow(eventArrow, eventWriter);
+        if (!EventOpen || !eventWriter.Typing) return;
+        eventWriter.Tick(AdvancePressed());
+        eventText.text = eventWriter.Shown;
     }
 
     // 選択肢（はい／いいえ など）はセリフ欄の右に。メニューと同じ行を並べる（キーとコントローラーは メニューのまま）

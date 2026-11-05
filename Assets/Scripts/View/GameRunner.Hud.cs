@@ -168,17 +168,16 @@ public partial class GameRunner
         RefreshHud(); // C と D を 新しい手番で描き直す（D の欄は作り直されるので 透明にしたものも消える）
     }
 
-    // ---- G セリフ欄：出すときは下からスライド、読み終わったら下へ引っこむ。新しい文は1文字ずつ（○・スペースで全文）----
+    // ---- G セリフ欄：出すときは下からスライド、読み終わったら下へ引っこむ。新しい文は1文字ずつ。送り方は GameRunner.Message.cs（途中の○で全文、全文のあとの○で次へ）----
     const float TypeSpeed = 60f;   // 1秒に出す文字数（仕様書1.3：速さは固定）
     const float MessageHold = 4f;  // 最後の文から この秒数は出しておく
-    string typingText = "";
-    float typed, lastLogTime, messageShown; // messageShown：0 引っこんでいる 〜 1 出ている
-    bool Typing => typed < typingText.Length;
+    float lastLogTime, messageShown; // messageShown：0 引っこんでいる 〜 1 出ている
+    bool Typing => logWriter.Typing;
 
     void RenderLog()
     {
-        int fresh = typingText.Split('\n').Length, old = Mathf.Max(0, logLines.Count - fresh);
-        string shown = typingText.Substring(0, Mathf.Min((int)typed, typingText.Length));
+        int fresh = logWriter.Full.Split('\n').Length, old = Mathf.Max(0, logLines.Count - fresh);
+        string shown = logWriter.Shown;
         var lines = (string.Join("\n", logLines.Take(old)) + (old > 0 ? "\n" : "") + shown).Split('\n');
         int fit = Mathf.Max(1, Mathf.FloorToInt(log.rectTransform.rect.height / (log.fontSize * 1.2f))); // 欄に入る行数（新しい行が下にはみ出さないように 古い行から消す）
         log.text = string.Join("\n", lines.Skip(Mathf.Max(0, lines.Length - fit)));
@@ -188,7 +187,7 @@ public partial class GameRunner
     bool MessageWanted()
     {
         if (logLines.Count == 0 || exploring || EventOpen) return false; // イベント画面は 自分のセリフ欄を使う
-        if (Typing || Time.time - lastLogTime < MessageHold) return true;
+        if (Typing || logWriter.Waiting || Time.time - lastLogTime < MessageHold) return true;
         return S.Phase != Phase.Moving && (playing || S.Battle != null || S.Phase == Phase.Facility);
     }
 
@@ -196,12 +195,13 @@ public partial class GameRunner
     void SlideMessage()
     {
         if (messagePanel == null || game == null) return;
-        if (Typing) { typed = SkipHeld() ? typingText.Length : typed + TypeSpeed * Time.deltaTime; RenderLog(); }
+        if (Typing) { logWriter.Tick(AdvancePressed()); RenderLog(); }
+        ShowArrow(logArrow, logWriter);
         bool want = MessageWanted();
         messageShown = Mathf.MoveTowards(messageShown, want ? 1 : 0, Time.deltaTime * 5);
         var rt = (RectTransform)messagePanel.transform;
         rt.anchoredPosition = new Vector2(0, -(1 - Mathf.SmoothStep(0, 1, messageShown)) * (rt.rect.height + 30));
-        if (!want && messageShown <= 0 && logLines.Count > 0) { logLines.Clear(); typingText = ""; log.text = ""; } // 引っこんだら 次は新しい文から
+        if (!want && messageShown <= 0 && logLines.Count > 0) { logLines.Clear(); logWriter.Start(""); log.text = ""; } // 引っこんだら 次は新しい文から
     }
 
     // ---- 盤面の伝説のシンボル：マスの上に その伝説の絵を立てる（だれかが倒すか捕まえたら消す）----

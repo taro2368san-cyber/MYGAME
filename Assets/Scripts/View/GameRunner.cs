@@ -23,7 +23,6 @@ public partial class GameRunner : MonoBehaviour
 
     [Header("演出")]
     public float stepSeconds = 0.2f;     // コマが1マス進む時間（17.6）
-    public float messageSeconds = 0.5f;  // 1つの出来事を見せる時間（スペースキーで早送り）
     public Vector3 cameraOffset = new Vector3(0, 12, -9);
 
     [Header("確認用")]
@@ -385,6 +384,8 @@ public partial class GameRunner : MonoBehaviour
         log = Ui.Label(bottom.transform, "", 24);
         log.rectTransform.offsetMin = new Vector2(16, 8); log.rectTransform.offsetMax = new Vector2(-16, -8);
         log.verticalOverflow = VerticalWrapMode.Truncate;
+        logArrow = MakeArrow(bottom.transform); // 全文が出て ○ を待っている印（GameRunner.Message.cs）
+        Clickable(bottom, ClickAdvance);        // 押すと ○ と同じ
         // E メニュー（左下）。準備フェーズは いどう／どうぐ／マップ／ポケモン／ずかん／せってい。ほかの場面の選択肢もここに出す
         var right = menuPanel = Ui.Round(Ui.Panel(canvas.transform, "E_Menu", new Vector2(0.005f, 0.01f), new Vector2(0.31f, 0.52f), HudColor));
         var promptRect = Ui.Rect(right.transform, "Prompt", new Vector2(0, 0.86f), Vector2.one);
@@ -426,8 +427,8 @@ public partial class GameRunner : MonoBehaviour
     {
         foreach (var line in text.Split('\n')) logLines.Add(line);
         while (logLines.Count > 9) logLines.RemoveAt(0);
-        typingText = text.Split('\n').Length > logLines.Count ? string.Join("\n", logLines) : text; // 9行より長い文は 最後の9行だけ
-        typed = 0; lastLogTime = Time.time;
+        logWriter.Start(text.Split('\n').Length > logLines.Count ? string.Join("\n", logLines) : text); // 9行より長い文は 最後の9行だけ
+        lastLogTime = Time.time;
         RenderLog();
     }
 
@@ -540,9 +541,8 @@ public partial class GameRunner : MonoBehaviour
                 case SymbolGone sg: SyncSymbols(); yield return Banner(text, PlayerColor(S.Players[sg.Player]), 2, sg.Pokemon); continue; // 伝説が盤面から消えた（全員に大きく）
                 case LevelCaughtUp lc: yield return Banner(text, PlayerColor(S.Players[lc.Player]), 2); continue;
             }
-            // バトル演出の短縮。絆による回避・進化・バッジは思い出の場面なので短くしない（17.6）
-            bool keep = e is Evolved || e is BadgeEarned || (e is RoundResolved rr && rr.Bond);
-            if (text != null && !inEvent) yield return WaitMessage(shortBattle && battlePanel.gameObject.activeSelf && !keep ? messageSeconds / 2 : messageSeconds);
+            // 文は 読み終えて ○ を押すまで 次の演出・結果へ進まない（UI仕様書 2章 G、相談37）。帯の知らせと 時間の演出は 上の continue で 時間どおり
+            if (text != null && !inEvent) yield return ReadMessage(logWriter);
             if (HintFor(e) is string hint) yield return ShowHint(hint);
         }
         playing = false;
@@ -556,14 +556,6 @@ public partial class GameRunner : MonoBehaviour
     IEnumerator Wait(float seconds)
     {
         for (float t = 0; t < seconds && !SkipHeld(); t += Time.deltaTime) yield return null;
-    }
-
-    // 文が出きるまで待ち、出てから seconds たつまで見せる（長い文でも 出し始めから seconds は待つ）
-    IEnumerator WaitMessage(float seconds)
-    {
-        float start = Time.time;
-        while (Typing) yield return null;
-        yield return Wait(seconds - (Time.time - start));
     }
 
     // いくつかの演出を同時に動かして、全部終わるまで待つ（両方のHPバーを いっしょに減らす など）
