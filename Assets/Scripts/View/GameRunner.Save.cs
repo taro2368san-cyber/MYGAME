@@ -64,9 +64,9 @@ public partial class GameRunner
     // 上書きの確認（16.9）
     void OverwriteMenu(int slot)
     {
-        Add("上書きする", () => { SaveTo(slot); subMenu = null; RefreshAll(); }, KeyCode.Return);
-        Add("やめる", () => { subMenu = SaveMenu; RefreshAll(); }, KeyCode.Escape);
-        DrawMenu($"{SlotName(slot)}を 上書きしますか？");
+        string question = $"{SlotName(slot)}に うわがきしますか？";
+        Confirm(question, () => { SaveTo(slot); subMenu = null; RefreshAll(); }, () => { subMenu = SaveMenu; RefreshAll(); });
+        DrawMenu(question);
     }
 
     // ---- つづきから ----

@@ -97,6 +97,14 @@ public partial class GameRunner
         if (g == null) return false;
         if (DexOpen) return PadDex(g);
         if (overlay != null) return PadScreen(g);
+        // 確認ダイアログ：○で はい、×で いいえ（押した瞬間に決まる。十字キーは使わない）
+        if (ConfirmOpen)
+        {
+            if (Down(g, x => x.buttonEast)) PressKey(KeyCode.Return);
+            else if (Down(g, x => x.buttonSouth)) PressKey(KeyCode.Escape);
+            else return false;
+            return true;
+        }
         // 見渡し（16.7）：左スティック・十字キーで動く、R1 で寄る・L1 で引く（ここだけ。袋の切りかえとは ぶつからない）、×で もどる。マスは まん中の目印で選ぶ（AimSquare）
         // ほかのコントローラーの操作（メニューの↑↓・○）には渡さない。false を返すので キーボード・マウスは そのまま使える
         if (exploring)

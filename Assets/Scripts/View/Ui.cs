@@ -170,6 +170,22 @@ public static class Ui
     // 部品の角を丸くする（絵を出す Image には使わない：絵の縦横の比が保てなくなる）
     public static Image Round(Image img) { img.sprite = Rounded; img.type = Image.Type.Sliced; return img; }
 
+    // ---- 骨組みの見た目（16.10）：色と枠は ここだけで決める。絵の素材を入れるときは ここを直す（相談.md 35） ----
+    public static readonly Color FrameColor = new Color(0.85f, 0.7f, 0.3f);         // 細い金色のふち（UI仕様書 G のセリフ欄と同じ）
+    public static readonly Color BoxColor = new Color(0.04f, 0.25f, 0.14f, 0.96f);  // 濃い緑の箱
+    public static readonly Color DimColor = new Color(0, 0, 0, 0.45f);              // 確認を出している間、後ろを暗くする
+    public static readonly Color YesColor = new Color(0.25f, 0.5f, 0.75f, 0.95f);   // ○ はい
+    public static readonly Color NoColor = new Color(0.35f, 0.35f, 0.4f, 0.95f);    // × いいえ
+
+    // 金のふちの 濃い緑の箱。中に置く部品の親（内側の箱）を返す
+    public static Image Frame(Transform parent, string name, Vector2 min, Vector2 max)
+    {
+        var gold = Round(Panel(parent, name, min, max, FrameColor));
+        var box = Round(Panel(gold.transform, "Inner", Vector2.zero, Vector2.one, BoxColor));
+        box.rectTransform.offsetMin = new Vector2(3, 3); box.rectTransform.offsetMax = new Vector2(-3, -3);
+        return box;
+    }
+
     public static Canvas Canvas(string name)
     {
         var go = new GameObject(name, typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));

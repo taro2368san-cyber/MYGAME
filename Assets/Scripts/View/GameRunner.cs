@@ -396,6 +396,7 @@ public partial class GameRunner : MonoBehaviour
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount; grid.constraintCount = 1;
 
         BuildEventScreen(); // イベント画面（GameRunner.Event.cs）。セリフ欄・メニューの上、大きな知らせの下
+        BuildConfirm();     // 確認ダイアログ（GameRunner.Confirm.cs）。イベント画面の上
         var bannerPanel = Ui.Panel(canvas.transform, "Banner", new Vector2(0.1f, 0.42f), new Vector2(0.9f, 0.62f), new Color(0, 0, 0, 0.85f));
         banner = Ui.Label(bannerPanel.transform, "", 46, TextAnchor.MiddleCenter);
         bannerIcon = Ui.Panel(bannerPanel.transform, "Mon", new Vector2(0.02f, 0.08f), new Vector2(0.14f, 0.92f), Color.white); // 捕まえた・進化した子の絵
@@ -449,7 +450,7 @@ public partial class GameRunner : MonoBehaviour
     IEnumerator PlayQueue()
     {
         playing = true;
-        menu.Clear(); menuArt.Clear(); DrawMenu(""); PaintBoard(false);
+        ClearMenu(); DrawMenu(""); PaintBoard(false);
         while (queue.Count > 0)
         {
             var e = queue.Dequeue();
@@ -755,7 +756,7 @@ public partial class GameRunner : MonoBehaviour
 
     void BuildMenu()
     {
-        menu.Clear(); menuArt.Clear();
+        ClearMenu();
         promptSide = -1;
         if (S.Phase == Phase.GameOver)
         {
@@ -872,10 +873,10 @@ public partial class GameRunner : MonoBehaviour
     void ConfirmItem(int me, string item, int target, string label)
     {
         var c = new UseItem { Player = me, Item = item, Target = target };
-        Add("つかう", () => Send(c), KeyCode.Return, Ok(c));
-        Add("もどる", () => { subMenu = target >= 0 || game.TargetOf(item) != TargetKind.None ? (Action)(() => TargetMenu(me, item)) : () => ItemMenu(me); RefreshAll(); }, KeyCode.Escape);
         var kind = game.TargetOf(item);
-        DrawMenu(kind == TargetKind.None ? $"{item}を つかいますか？" : kind == TargetKind.Number ? $"{item}で {label} すすみますか？" : $"{item}を {label}に つかいますか？");
+        string question = kind == TargetKind.None ? $"{item}を つかいますか？" : kind == TargetKind.Number ? $"{item}で {label} すすみますか？" : $"{item}を {label}に つかいますか？";
+        Confirm(question, () => Send(c), () => { subMenu = target >= 0 || kind != TargetKind.None ? (Action)(() => TargetMenu(me, item)) : () => ItemMenu(me); RefreshAll(); }, Ok(c));
+        DrawMenu(question);
     }
 
     // 道具を使う相手の候補（ポケモン・プレイヤー・マス・数）と、ボタンの文字
@@ -920,7 +921,6 @@ public partial class GameRunner : MonoBehaviour
             case FacilityKind.Trade:
             case FacilityKind.BagFull:
             case FacilityKind.BoxFull:
-            case FacilityKind.JobOffer:
                 for (int i = 0; i < f.Options.Count; i++)
                 {
                     var c = new ChooseOption { Player = me, Index = i };
@@ -929,6 +929,9 @@ public partial class GameRunner : MonoBehaviour
                     if (f.Kind == FacilityKind.BoxFull) AddMon(i < p.Box.Count ? p.Box[i].Species : f.PendingPokemon.Species, f.Options[i], () => Send(c), key);
                     else Add(f.Options[i], () => Send(c), key);
                 }
+                return $"{p.Name}さん：{f.Prompt}";
+            case FacilityKind.JobOffer: // 職業の解放（16.4 #27）：選択肢の 0 が「就く」、1 が「あとで」
+                Confirm($"「{f.PendingJob}」に いま つきますか？" + (p.Job != "" ? $"\n（今は {p.Job}）" : ""), () => Send(new ChooseOption { Player = me, Index = 0 }), () => Send(new ChooseOption { Player = me, Index = 1 }));
                 return $"{p.Name}さん：{f.Prompt}";
             case FacilityKind.Exchange:
             {
@@ -989,9 +992,10 @@ public partial class GameRunner : MonoBehaviour
                         }
                 Add(f.IsLab ? "研究室を出る" : "センターを出る", () => Send(new LeaveFacility { Player = me }), KeyCode.Escape);
                 return (f.IsLab ? "オーキド博士の研究室" : "ポケモンセンター") + $"：みんな元気になった。手持ちと控えを入れかえられる" + (p.Job != "" ? $"（今の職業：{p.Job}）" : "");
-            default:
-                Add($"{f.Price}円 払って回復", () => Send(new AcceptHeal { Player = me }), KeyCode.Return, Ok(new AcceptHeal { Player = me }));
-                Add("立ち去る", () => Send(new LeaveFacility { Player = me }), KeyCode.Escape);
+            default: // 他人のファンマスの有料回復（16.4 #26）。いいえは 立ち去る
+                bool canPay = Ok(new AcceptHeal { Player = me });
+                Confirm($"{S.Players[f.Owner].Name}の ファンの家\n{f.Price}円 はらって かいふくしますか？" + (canPay ? "" : "（お金が たりない）"),
+                    () => Send(new AcceptHeal { Player = me }), () => Send(new LeaveFacility { Player = me }), canPay);
                 return $"{S.Players[f.Owner].Name}の ファンの家";
         }
     }
@@ -1084,11 +1088,12 @@ public partial class GameRunner : MonoBehaviour
         return $"\nあいての せんとう：{lead.Species} Lv{lead.Level}（じゃくてん：{(sp.Weakness != "" ? sp.Weakness : "なし")}）" + (foe.Player >= 0 ? "　※あいても えらぶので、出てくるとは かぎらない" : "");
     }
 
+    // にげる・降参の確認（7.3「押したら確認を1回挟む」）。いいえは コマンド選びへ
     void FleeConfirm(int player, string flee)
     {
-        Add($"はい（{flee}）", () => Send(new ChooseDefense { Player = player, Defense = Defense.Flee }), KeyCode.Return);
-        Add("いいえ", () => { subMenu = null; RefreshAll(); }, KeyCode.Escape);
-        DrawMenu(flee == "降参" ? "本当に 降参する？（負けになります）" : "本当に にげる？");
+        string question = flee == "降参" ? "こうさんしますか？\n（負けに なります）" : "にげますか？";
+        Confirm(question, () => Send(new ChooseDefense { Player = player, Defense = Defense.Flee }), () => { subMenu = null; RefreshAll(); });
+        DrawMenu(question);
     }
 
     // ポケモン交換（7.7）：相手の手持ちから1体 → 差し出す自分の子（手持ちか控え。コストが足りない子は押せない）
@@ -1147,8 +1152,10 @@ public partial class GameRunner : MonoBehaviour
         }
         PadHighlight(title, made); // コントローラーのカーソル
         // バトル中、コマンドとカードは バトル画面で選ぶので E メニューは隠す（選ぶものがないときも）
-        if (menuPanel != null) menuPanel.gameObject.SetActive(!EventOpen && !(battlePanel.gameObject.activeSelf && (menu.Count == 0 || SceneInput)));
-        if (EventOpen) DrawEventChoices(title); // イベント画面では 選択肢をセリフ欄の右に
+        if (menuPanel != null) menuPanel.gameObject.SetActive(!EventOpen && !ConfirmOpen && !(battlePanel.gameObject.activeSelf && (menu.Count == 0 || SceneInput)));
+        if (EventOpen && ConfirmOpen) { Ui.Clear(eventChoices); eventPrompt.text = ""; } // 確認は まん中の枠で（後ろの選択肢は出さない）
+        else if (EventOpen) DrawEventChoices(title); // イベント画面では 選択肢をセリフ欄の右に
+        DrawConfirm();
     }
 
     // ---- 入力 ----
