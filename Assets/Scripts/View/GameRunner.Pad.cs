@@ -118,10 +118,12 @@ public partial class GameRunner
         }
         // バトルのコマンド（UI仕様書 7.2）：□ ○ △ R1 を、そのコマンドのキー（A S D F）として押す。攻撃も防御も同じ記号は同じボタン
         // プレイヤー戦の選出も同じ：□ ○ △ が 手持ちの1・2・3番目（A S D）。押した人のコントローラーは ActingPad（1＝仕掛けた側、2＝仕掛けられた側）
-        if (S.Phase == Phase.Battle && (S.Battle.Step == BattleStep.Commands || BlindSelect) && subMenu == null)
+        // L1 は 守る番の こうたい（G、相談24）。交代の子選びでも □○△ が 手持ちの1〜3番目（×は 下の Esc で もどる）
+        if (S.Phase == Phase.Battle && (S.Battle.Step == BattleStep.Commands || BlindSelect) && (subMenu == null || SwitchPicking))
         {
             KeyCode key = Down(g, x => x.buttonWest) ? KeyCode.A : Down(g, x => x.buttonEast) ? KeyCode.S
-                        : Down(g, x => x.buttonNorth) ? KeyCode.D : Down(g, x => x.rightShoulder) ? KeyCode.F : KeyCode.None;
+                        : Down(g, x => x.buttonNorth) ? KeyCode.D : Down(g, x => x.rightShoulder) ? KeyCode.F
+                        : Down(g, x => x.leftShoulder) ? KeyCode.G : KeyCode.None;
             if (key != KeyCode.None) { PressKey(key); return true; }
         }
         // 先攻・後攻のカード：十字キー左右で選んで ○

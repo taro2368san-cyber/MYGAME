@@ -1045,6 +1045,9 @@ public partial class GameRunner : MonoBehaviour
                 Add("カウンター", () => Send(new ChooseDefense { Player = dp, Defense = Defense.Counter }), KeyCode.D);
                 string flee = b.Kind == BattleKind.Player || b.Kind == BattleKind.Tournament ? "降参" : "にげる";
                 Add(flee, () => { subMenu = () => FleeConfirm(dp, flee); RefreshAll(); }, KeyCode.F, Ok(new ChooseDefense { Player = dp, Defense = Defense.Flee }));
+                // L1 こうたい（相談24）：フルバトルで 戦える控えがいるときだけ押せる（キーボードは G）
+                bool canSwitch = Enumerable.Range(0, d.Team.Count).Any(k => Ok(new SwitchPokemon { Player = dp, Slot = k }));
+                Add("こうたい", () => { switchMenu = () => SwitchMenu(dp); subMenu = switchMenu; RefreshAll(); }, KeyCode.G, canSwitch);
                 return $"{d.Name}さん（防御）：{d.Current.Species}の コマンド";
             }
             // 先攻・後攻のカード：←→ で選んで ○（Enter）。カードを押しても選べる
@@ -1086,6 +1089,23 @@ public partial class GameRunner : MonoBehaviour
         var lead = game.Lead(foe);
         var sp = Pokemons.Of(data, lead);
         return $"\nあいての せんとう：{lead.Species} Lv{lead.Level}（じゃくてん：{(sp.Weakness != "" ? sp.Weakness : "なし")}）" + (foe.Player >= 0 ? "　※あいても えらぶので、出てくるとは かぎらない" : "");
+    }
+
+    // 守る番の交代：出す子を選ぶ（相談24）。□○△（キーボードは A S D）が 手持ちの1〜3番目。押した瞬間に決まる。×（Esc）で 守りのコマンドへ
+    // 行は バトル画面の □○△ のボタンに出す（RefreshBattleScene）。プレイヤー戦でも 相手には「選択済み」としか見えない
+    void SwitchMenu(int player)
+    {
+        var side = S.Battle.Sides.First(s => s.Player == player);
+        promptSide = Array.IndexOf(S.Battle.Sides, side); // バトル画面で この側の □○△ に 子の名前を出す
+        var keys = new[] { KeyCode.A, KeyCode.S, KeyCode.D };
+        for (int i = 0; i < side.Team.Count && i < keys.Length; i++)
+        {
+            var m = side.Team[i];
+            var c = new SwitchPokemon { Player = player, Slot = i };
+            Add($"{m.Species} Lv{m.Level} {m.Hp}/{Pokemons.MaxHp(data, m)}", () => Send(c), keys[i], Ok(c));
+        }
+        Add("もどる", () => { subMenu = null; RefreshAll(); }, KeyCode.Escape);
+        DrawMenu($"{side.Name}さん：出す子を えらぶ（相手の攻撃は 出てきた子が受けます）");
     }
 
     // にげる・降参の確認（7.3「押したら確認を1回挟む」）。いいえは コマンド選びへ

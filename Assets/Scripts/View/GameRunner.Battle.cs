@@ -13,7 +13,7 @@ using UnityEngine.UI;
 public partial class GameRunner
 {
     // コマンドの色（□ うすい橙・○ 水色・△ うすい緑・R1 灰色）。並びは □ ○ △ R1（攻撃・防御の enum の順と同じ）
-    static readonly Color[] CommandColors = { new Color(1f, 0.76f, 0.5f), new Color(0.55f, 0.85f, 1f), new Color(0.62f, 0.92f, 0.6f), new Color(0.82f, 0.82f, 0.82f) };
+    static readonly Color[] CommandColors = { new Color(1f, 0.76f, 0.5f), new Color(0.55f, 0.85f, 1f), new Color(0.62f, 0.92f, 0.6f), new Color(0.82f, 0.82f, 0.82f), new Color(0.9f, 0.8f, 0.95f) }; // □ ○ △ R1 L1
     const float BigScale = 1.15f, SmallScale = 0.85f; // 攻撃側・防御側の大きさ
     const float DefenderLift = 0.08f;                 // 防御側は 足場ごと上へ（奥に見せる。画面の高さの割合）
     const float PixelScale = 3.2f;                    // バトルの絵の 1ドットの大きさ（画面の単位）
@@ -107,16 +107,25 @@ public partial class GameRunner
                 // プレイヤー戦の選出（15.6・16.5 #30・#33）：選ぶ人は □○△ で押した瞬間に決まる。カーソルは出さない。選び終えた側は「選択済み」だけ（どれを選んだかは見せない）
                 bool picking = i == promptSide && subMenu == null;
                 var team = b.Sides[i].Team;
-                pad.SetLabels(Enumerable.Range(0, 4).Select(k => picking && k < 3 && k < team.Count ? $"{team[k].Species} Lv{team[k].Level}" : "").ToArray());
+                pad.SetLabels(Enumerable.Range(0, 5).Select(k => picking && k < 3 && k < team.Count ? $"{team[k].Species} Lv{team[k].Level}" : "").ToArray());
                 pad.SetEnabled(k => picking && k < menu.Count && menu[k].enabled);
                 pad.SetState(picking ? "えらんでください（押したら 決まり）" : !b.Sides[i].NeedsSelect ? "選択済み" : "");
                 continue;
             }
             if (!commands) continue;
             bool attack = i == b.Attacker;
+            if (SwitchPicking && i == promptSide)
+            {
+                // 守る番の交代（相談24）：出す子を □○△ で選ぶ（14個目の選出と同じ。押した瞬間に決まる）。たおれた子・いま出ている子は うすく。×で 守りのコマンドへ
+                var team = b.Sides[i].Team;
+                pad.SetLabels(Enumerable.Range(0, 5).Select(k => k < 3 && k < team.Count ? $"{team[k].Species} Lv{team[k].Level}" : "").ToArray());
+                pad.SetEnabled(k => k < 3 && k < menu.Count - 1 && menu[k].enabled);
+                pad.SetState("出す子は？（×で もどる）");
+                continue;
+            }
             pad.SetRole(attack, flee);
-            bool mine = i == promptSide && subMenu == null && menu.Count == 4;
-            pad.SetEnabled(k => mine && menu[k].enabled);
+            bool mine = i == promptSide && subMenu == null && menu.Count >= 4;
+            pad.SetEnabled(k => mine && k < menu.Count && menu[k].enabled);
             bool chosen = b.Sides[i].Player >= 0 && (attack ? b.AttackCmd != null : b.DefenseCmd != null);
             pad.SetState(!attack && b.DefenseCmd == Defense.Asleep ? "ねむっている" : mine ? "えらんでください" : chosen ? "選択済み" : "");
         }
@@ -133,16 +142,20 @@ public partial class GameRunner
     }
 
     // コマンドとカード、プレイヤー戦の選出は バトル画面で選ぶ（E メニューは隠す）
-    bool SceneInput => S != null && S.Phase == Phase.Battle && S.Battle != null && subMenu == null
+    bool SceneInput => S != null && S.Phase == Phase.Battle && S.Battle != null && (subMenu == null || SwitchPicking)
         && (S.Battle.Step == BattleStep.Commands || S.Battle.Step == BattleStep.Initiative || BlindSelect);
+
+    // 守る番の交代で 出す子を選んでいる（相談24）。選ぶ画面は subMenu の SwitchMenu
+    Action switchMenu;
+    bool SwitchPicking => switchMenu != null && subMenu == switchMenu && S?.Battle?.Step == BattleStep.Commands;
 
     // プレイヤー戦（とトーナメント）の選出：カーソルのメニューだと 何を選んだか相手に見えるので、□○△ のボタンで選ぶ（15.6、相談.md 14）
     bool BlindSelect => S?.Battle != null && S.Battle.Step == BattleStep.Select && (S.Battle.Kind == BattleKind.Player || S.Battle.Kind == BattleKind.Tournament);
 
-    // 画面のコマンドを押した（□ ○ △ R1 = 0〜3。メニューの行と同じ並び）
+    // 画面のコマンドを押した（□ ○ △ R1 L1 = 0〜4。メニューの行と同じ並び。交代の子選びは □○△ = 手持ちの1〜3番目）
     void PressCommand(int k)
     {
-        bool ready = S?.Battle != null && (S.Battle.Step == BattleStep.Commands ? menu.Count == 4 : BlindSelect && k < menu.Count);
+        bool ready = S?.Battle != null && (SwitchPicking ? k < 3 && k < menu.Count - 1 : S.Battle.Step == BattleStep.Commands ? menu.Count >= 4 && k < menu.Count : BlindSelect && k < menu.Count);
         if (playing || !SceneInput || !ready || !menu[k].enabled) return;
         menu[k].action();
     }
@@ -155,10 +168,11 @@ public partial class GameRunner
         pads[a].Show(true); pads[d].Show(true);
         pads[a].SetRole(true, flee); pads[d].SetRole(false, flee);
         pads[a].SetState(""); pads[d].SetState("");
-        int ai = (int)r.Attack, di = (int)r.Defense;
+        int ai = (int)r.Attack, di = r.Defense == Defense.Switch ? 4 : (int)r.Defense; // こうたい は L1 のボタン（相談24）
         pads[a].Reveal(ai);
         yield return cards[a].PowerUp(CommandColors[ai]);
         if (r.Defense == Defense.Asleep) { pads[d].SetState("ねむっている"); yield break; } // 守りを選んでいない（相談10-2）
+        if (r.Defense == Defense.Switch) { pads[d].Reveal(di); pads[d].SetState("こうたい"); yield break; } // 出てきた子は 守っていない
         pads[d].Reveal(di);
         yield return cards[d].PowerUp(CommandColors[di]);
     }
@@ -453,14 +467,15 @@ public partial class GameRunner
         if (sunGlow != null) sunGlow.color = new Color(1f, 0.9f, 0.5f, 0.1f + 0.06f * Mathf.Sin(Time.time * 1.5f));
     }
 
-    // ---- ポケモンの下のコマンド：△ 上、□ 左下、○ 右下、R1 その下に小さく ----
+    // ---- ポケモンの下のコマンド：△ 上、□ 左下、○ 右下、その下に小さく L1（左）・R1（右） ----
     sealed class CommandPad
     {
+        const int Count = 5;
         readonly RectTransform root;
-        readonly Image[] buttons = new Image[4];
-        readonly Text[] labels = new Text[4];
+        readonly Image[] buttons = new Image[Count];
+        readonly Text[] labels = new Text[Count];
         readonly Text state;
-        bool[] enabled = new bool[4];
+        bool[] enabled = new bool[Count];
 
         public CommandPad(RectTransform root, GameRunner runner)
         {
@@ -470,9 +485,10 @@ public partial class GameRunner
                 (new Vector2(0.02f, 0.34f), new Vector2(0.49f, 0.64f)), // □
                 (new Vector2(0.51f, 0.34f), new Vector2(0.98f, 0.64f)), // ○
                 (new Vector2(0.26f, 0.68f), new Vector2(0.74f, 0.98f)), // △
-                (new Vector2(0.3f, 0.02f), new Vector2(0.7f, 0.3f)),    // R1
+                (new Vector2(0.51f, 0.02f), new Vector2(0.98f, 0.3f)),  // R1（右の肩）
+                (new Vector2(0.02f, 0.02f), new Vector2(0.49f, 0.3f)),  // L1（左の肩。守る番の こうたい、相談24）
             };
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < Count; i++)
             {
                 var img = Ui.Round(Ui.Panel(root, $"Command{i}", places[i].Item1, places[i].Item2, CommandColors[i]));
                 img.gameObject.AddComponent<Outline>().effectColor = new Color(0, 0, 0, 0.6f);
@@ -481,7 +497,7 @@ public partial class GameRunner
                 int k = i;
                 b.onClick.AddListener(() => runner.PressCommand(k));
                 buttons[i] = img;
-                labels[i] = Ui.Label(img.transform, "", i == 3 ? 22 : 26, TextAnchor.MiddleCenter, Color.black);
+                labels[i] = Ui.Label(img.transform, "", i >= 3 ? 22 : 26, TextAnchor.MiddleCenter, Color.black);
             }
             state = Ui.Label(Ui.Rect(root, "State", new Vector2(0, -0.22f), new Vector2(1, 0)), "", 22, TextAnchor.MiddleCenter, new Color(1, 0.9f, 0.5f));
             state.gameObject.AddComponent<Outline>().effectColor = Color.black;
@@ -490,23 +506,24 @@ public partial class GameRunner
         public void Show(bool on) => root.gameObject.SetActive(on);
 
         public void SetRole(bool attack, string flee) =>
-            SetLabels(attack ? new[] { "こうげき", "とくこう", "必殺", "どうぐ" } : new[] { "ぼうぎょ", "とくぼう", "カウンター", flee });
+            SetLabels(attack ? new[] { "こうげき", "とくこう", "必殺", "どうぐ", "" } : new[] { "ぼうぎょ", "とくぼう", "カウンター", flee, "こうたい" });
 
-        // ボタンの文字（□ ○ △ R1 の順）。空のボタンは出さない（プレイヤー戦の選出は □○△ だけ、選び終えた側は なし）
+        // ボタンの文字（□ ○ △ R1 L1 の順）。空のボタンは出さない（プレイヤー戦の選出は □○△ だけ、選び終えた側は なし）
         public void SetLabels(string[] names)
         {
-            var marks = new[] { "□", "○", "△", "R1" };
-            for (int i = 0; i < 4; i++)
+            var marks = new[] { "□", "○", "△", "R1", "L1" };
+            for (int i = 0; i < Count; i++)
             {
-                buttons[i].gameObject.SetActive(names[i] != "");
-                labels[i].text = i == 3 ? $"R1 {names[i]}" : $"<size=36><b>{marks[i]}</b></size> {names[i]}"; // 記号は大きく
+                string name = i < names.Length ? names[i] : "";
+                buttons[i].gameObject.SetActive(name != "");
+                labels[i].text = i >= 3 ? $"{marks[i]} {name}" : $"<size=36><b>{marks[i]}</b></size> {name}"; // 記号は大きく
             }
         }
 
         // 押せるボタンは はっきり、押せないボタン（相手の番・クールダウン中の必殺など）は うすく
         public void SetEnabled(Func<int, bool> can)
         {
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < Count; i++)
             {
                 enabled[i] = can(i);
                 buttons[i].color = enabled[i] ? CommandColors[i] : Color.Lerp(CommandColors[i], new Color(0.45f, 0.45f, 0.45f), 0.55f);
@@ -517,7 +534,7 @@ public partial class GameRunner
         // 結果発表：選んだコマンドだけ色を残し、ほかはグレー
         public void Reveal(int chosen)
         {
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < Count; i++)
             {
                 buttons[i].color = i == chosen ? CommandColors[i] : new Color(0.4f, 0.4f, 0.4f, 0.8f);
                 labels[i].color = i == chosen ? Color.black : new Color(0, 0, 0, 0.5f);

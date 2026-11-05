@@ -63,7 +63,7 @@ namespace Sugoroku.Rules
 
         // 画面に出す呼び名（UI仕様書 7.2：仕様書の 物理攻撃・特殊攻撃・必殺技・まもる・特殊守り は ひらがなの呼び名で出す）
         public static string AttackName(Attack a) => a == Attack.Physical ? "こうげき" : a == Attack.Special ? "とくこう" : a == Attack.Super ? "必殺" : "どうぐ";
-        public static string DefenseName(Defense d) => d == Defense.Guard ? "ぼうぎょ" : d == Defense.SpecialGuard ? "とくぼう" : d == Defense.Counter ? "カウンター" : d == Defense.Asleep ? "ねむっていて 守れない" : "にげる";
+        public static string DefenseName(Defense d) => d == Defense.Guard ? "ぼうぎょ" : d == Defense.SpecialGuard ? "とくぼう" : d == Defense.Counter ? "カウンター" : d == Defense.Asleep ? "ねむっていて 守れない" : d == Defense.Switch ? "こうたい" : "にげる";
 
         // 表示しなくてよい出来事は null
         public string Describe(GameEvent e)
@@ -118,6 +118,7 @@ namespace Sugoroku.Rules
                 case BoxExpanded x: return $"{Name(x.Player)}は 控えに {x.Max}体まで あずけられるように なった！";
                 case ItemGiven x: return $"{Name(x.Player)}は {x.To}に {x.Item}を わたした";
                 case SwitchedOut x: return $"{x.Pokemon}は 手持ちに もどった！";
+                case PokemonSwitched x: return $"{x.From}は {x.To}に こうたいした！";
                 case ItemDiscarded x: return x.NotTaken ? $"{x.Item}は 拾わなかった" : $"{x.Item}を すてた";
                 case ExtraMoveStarted x: return $"もう {x.Steps}マス 進む";
                 case MoneyChanged x: return x.Amount > 0 ? $"{Name(x.Player)}は {x.Amount}円 もらった（{x.Reason}）" : $"{Name(x.Player)}は {-x.Amount}円 うしなった（{x.Reason}）" + (x.To >= 0 ? $" → {Name(x.To)}へ" : "");
@@ -182,7 +183,7 @@ namespace Sugoroku.Rules
             // 技の名前を出す（UI仕様書 7.3 ⑤「ニドリーノの どくづき！」）。名前がなければ コマンドの呼び名
             var sp = data.FindSpecies(a);
             string move = sp == null ? "" : x.Attack == Attack.Physical ? sp.PhysicalMove : x.Attack == Attack.Special ? sp.SpecialMove : x.Attack == Attack.Super ? sp.SuperMove : "";
-            string head = $"{a}の {(string.IsNullOrEmpty(move) ? AttackName(x.Attack) : $"{move}（{AttackName(x.Attack)}）")}！ {d}は {DefenseName(x.Defense)}";
+            string head = $"{a}の {(string.IsNullOrEmpty(move) ? AttackName(x.Attack) : $"{move}（{AttackName(x.Attack)}）")}！ " + (x.Defense == Defense.Switch ? $"出てきた {d}が うける" : $"{d}は {DefenseName(x.Defense)}"); // 交代（相談24）：こうたいの文は PokemonSwitched が先に出す
             string abilities = x.Abilities.Count > 0 ? "\n【" + string.Join("・", x.Abilities) + "】" : "";
             if (x.Absorbed) return head + abilities + $" {d}は 技を すいとった！";
             if (x.Missed)

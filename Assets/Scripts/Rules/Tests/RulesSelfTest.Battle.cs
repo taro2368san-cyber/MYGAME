@@ -918,6 +918,151 @@ namespace Sugoroku.Rules
                 Check(log, "6.1 先頭固定のバトル（野生・トレーナー・職業トレーナー）で 先頭が戦闘不能なら、出す子を選ぶ場面になる。戦闘不能の子は選べず、元気な子を選ぶと進む。先頭が元気なら選ばない",
                     wild && trainer && job && lead);
             }
+
+            // ---- 相談24：フルバトルの 守る番に 自分で交代する（7.1.2・15.4）----
+            {
+                // 自分が守る番まで進める：手持ちは カビゴン・マルマイン・カビゴン、相手（NPC）は カビゴン Lv30 2体。相手のカードを引いて 相手から攻撃
+                (GameProcessor g, PlayerState me, BattleState b) Defending(bool full, ulong rng = 0, int foeLevel = 30)
+                {
+                    var g = Game(1);
+                    var me = g.State.CurrentPlayer;
+                    me.Party.Clear();
+                    me.Party.Add(Mon("カビゴン", 50)); me.Party.Add(Mon("マルマイン", 50)); me.Party.Add(Mon("カビゴン", 50));
+                    if (rng != 0) g.State.Rng = rng;
+                    Start(g, BattleKind.Trainer, full, ("カビゴン", foeLevel), ("カビゴン", foeLevel));
+                    var b = g.State.Battle;
+                    if (b.Step == BattleStep.Select) g.Apply(new SelectPokemon { Player = me.Id, Slot = 0 }, out _);
+                    if (b.Step == BattleStep.Initiative) g.Apply(new PickCard { Player = me.Id, Card = Math.Max(0, b.Cards.IndexOf(1)) }, out _);
+                    return (g, me, b);
+                }
+                void Heal(BattleState hb) { foreach (var s in hb.Sides) s.Current.Hp = MaxHp(s.Current); }
+                List<GameEvent> Raw(GameProcessor g, Command c) { var ev = g.Apply(c, out string err); if (err != null) throw new Exception("テスト失敗: " + c.GetType().Name + " が断られた：" + err); return ev; }
+
+                // 出てきた子が 相手の攻撃を受ける（物理・特殊・必殺）。交代が先、ガードなし、反射なし
+                bool takes = true;
+                foreach (var atk in new[] { Attack.Physical, Attack.Special, Attack.Super })
+                {
+                    var (g, me, b) = Defending(true);
+                    b.AttackCmd = atk;
+                    var old = me.Party[0]; var target = me.Party[1];
+                    int oldHp = old.Hp, maxHp = MaxHp(target);
+                    var ev = Raw(g, new SwitchPokemon { Player = me.Id, Slot = 1 });
+                    var rr = ev.OfType<RoundResolved>().Single();
+                    int swAt = ev.FindIndex(e => e is PokemonSwitched), rrAt = ev.IndexOf(rr);
+                    takes &= swAt >= 0 && swAt < rrAt && b.Sides[0].Active == 1 && rr.Defense == Defense.Switch && rr.DefenderPokemon == target.Species
+                        && !rr.Guarded && !rr.Reflected && old.Hp == oldHp && (rr.Missed || target.Hp == Math.Max(0, maxHp - rr.Damage));
+                }
+                // 1倍：同じ乱数なら ねむっていて守れないとき（相談10-2、1倍）と 同じダメージ
+                bool oneX = true;
+                foreach (var atk in new[] { Attack.Physical, Attack.Special, Attack.Super })
+                {
+                    var (g, me, b) = Defending(true);
+                    b.Attacker = 1;
+                    int compared = 0;
+                    for (ulong seed = 1; seed < 60 && compared < 3; seed++)
+                    {
+                        Heal(b);
+                        g.State.Rng = seed * 7919;
+                        var e1 = new RoundResolved(); Call(g, "Hit", b.Sides[1], b.Sides[0], atk, Defense.Switch, e1);
+                        Heal(b);
+                        g.State.Rng = seed * 7919;
+                        var e2 = new RoundResolved(); Call(g, "Hit", b.Sides[1], b.Sides[0], atk, Defense.Asleep, e2);
+                        if (e1.Missed || e2.Missed) continue;
+                        compared++;
+                        oneX &= e1.Damage == e2.Damage && !e1.Guarded && !e1.Reflected;
+                    }
+                    oneX &= compared == 3;
+                }
+                Check(log, "相談24 交代：フルバトルの守る番に交代すると、交代が先で、出てきた子が 相手の攻撃（物理・特殊・必殺）を受ける。ガードなしの1倍（ねむりと同じ）で、必殺でも反射しない。下がった子は 傷つかない",
+                    takes && oneX);
+
+                // 交代のあと 新しい2体でカードを引き直す。引くのは仕掛けた側。下がった子のクールダウン・能力ランクは消え、やけどは残る。ラウンド上限に数える
+                {
+                    // 同じ Lv のカビゴンどうし（2枚）から、すばやいマルマインに交代（出てきた子が倒れない乱数で）
+                    bool redraw = false, reset = false, counted = false; int before = 0, after = 0;
+                    for (ulong seed = 1; seed <= 20 && !redraw; seed++)
+                    {
+                        var (g, me, b) = Defending(true, seed * 7919, 50);
+                        b.AttackCmd = Attack.Physical;
+                        var mine = b.Sides[0];
+                        before = Cards(g);
+                        mine.Ranks[0] = 1; mine.Ranks[2] = -1; mine.LastWasSuper = true; me.Party[0].Status = Status.Burn;
+                        int rounds = b.Rounds;
+                        var ev = Raw(g, new SwitchPokemon { Player = me.Id, Slot = 1 });
+                        if (me.Party[1].Fainted) continue;
+                        after = b.Cards?.Count ?? 0;
+                        redraw = b.Step == BattleStep.Initiative && after == Cards(g) && after != before && ev.OfType<CardsDealt>().Single().Player == me.Id;
+                        reset = mine.Ranks.All(r => r == 0) && !mine.LastWasSuper && me.Party[0].Status == Status.Burn;
+                        counted = b.Rounds == rounds + 1;
+                    }
+                    // ラウンド上限のひとつ手前で交代すると、そのラウンドで判定になる
+                    var (lg, lme, lb) = Defending(true);
+                    lb.AttackCmd = Attack.Physical;
+                    lb.Rounds = (int)T("round_limit_full") - 1;
+                    var lev = Raw(lg, new SwitchPokemon { Player = lme.Id, Slot = 1 });
+                    bool limit = lev.OfType<BattleEnded>().Any(x => x.Judged) && lev.OfType<PokemonSwitched>().Any();
+                    Check(log, $"相談24 交代：そのあと 新しい2体でカードを引き直す（{before}枚→{after}枚）。引くのは仕掛けた側。下がった子の能力ランクと必殺のクールダウンは消え、やけどは残る。交代したラウンドも ラウンド上限に数える",
+                        redraw && reset && counted && limit);
+                }
+
+                // 断られるとき：クイックバトル、攻撃の番、たおれた子、いま出ている子、ねむっている子の守る番。ChooseDefense で こうたいは選べない
+                {
+                    var (qg, qme, _) = Defending(false);
+                    bool quick = qg.Validate(new SwitchPokemon { Player = qme.Id, Slot = 1 }) != null;
+                    var ag = Game(1); var ame = ag.State.CurrentPlayer;
+                    ame.Party.Clear(); ame.Party.Add(Mon("カビゴン", 50)); ame.Party.Add(Mon("マルマイン", 50));
+                    Start(ag, BattleKind.Trainer, true, ("カビゴン", 30));
+                    var ab = ag.State.Battle;
+                    ag.Apply(new SelectPokemon { Player = ame.Id, Slot = 0 }, out _);
+                    ag.Apply(new PickCard { Player = ame.Id, Card = Math.Max(0, ab.Cards.IndexOf(0)) }, out _); // 自分から攻撃
+                    bool attackTurn = ab.Attacker == 0 && ag.Validate(new SwitchPokemon { Player = ame.Id, Slot = 1 }) != null;
+                    var (g, me, b) = Defending(true);
+                    me.Party[1].Hp = 0;
+                    bool fainted = g.Validate(new SwitchPokemon { Player = me.Id, Slot = 1 }) != null && g.Validate(new SwitchPokemon { Player = me.Id, Slot = 2 }) == null;
+                    bool active = g.Validate(new SwitchPokemon { Player = me.Id, Slot = 0 }) != null;
+                    bool viaDefense = g.Validate(new ChooseDefense { Player = me.Id, Defense = Defense.Switch }) != null;
+                    b.DefenseCmd = Defense.Asleep; // ねむっている子の守る番（処理役が入れる）
+                    bool asleep = g.Validate(new SwitchPokemon { Player = me.Id, Slot = 2 }) != null;
+                    Check(log, "相談24 交代：クイックバトル・攻撃の番・たおれた子へ・いま出ている子へ・ねむっている子の守る番では 断られる。守りのコマンド（ChooseDefense）では こうたいを選べない",
+                        quick && attackTurn && fainted && active && viaDefense && asleep);
+                }
+
+                // 出てきた子が その攻撃で倒れると、次の子を選ぶ場面になる
+                {
+                    bool chose = false;
+                    for (ulong seed = 1; seed <= 20 && !chose; seed++)
+                    {
+                        var (g, me, b) = Defending(true, seed * 104729);
+                        b.AttackCmd = Attack.Physical;
+                        me.Party[1].Hp = 1;
+                        var ev = Raw(g, new SwitchPokemon { Player = me.Id, Slot = 1 });
+                        if (ev.OfType<RoundResolved>().Single().Missed) continue;
+                        chose = me.Party[1].Fainted && b.Step == BattleStep.Select && b.Sides[0].NeedsSelect
+                            && g.Validate(new SelectPokemon { Player = me.Id, Slot = 1 }) != null && g.Validate(new SelectPokemon { Player = me.Id, Slot = 2 }) == null;
+                    }
+                    Check(log, "相談24 交代：出てきた子が その攻撃で倒れると、次の子を選ぶ場面になる（倒れた子は選べない）", chose);
+                }
+
+                // プレイヤー戦（フル。いまは 同じマスのプレイヤー戦はクイックなので 起きないが、フルのプレイヤー戦でも 相手に見えないこと）：交代を選んでも、相手の攻撃が決まるまで 結果に出ない
+                {
+                    var g = Game(2);
+                    var me = g.State.CurrentPlayer; var you = g.State.Players.First(x => x != me);
+                    me.Party.Clear(); me.Party.Add(Mon("カビゴン", 50)); me.Party.Add(Mon("マルマイン", 50));
+                    you.Party.Clear(); you.Party.Add(Mon("カビゴン", 50)); you.Party.Add(Mon("マルマイン", 50));
+                    Call(g, "StartBattle", BattleKind.Player, true, new BattleSide { Player = you.Id, Name = you.Name, Team = you.Party }, new List<GameEvent>(), null, -1);
+                    var b = g.State.Battle;
+                    g.Apply(new SelectPokemon { Player = me.Id, Slot = 0 }, out _);
+                    g.Apply(new SelectPokemon { Player = you.Id, Slot = 0 }, out _);
+                    g.Apply(new PickCard { Player = me.Id, Card = Math.Max(0, b.Cards.IndexOf(1)) }, out _); // 相手から攻撃
+                    bool defending = b.Step == BattleStep.Commands && b.Attacker == 1;
+                    var e1 = Raw(g, new SwitchPokemon { Player = me.Id, Slot = 1 });
+                    bool hidden = !e1.OfType<PokemonSwitched>().Any() && !e1.OfType<RoundResolved>().Any() && b.Sides[0].Active == 0;
+                    var e2 = Raw(g, new ChooseAttack { Player = you.Id, Attack = Attack.Physical });
+                    int sw = e2.FindIndex(e => e is PokemonSwitched), rr = e2.FindIndex(e => e is RoundResolved);
+                    Check(log, "相談24 交代：プレイヤー戦で 交代を選んでも、相手の攻撃が決まるまで 結果に出ない（決まると「こうたいした」→ 攻撃の結果）",
+                        defending && hidden && sw >= 0 && rr > sw);
+                }
+            }
         }
     }
 }

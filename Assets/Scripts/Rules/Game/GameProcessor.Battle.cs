@@ -97,6 +97,38 @@ namespace Sugoroku.Rules
             AfterSelect(events);
         }
 
+        // 守る番の交代（相談24）：受け付けるのは フルバトルの 守る側だけ。出す子は 手持ちの 戦える子で、いま出ている子でない。ねむっている子の守る番は できない
+        string CheckSwitch(SwitchPokemon sw)
+        {
+            var b = B;
+            if (b.Step != BattleStep.Commands) return "今はコマンドを選ぶときではありません";
+            var d = b.Sides[1 - b.Attacker];
+            if (d.Player != sw.Player) return "交代できるのは 守る側だけです";
+            if (b.DefenseCmd == Defense.Asleep) return "ねむっていて 交代できません";
+            if (b.DefenseCmd != null) return "もう選んでいます";
+            if (!b.Full) return "交代できるのは フルバトルだけです";
+            if (sw.Slot < 0 || sw.Slot >= d.Team.Count) return "その子は いません";
+            if (sw.Slot == d.Active) return "いま出ている子です";
+            return d.Team[sw.Slot].Fainted ? "その子は たおれていて 出せません" : null;
+        }
+
+        // 交代して出す（ラウンドのはじめ）。下がった子の能力ランク・必殺のクールダウンは消える（ResetSide）。状態異常は その子に残る（7.17）
+        void SwitchIn(int side, List<GameEvent> events)
+        {
+            var b = B;
+            var s = b.Sides[side];
+            string from = s.Current.Species;
+            ResetSide(s);
+            s.Active = b.SwitchTo;
+            b.SwitchTo = -1;
+            if (s.Player >= 0) s.Participated.Add(s.Active);
+            var m = s.Current;
+            var sp = Pokemons.Of(data, m);
+            events.Add(new PokemonSwitched { Side = side, Player = s.Player, Trainer = s.Name, From = from, To = m.Species });
+            events.Add(new SentOut { Side = side, Pokemon = m.Species, Level = m.Level, Hp = m.Hp, MaxHp = Pokemons.MaxHp(data, m), Type = sp.Type, Weakness = sp.Weakness, Status = m.Status, Exp = m.Exp });
+            OnEnter(events); // 出たときの特性（いかく など）は 攻撃の前に
+        }
+
         // 全員が選び終えたら、まとめて場に出して（相手の選択を先に見せないため）カードを引く
         void AfterSelect(List<GameEvent> events)
         {
@@ -238,9 +270,10 @@ namespace Sugoroku.Rules
                     if (b.Sides[1 - b.Attacker].Player != c.Player) return "防御のコマンドを選ぶのはあなたではありません";
                     if (b.DefenseCmd == Defense.Asleep) return "ねむっていて 守れません";
                     if (b.DefenseCmd != null) return "もう選んでいます";
-                    if (d.Defense == Defense.Asleep) return "その守りは 選べません";
+                    if (d.Defense == Defense.Asleep || d.Defense == Defense.Switch) return "その守りは 選べません"; // こうたいは SwitchPokemon で
                     return d.Defense == Defense.Flee && b.Kind == BattleKind.Gym ? "ジム戦からは にげられません" : null;
                 }
+                case SwitchPokemon sw: return CheckSwitch(sw);
                 case PickCard pc:
                     if (b.Step != BattleStep.Initiative) return "今はカードを選ぶときではありません";
                     if (b.Sides[0].Player != c.Player) return "カードを選ぶのはあなたではありません";
@@ -299,6 +332,10 @@ namespace Sugoroku.Rules
                 case ChooseDefense d:
                     b.DefenseCmd = d.Defense;
                     break;
+                case SwitchPokemon sw: // 守りの代わりに交代（相談24）。相手には見えない（プレイヤー戦でも 結果で分かる）
+                    b.DefenseCmd = Defense.Switch;
+                    b.SwitchTo = sw.Slot;
+                    break;
                 case PickCard pc:
                     PickInitiative(pc.Card, events);
                     return;
@@ -327,6 +364,8 @@ namespace Sugoroku.Rules
             Attack atk = b.AttackCmd.Value;
             Defense def = b.DefenseCmd.Value;
             if (def == Defense.Flee) { RunAway(1 - b.Attacker, events); return; }
+            bool switched = def == Defense.Switch;
+            if (switched) SwitchIn(1 - b.Attacker, events); // 交代が先（相談24）。相手の攻撃は 出てきた子が受ける
 
             // ねむり・まひで動けないときは攻撃しない（どうぐはトレーナーが使うので使える、7.17）
             bool stuck = atk != Attack.Item && CantAct(b.Attacker, events);
@@ -380,6 +419,13 @@ namespace Sugoroku.Rules
             b.ForcedSwitch = -1;
             if (HandleFaints(events)) return; // 倒れた子がいたら、交代はそちらの選び直しにまかせる
             if (forced >= 0) { SwitchOut(forced, b.ForcedRandom, events); return; }
+            if (switched)
+            {
+                // 交代したラウンドも ラウンド上限に数える。そのあと 新しい2体でカードを引き直す（7.1.2。引くのは仕掛けた側）。番の交代は 倒れて次の子を出したときと同じく、カードのあとの BeginCommands で数える
+                if (b.Rounds >= TuneInt(b.Full ? "round_limit_full" : "round_limit_quick")) { Judge(events); return; }
+                AfterSelect(events);
+                return;
+            }
             b.Attacker = 1 - b.Attacker;
             if (b.Rounds >= TuneInt(b.Full ? "round_limit_full" : "round_limit_quick")) { Judge(events); return; }
             // 野生戦は攻守が1往復するたびに「ボールを投げる？」（7.1.3）
@@ -525,7 +571,8 @@ namespace Sugoroku.Rules
             // ガードの成否と倍率（7.3の表）
             bool guarded; double mult;
             // ねむっていて守れない：どの攻撃も1倍（相談10-2。必殺も1倍で、反射もしない）。守っていないので ガード失敗と同じく 急所・追加効果・接触の効果は起こる
-            if (def == Defense.Asleep) { guarded = false; mult = 1; }
+            // 交代して出てきた子も 同じ（相談24：ガードなしで 1倍、反射なし）
+            if (def == Defense.Asleep || def == Defense.Switch) { guarded = false; mult = 1; }
             else if (atk == Attack.Super)
             {
                 guarded = def == Defense.Counter;

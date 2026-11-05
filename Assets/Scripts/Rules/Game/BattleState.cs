@@ -5,7 +5,7 @@ namespace Sugoroku.Rules
 {
     public enum BattleKind { Wild, Trainer, Gym, Rival, Player, Event, Rocket, Job, Tournament, League } // League: ポケモンリーグの四天王・チャンピオン（3.3.2） // Tournament: 突発バトルイベントのミニトーナメント（プレイヤーどうし、5.3） // Job: 職業マスの職業トレーナー（9.2） // Event: ランダムイベント（チャンピオンなど）
     public enum Attack { Physical, Special, Super, Item }           // □こうげき ○とくこう △必殺 R1どうぐ（仕様書7.3、UI仕様書 7.2）
-    public enum Defense { Guard, SpecialGuard, Counter, Flee, Asleep } // □ぼうぎょ ○とくぼう △カウンター R1にげる（同じ記号どうしでガード成功）。Asleep：ねむっていて守れない（処理役が入れる。選べない、相談10-2）
+    public enum Defense { Guard, SpecialGuard, Counter, Flee, Asleep, Switch } // □ぼうぎょ ○とくぼう △カウンター R1にげる（同じ記号どうしでガード成功）。Asleep：ねむっていて守れない（処理役が入れる。選べない、相談10-2）。Switch：L1こうたい（SwitchPokemon の命令で入る、相談24）
     public enum BattleStep { Select, Commands, Ball, Reward, Initiative } // Initiative：仕掛けた側が 先攻・後攻のカードを1枚選ぶのを待つ
     public enum Reward { Item, Fan, Forgive, Trade }                 // プレイヤー戦の勝利報酬（7.7）
 
@@ -49,7 +49,8 @@ namespace Sugoroku.Rules
         public BattleStep Step;
         public Attack? AttackCmd; public string AttackItem;
         public Defense? DefenseCmd;
-        public int Winner = -1;                    // 報酬を選ぶ勝者（プレイヤー戦）
+        public int SwitchTo = -1;                  // 守る番の交代（Defense.Switch）で出す子の番号（相談24）
+        public int Winner = -1;                   // 報酬を選ぶ勝者（プレイヤー戦）
         public bool Surrendered;                   // 降参で終わった（ポケモン交換は選べない、7.3）
         public bool CatchUp;                       // レベル追いつきが起きた（そのバトルの経験値はなし、7.8）
         public readonly List<(PokemonState thief, PokemonState victim, string item)> Stolen = new List<(PokemonState, PokemonState, string)>(); // わるいてぐせ
@@ -65,6 +66,7 @@ namespace Sugoroku.Rules
     public sealed class BattleSuspended : GameEvent { public int Player; public string Opponent; }   // 1往復したので、続きは次の自分の番
     public sealed class BattleResumed : GameEvent { public int Player; public BattleKind Kind; public bool Full; public string Opponent; public int[] Players; }
     public sealed class SentOut : GameEvent { public int Side; public string Pokemon; public int Level, Hp, MaxHp; public string Type, Weakness; public Status Status; public int Exp; } // Exp：経験値の合計（経験値バー）
+    public sealed class PokemonSwitched : GameEvent { public int Side, Player; public string Trainer, From, To; } // 守る番に 自分で交代した（相談24）。From が下がり、To が出た
     public sealed class CardsDealt : GameEvent { public List<int> Cards; public int Player; } // カードを並べて混ぜた（Cards は混ぜたあとの並び）。Player が1枚選ぶ
     public sealed class InitiativeDrawn : GameEvent { public List<int> Cards; public int Picked, First; public string FirstPokemon; } // Cards: 各カードで先攻になる側
     public sealed class CommandsRequested : GameEvent { public int Attacker; public int AttackPlayer, DefensePlayer; public bool SuperLocked; }
