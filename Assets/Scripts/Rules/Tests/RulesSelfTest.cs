@@ -1466,6 +1466,16 @@ namespace Sugoroku.Rules
                 Check(log, "ポケニュース特番：指定の道路の草むらで 準伝説が出る", place != "" && ng0.State.NewsWeeks == 3 && (grass == null || legend));
             }
             {
+                // 文の自動送り（相談38）：読む人（番の人・バトルの両者）に人間がいなければ自動。間は バトル中で短縮オンなら 0.25秒、ほかは 0.5秒
+                var mg = GameProcessor.NewGame(board, data, new[] { ("人", MoveMode.Highlight, "ヒトカゲ"), ("CPU1", MoveMode.Highlight, "ゼニガメ"), ("CPU2", MoveMode.Highlight, "フシギダネ") }, 50, 9, out _, null, "", new[] { false, true, true });
+                var ms = mg.State;
+                Check(log, "自動送り：人間の番は ○ を待つ／CPU の番は自動", !MessagePace.AutoAdvance(ms, 0, null) && MessagePace.AutoAdvance(ms, 1, null));
+                Check(log, "自動送り：CPU どうしのプレイヤー戦は自動／CPU が人間にしかけたら待つ／CPU の野生戦は自動",
+                    MessagePace.AutoAdvance(ms, 1, new[] { 1, 2 }) && !MessagePace.AutoAdvance(ms, 1, new[] { 1, 0 }) && MessagePace.AutoAdvance(ms, 2, new[] { 2, -1 }));
+                Check(log, "自動送りの間：バトル中で短縮オンなら 0.25秒、ほかは 0.5秒",
+                    MessagePace.AutoSeconds(true, true) == 0.25f && MessagePace.AutoSeconds(true, false) == 0.5f && MessagePace.AutoSeconds(false, true) == 0.5f && MessagePace.AutoSeconds(false, false) == 0.5f);
+            }
+            {
                 // 突発バトルイベント（5.3）：週のはじめに 全員でトーナメント。優勝するとポケベル、そのあと手番が始まる
                 var tg = GameProcessor.NewGame(board, data, new[] { ("A", MoveMode.Highlight, "ヒトカゲ"), ("B", MoveMode.Highlight, "ゼニガメ"), ("C", MoveMode.Highlight, "フシギダネ") }, 50, 9, out _, null, "", new[] { true, true, true });
                 var tev = new List<GameEvent>();
