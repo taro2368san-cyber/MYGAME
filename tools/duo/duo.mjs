@@ -53,20 +53,17 @@ const log = join(here, "logs", new Date().toISOString().replace(/[:T]/g, "-").sl
 mkdirSync(dirname(log), { recursive: true });
 const write = (who, text) => { console.log(`\n===== ${who} =====\n${text}`); appendFileSync(log, `\n## ${who}\n\n${text}\n`); };
 
-// tools/duo/inbox.md を置くと、次に相談役へ話すときに いっしょに渡す（動かしたまま 回答や指示を足せる）。渡したら logs へ移す
+// tools/duo/inbox.md を置くと、次に相談役へ話すときに いっしょに渡す（動かしたまま 回答や指示を足せる）。相談役に届いたら logs へ移す
 const inbox = join(here, "inbox.md");
-function takeInbox() {
-  if (!existsSync(inbox)) return "";
-  const text = readFileSync(inbox, "utf8").replace(/^﻿/, "").trim();
-  renameSync(inbox, log.replace(/\.md$/, `-inbox-${Date.now()}.md`));
-  return text;
-}
+const readInbox = () => existsSync(inbox) ? readFileSync(inbox, "utf8").replace(/^﻿/, "").trim() : "";
 
 async function consult(userText) {
-  const extra = takeInbox();
+  const extra = readInbox();
   if (extra) { write("ユーザー（inbox）", extra); userText = `ユーザーからの回答・指示（これを最優先にして、次の指示を決め直す）:\n${extra}\n\n${userText}`; }
   messages.push({ role: "user", content: userText });
-  const res = await client.beta.messages.stream({
+  let res;
+  try {
+    res = await client.beta.messages.stream({
     model: "claude-opus-5-5",
     max_tokens: 32000,
     output_config: { effort: "high" },
@@ -78,6 +75,11 @@ async function consult(userText) {
     ],
     messages,
   }).finalMessage();
+  } catch (e) {
+    if (e.status === 401) { console.log("\nAPI キーがちがいます（401）。https://platform.claude.com で作ったキーを\n  $env:ANTHROPIC_API_KEY = \"sk-ant-...\"\nに入れ直してから、もう一度動かしてください。inbox.md は そのまま残っています。"); process.exit(1); }
+    throw e;
+  }
+  if (extra) renameSync(inbox, log.replace(/\.md$/, `-inbox-${Date.now()}.md`));
   messages.push({ role: "assistant", content: res.content });
   if (res.stop_reason === "refusal") return "（相談役が答えられませんでした）";
   // ponytail: Opus 5.5 の定価で計算（入力 $4・1時間キャッシュ書き $8・キャッシュ読み $0.2・出力 $20 / 100万トークン）。正しい額は Console で
