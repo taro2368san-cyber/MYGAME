@@ -1474,6 +1474,15 @@ namespace Sugoroku.Rules
                     MessagePace.AutoAdvance(ms, 1, new[] { 1, 2 }) && !MessagePace.AutoAdvance(ms, 1, new[] { 1, 0 }) && MessagePace.AutoAdvance(ms, 2, new[] { 2, -1 }));
                 Check(log, "自動送りの間：バトル中で短縮オンなら 0.25秒、ほかは 0.5秒",
                     MessagePace.AutoSeconds(true, true) == 0.25f && MessagePace.AutoSeconds(true, false) == 0.5f && MessagePace.AutoSeconds(false, true) == 0.5f && MessagePace.AutoSeconds(false, false) == 0.5f);
+                // バトルの終わりと同じ命令で 次の番まで進む（EndTurn → TurnStarted）。バトル後の文までは両者が読み、次の番の文は バトル中ではない
+                var rd = new MessageReaders { Turn = 1 };
+                rd.See(new BattleStarted { Kind = BattleKind.Player, Players = new[] { 1, 0 } });
+                bool duringWaits = !rd.Auto(ms) && rd.InBattle;
+                rd.See(new BattleEnded()); rd.See(new ExpGained { Player = 0 });
+                bool afterStill = rd.InBattle && !rd.Auto(ms);
+                rd.See(new TurnStarted { Player = 2 });
+                Check(log, "自動送り：バトル後の文までは両者が読み、次の番（CPU）になると バトル中でなく 自動",
+                    duringWaits && afterStill && !rd.InBattle && rd.Turn == 2 && rd.Auto(ms));
             }
             {
                 // 突発バトルイベント（5.3）：週のはじめに 全員でトーナメント。優勝するとポケベル、そのあと手番が始まる

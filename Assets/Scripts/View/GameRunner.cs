@@ -329,8 +329,7 @@ public partial class GameRunner : MonoBehaviour
         game.DebugEnabled = Debug.isDebugBuild; // デバッグ機能（F1）は開発用ビルドとエディタだけ（17.1）
         narrator = new Narrator(data, board, S);
         lastAutoSaveWeek = S.Week;
-        readTurn = S.TurnOrder.Count > 0 ? S.CurrentPlayer.Id : -1; // 文を読む人（相談38）
-        readBattle = S.Battle?.Sides.Select(sd => sd.Player).ToArray();
+        readers = new MessageReaders { Turn = S.TurnOrder.Count > 0 ? S.CurrentPlayer.Id : -1, Battle = S.Battle?.Sides.Select(sd => sd.Player).ToArray() }; // 文を読む人（相談38）
         logLines.Clear();
         BuildGameScreen();
         if (Camera.main != null) { Camera.main.clearFlags = CameraClearFlags.SolidColor; Camera.main.backgroundColor = SkyColor; } // 背景は明るい水色
@@ -439,7 +438,7 @@ public partial class GameRunner : MonoBehaviour
     void Send(Command c)
     {
         subMenu = null;
-        if (!playing && S.TurnOrder.Count > 0) readTurn = S.CurrentPlayer.Id; // 命令を出す前の番の人（相談38）
+        if (!playing && S.TurnOrder.Count > 0) readers.Turn = S.CurrentPlayer.Id; // 命令を出す前の番の人（相談38）
         var events = game.Apply(c, out string error);
         if (error != null) { AddLog("× " + error); RefreshAll(); return; }
         Play(events);
@@ -458,11 +457,7 @@ public partial class GameRunner : MonoBehaviour
         while (queue.Count > 0)
         {
             var e = queue.Dequeue();
-            // 文を読む人を追う（相談38）：その出来事の文から 新しい番の人・バトルの両者が読む
-            if (e is TurnStarted ts) readTurn = ts.Player;
-            else if (e is BattleStarted bst) readBattle = bst.Players;
-            else if (e is BattleResumed brs) readBattle = brs.Players;
-            else if (e is BattleSuspended) readBattle = null;
+            readers.See(e); // 文を読む人を追う（相談38）：その出来事の文から 新しい番の人・バトルの両者が読む
             // セリフは 話す人ごとの行で受けとる。ライバル・拠点の人・ランダムイベントの人なら イベント画面で見せる（UI仕様書 5）
             var lines = e is Dialog dg ? narrator.DialogLines(dg) : null;
             string text = lines != null ? Narrator.Join(lines) : narrator.Describe(e);
@@ -554,7 +549,7 @@ public partial class GameRunner : MonoBehaviour
             if (HintFor(e) is string hint) yield return ShowHint(hint);
         }
         playing = false;
-        if (S.Battle == null) readBattle = null; // バトルの後の文（経験値・進化）までは 両者が読む
+        if (S.Battle == null) readers.Battle = null; // バトルの後の文（経験値・進化）までは 両者が読む
         AfterEventQueue(); // 選択肢を待っていなければ イベント画面を閉じる
         if (S.Phase == Phase.Prepare && S.Week != lastAutoSaveWeek) { lastAutoSaveWeek = S.Week; SaveTo(0); } // 週の終わりに自動セーブ（1.2）
         RefreshAll();

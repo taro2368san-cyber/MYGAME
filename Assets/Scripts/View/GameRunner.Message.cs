@@ -31,14 +31,13 @@ public partial class GameRunner
     Text logArrow, eventArrow;
 
     // 文を読む人（相談38）：再生中の ゲーム状態は もう命令のあとなので、番の人とバトルの両者は 出来事を見せながら追う（PlayQueue・Send）
-    int readTurn = -1;
-    int[] readBattle;
+    MessageReaders readers = new MessageReaders();
 
     // 文が出きるのを待ち、そのあと ○ を押すまで待つ。読む人間がいなければ ○ を待たずに 少しおいて進む（相談38。途中の ○ は今までどおり効く）
     IEnumerator ReadMessage(TypeWriter w)
     {
-        bool auto = MessagePace.AutoAdvance(S, readTurn, readBattle);
-        float seconds = MessagePace.AutoSeconds(readBattle != null, shortBattle);
+        bool auto = readers.Auto(S);
+        float seconds = MessagePace.AutoSeconds(readers.InBattle, shortBattle);
         while (w.Typing) yield return null; // 途中の ○ は Tick が 全文にする（同じ ○ で 次へは進まない）
         w.Waiting = true;
         yield return null;                  // 全文にした ○ と 同じフレームでは進めない
