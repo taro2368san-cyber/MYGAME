@@ -25,6 +25,10 @@ namespace Sugoroku.Rules
         }
 
         static bool Hurt(GameData d, PokemonState m, double ratio = 0.5) => m.Fainted || m.Hp < Pokemons.MaxHp(d, m) * ratio;
+        // 回復に寄るべきか：手持ちの半分以上が弱っている（1体弱っただけで センターへ戻ると、ジムから離れてしまう）
+        static bool NeedsCenter(GameData d, PlayerState p) => p.Party.Count(m => Hurt(d, m)) * 2 >= p.Party.Count;
+        const string ShoeSuffix = "のくつ"; // 「3のくつ」＝必ず3マス進む
+        const int ShoesToKeep = 3;          // ショップで くつを買いそろえる数
 
         static IEnumerable<Command> Prepare(GameData d, PlayerState p)
         {
@@ -61,6 +65,9 @@ namespace Sugoroku.Rules
             if (Has("バトルサーチャー"))
                 foreach (var fan in s.Owners.Where(o => o.Value != p.Id).OrderByDescending(o => g.Score(s.Players[o.Value])).Select(o => o.Key))
                     if (g.Validate(Use("バトルサーチャー", fan)) == null) yield return Use("バトルサーチャー", fan);
+            // くつ：次の目標（ジムか ジムトレーナー）まで ちょうどの数のくつがあれば使う（ぴったり止まるため）。弱っているときは 回復を先に
+            if (!NeedsCenter(d, p) && DistanceToNextGym(g, d, board, p) is Dictionary<int, int> toGym && toGym.TryGetValue(p.Square, out int steps) && steps >= 1 && Has(steps + ShoeSuffix))
+                yield return Use(steps + ShoeSuffix);
             // 自転車：サイコロを増やす（なくならない）
             foreach (var bike in new[] { "ロトム自転車", "マッハ自転車", "自転車" }) if (Has(bike)) yield return Use(bike);
         }
@@ -72,7 +79,8 @@ namespace Sugoroku.Rules
             // 行き先の好み：ジム＞ライバル＞アイテム＞草むら＞空マス（1.4）。けがをしていたら回復できる所
             // さらに、次に取るジムへ近づくほど よい（ワープも道として数える）
             var toGym = DistanceToNextGym(g, d, board, p);
-            int Closer(int sq) => toGym == null || !toGym.ContainsKey(sq) || !toGym.ContainsKey(move.Path[0]) ? 0 : 3 * (toGym[move.Path[0]] - toGym[sq]);
+            // 1マス近づくごとに 8点（前は3点で、草むらやアイテムへの寄り道のほうが勝っていた）
+            int Closer(int sq) => toGym == null || !toGym.ContainsKey(sq) || !toGym.ContainsKey(move.Path[0]) ? 0 : 8 * (toGym[move.Path[0]] - toGym[sq]);
             int best = move.Reachable.OrderByDescending(sq => Want(g, d, board, p, sq) + Closer(sq)).ThenBy(_ => r.Next()).First();
             if (p.MoveMode == MoveMode.Highlight) { yield return new ChooseDestination { Player = p.Id, Square = best }; yield break; }
             // 1マスずつ方式は、行けるとなりへ1歩ずつ
@@ -118,7 +126,7 @@ namespace Sugoroku.Rules
         static int Want(GameProcessor g, GameData d, BoardData board, PlayerState p, int id)
         {
             var sq = board[id];
-            bool hurt = p.Party.Any(m => Hurt(d, m));
+            bool hurt = NeedsCenter(d, p);
             var rival = g.State.Players.FirstOrDefault(o => o != p && o.Square == id && o.Party.Any(m => !m.Fainted));
             if (rival != null) // 同じマスのプレイヤーとはバトルになる。勝てそうなら狙う
                 return Lead(p).Level > Lead(rival).Level + 2 ? 45 : -10;
@@ -162,6 +170,10 @@ namespace Sugoroku.Rules
                 case FacilityKind.Shop:
                     if (p.BallCount < 3) yield return new Buy { Player = p.Id, Item = "モンスターボール" };
                     if (!p.PokemonBag.Any(x => ItemEffects.Of(x).use == ItemUse.Heal) && p.Money >= 800) yield return new Buy { Player = p.Id, Item = "キズくすり" };
+                    // くつ：持っていない数のものを、小さい数から ShoesToKeep 個まで（ジムの手前で ぴったり止まるため）。1,000円は残す
+                    if (p.TrainerBag.Concat(p.PokemonBag).Count(x => x.EndsWith(ShoeSuffix)) < ShoesToKeep)
+                        foreach (var shoe in f.Goods.Where(x => x.EndsWith(ShoeSuffix) && !x.StartsWith("0") && !p.TrainerBag.Contains(x) && !p.PokemonBag.Contains(x)).OrderBy(x => x))
+                            if (p.Money - g.BuyPrice(shoe) >= 1000) yield return new Buy { Player = p.Id, Item = shoe };
                     break;
                 case FacilityKind.Center:
                     // 何も持っていない子に、袋のもちものを持たせる
