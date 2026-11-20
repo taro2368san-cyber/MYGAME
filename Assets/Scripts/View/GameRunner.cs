@@ -172,7 +172,7 @@ public partial class GameRunner : MonoBehaviour
     {
         Ui.Clear(canvas.transform);
         int wMin = (int)data.Required("weeks_min"), wMax = (int)data.Required("weeks_max");
-        if (weeks == 0) weeks = Mathf.Clamp(50, wMin, wMax); // ふつうは50週（1.1）
+        if (weeks == 0) weeks = Mathf.Clamp(200, wMin, wMax); // ふつうは200週（2026-11-21 に 自動対戦で測って決めた。仕様書 1.1 は50週のまま）
         var bg = Ui.Panel(canvas.transform, "Setup", Vector2.zero, Vector2.one, new Color(0.05f, 0.08f, 0.15f, 0.97f));
         var col = Ui.Stack(bg.transform, "Rows", new Vector2(0.25f, 0.08f), new Vector2(0.75f, 0.92f), true, 16, 20);
         Ui.Line(col, "ゲーム設定", 52);

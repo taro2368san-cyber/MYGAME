@@ -210,7 +210,7 @@ namespace Sugoroku.Rules
 
             Check(log, "ボールマスの段階：バッジ0個はbt0、3個はbt3、8個はbt8", data.TierFor(0)?.Id == "bt0" && data.TierFor(3)?.Id == "bt3" && data.TierFor(8)?.Id == "bt8" && data.TierFor(0, true)?.Id == "bt3" && data.TierFor(8, true)?.Id == "bt8");
             var nibiGoods = data.ShopGoods("shop_nibi", _ => true);
-            Check(log, "ショップ：ニビの品ぞろえに共通の品（モンスターボール）と町の品（4のくつ）がある", nibiGoods.Contains("モンスターボール") && nibiGoods.Contains("4のくつ") && !nibiGoods.Contains("1のくつ"));
+            Check(log, "ショップ：ニビの品ぞろえに共通の品（モンスターボール・くつ）と町の品（スーパーボール）があり、ほかの町の品（マルチなくつ）はない", nibiGoods.Contains("モンスターボール") && nibiGoods.Contains("4のくつ") && nibiGoods.Contains("スーパーボール") && !nibiGoods.Contains("マルチなくつ"));
             Check(log, "ランダムイベント：発生率の合計が100%以下", data.RandomEvents.Sum(e => e.Rate) <= 100);
 
             // ニビジムとライバルマスに、となりから1歩で止まらせる
