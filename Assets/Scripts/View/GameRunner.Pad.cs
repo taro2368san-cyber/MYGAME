@@ -176,7 +176,7 @@ public partial class GameRunner
         // メニューの L1・R1 は ←→ のキーとして押す（どうぐの袋の切りかえ、16.9）
         if (subMenu != null && (Down(g, x => x.leftShoulder) || Down(g, x => x.rightShoulder))) { PressKey(Down(g, x => x.leftShoulder) ? KeyCode.LeftArrow : KeyCode.RightArrow); return true; }
         // メニュー：↑↓で選ぶ、○で決定、×でもどる（Esc のボタン）
-        bool sideways = menuCards.Count > 0 && (Down(g, x => x.dpad.left) || Down(g, x => x.dpad.right)); // カードは横に並ぶので ←→ でも動く
+        bool sideways = (menuCards.Count > 0 || ballPickOpen) && (Down(g, x => x.dpad.left) || Down(g, x => x.dpad.right)); // カードは横に並ぶので ←→ でも動く
         if (Down(g, x => x.dpad.down) || Down(g, x => x.dpad.up) || sideways)
         {
             int step = Down(g, x => x.dpad.down) || Down(g, x => x.dpad.right) ? 1 : -1;

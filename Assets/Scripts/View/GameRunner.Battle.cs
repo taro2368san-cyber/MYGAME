@@ -52,7 +52,79 @@ public partial class GameRunner
         cardRow = Ui.Rect(battlePanel, "Cards", new Vector2(0.15f, 0.45f), new Vector2(0.85f, 0.78f));
         cardHint = Ui.Label(Ui.Rect(battlePanel, "CardHint", new Vector2(0.15f, 0.78f), new Vector2(0.85f, 0.83f)), "", 28, TextAnchor.MiddleCenter, new Color(1, 0.9f, 0.5f));
         cardHint.gameObject.AddComponent<Outline>().effectColor = Color.black;
+        // ボール選び（相談33）：自分のポケモンの下（コマンドの位置）に ボールの絵と数を並べる
+        ballBox = Ui.Rect(battlePanel, "Balls", new Vector2(0.04f, 0.22f), new Vector2(0.5f, 0.43f));
+        ballPrompt = Ui.Label(Ui.Rect(ballBox, "Prompt", new Vector2(0, 0.78f), Vector2.one), "", 26, TextAnchor.MiddleLeft, new Color(1, 0.9f, 0.5f));
+        ballPrompt.gameObject.AddComponent<Outline>().effectColor = Color.black;
+        ballStrip = Ui.Stack(ballBox, "Strip", Vector2.zero, new Vector2(1, 0.78f), false, 10, 0);
+        var strip = ballStrip.GetComponent<HorizontalLayoutGroup>();
+        strip.childForceExpandWidth = strip.childForceExpandHeight = false; strip.childAlignment = TextAnchor.MiddleLeft;
+        ballBox.gameObject.SetActive(false);
+        // 勝敗と報酬（相談30）：バトル画面の上に 結果の枠。○で閉じる
+        resultRoot = Ui.Rect(battlePanel, "Result", Vector2.zero, Vector2.one);
+        var result = Ui.Frame(resultRoot, "Box", new Vector2(0.28f, 0.4f), new Vector2(0.72f, 0.8f));
+        resultTitle = Ui.Label(Ui.Rect(result.transform, "Title", new Vector2(0.04f, 0.78f), new Vector2(0.96f, 0.98f)), "", 44, TextAnchor.MiddleCenter, new Color(1, 0.85f, 0.4f));
+        resultBody = Ui.Label(Ui.Rect(result.transform, "Body", new Vector2(0.06f, 0.14f), new Vector2(0.94f, 0.78f)), "", 26);
+        resultBody.resizeTextForBestFit = true; resultBody.resizeTextMinSize = 14; resultBody.resizeTextMaxSize = 26; resultBody.verticalOverflow = VerticalWrapMode.Truncate;
+        Ui.Label(Ui.Rect(result.transform, "Close", new Vector2(0.04f, 0.01f), new Vector2(0.96f, 0.13f)), "○ で とじる", 22, TextAnchor.MiddleRight, new Color(0.8f, 0.9f, 0.85f));
+        Clickable(result, ClickAdvance);
+        resultRoot.gameObject.SetActive(false);
         battlePanel.gameObject.SetActive(false);
+    }
+
+    RectTransform ballBox, ballStrip, resultRoot;
+    Text ballPrompt, resultTitle, resultBody;
+    bool ballPickOpen;              // ボール選びを バトル画面に出している
+    List<string> resultLines;       // 集めている 勝敗と報酬の文（1行目が見出し）。集めていなければ null
+
+    // 人が ボールを選ぶ場面か（メニューの行を バトル画面のボールのボタンで出す）
+    bool BallPick => S != null && S.Phase == Phase.Battle && S.Battle != null && S.Battle.Step == BattleStep.Ball && subMenu == null && !ConfirmOpen && menu.Count > 0 && battlePanel.gameObject.activeSelf;
+
+    // DrawMenu から：メニューの行（ボールの種類ごと＋投げない）を ボールのボタンで描く
+    List<Button> DrawBalls(string prompt)
+    {
+        ballPrompt.text = prompt;
+        Ui.Clear(ballStrip);
+        var made = new List<Button>();
+        for (int i = 0; i < menu.Count; i++)
+        {
+            var (label, action, _, enabled) = menu[i];
+            bool ball = i < menu.Count - 1; // 最後の行は「投げない」（サファリは「にげる」）
+            var b = Ui.Button(ballStrip, "", action, ball ? 150 : 130, 150);
+            b.interactable = enabled;
+            var text = b.GetComponentInChildren<Text>();
+            text.color = new Color(1, 1, 1, enabled ? 1 : 0.35f);
+            if (!ball) { text.text = label; made.Add(b); continue; }
+            int cut = label.IndexOf('（');
+            string name = cut > 0 ? label.Substring(0, cut) : label, count = cut > 0 ? label.Substring(cut).Trim('（', '）') : "";
+            var icon = Ui.Panel(b.transform, "Ball", new Vector2(0.25f, 0.42f), new Vector2(0.75f, 0.95f), new Color(1, 1, 1, enabled ? 1 : 0.35f));
+            icon.sprite = Ui.Ball(BallColor(name)); icon.preserveAspect = true; icon.raycastTarget = false;
+            text.text = $"{name}\n×{count.Replace("個", "")}"; text.fontSize = 18; text.alignment = TextAnchor.LowerCenter;
+            text.rectTransform.offsetMin = new Vector2(2, 6); text.rectTransform.offsetMax = new Vector2(-2, 0);
+            text.resizeTextForBestFit = true; text.resizeTextMinSize = 10; text.resizeTextMaxSize = 18;
+            made.Add(b);
+        }
+        return made;
+    }
+
+    // 勝敗と報酬に まとめる出来事（バトルの終わりのすぐあとに続く分）
+    static bool IsResultEvent(GameEvent e) => e is ExpGained || e is MoneyChanged || e is ItemGained || e is ItemLost || e is RestNextTurn;
+
+    // 結果の枠を出して、○ を待つ（CPU だけが読むときは 少し待って進む）
+    IEnumerator ShowResult()
+    {
+        var lines = resultLines; resultLines = null;
+        if (lines == null || !battlePanel.gameObject.activeSelf) yield break;
+        resultTitle.text = lines[0];
+        resultBody.text = string.Join("\n", lines.Skip(1));
+        resultRoot.gameObject.SetActive(true);
+        resultRoot.SetAsLastSibling();
+        bool auto = readers.Auto(S);
+        logWriter.Waiting = true; // セリフ欄の ○ 待ちと同じ扱い（マウスで押しても進む）
+        yield return null;
+        for (float t = 0; !AdvancePressed() && !(auto && t >= 2f); t += Time.deltaTime) yield return null;
+        logWriter.Waiting = false;
+        resultRoot.gameObject.SetActive(false);
     }
 
     // バトル画面を出す・しまう。メイン画面の部品（A〜D）は隠し、セリフ欄は R1 のボタンのあいだに入るよう少し細くする

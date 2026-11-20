@@ -483,6 +483,10 @@ public partial class GameRunner : MonoBehaviour
             var lines = e is Dialog dg ? narrator.DialogLines(dg) : null;
             string text = lines != null ? Narrator.Join(lines) : narrator.Describe(e);
             if (silent.Remove(e)) text = null; // まとめ買いの1個ずつの文は出さない（SendMany がまとめた文を出す）
+            // 勝敗と報酬（相談30）：バトルの終わりと、すぐあとに続く 経験値・お金・アイテム・1回休みの文は、結果の枠に まとめて出す
+            if (resultLines != null && !IsResultEvent(e)) yield return ShowResult();
+            if (e is BattleEnded && text != null && battlePanel.gameObject.activeSelf) { resultLines = new List<string> { text }; text = null; }
+            else if (resultLines != null && text != null) { resultLines.Add(text); text = null; }
             string person = e is Dialog dp ? EventPersonOf(dp, lines) : null;
             if (person != null) yield return OpenEvent(person, ((Dialog)e).Player);
             if (e is BattleStarted) CloseEvent(); // バトルになるなら バトル画面へ（ジムリーダー・職業トレーナーは BattleStarted で見せる）
@@ -506,6 +510,10 @@ public partial class GameRunner : MonoBehaviour
                     yield return xc.ExpTo(xg.Total - xg.Exp, xg.Total, (int)data.Required("level_max")); // 経験値バーが ゆっくり伸びる
                     break;
                 case WeekEventHappened we: yield return Banner(text, new Color(0.7f, 0.9f, 1f), 2); continue;            // 週イベントの告知（17.6）
+                // 週の知らせは 帯で 自動で流す（○で早送り。相談32）
+                case WeekAdvanced _: yield return Banner(text, Color.white, 1.2f); continue;
+                case Dividend dv: yield return Banner(text, PlayerColor(S.Players[dv.Player]), 1.5f); continue;
+                case WeekEventEnded _: yield return Banner(text, new Color(0.7f, 0.9f, 1f), 1.2f); continue;
                 case FacilityOpened fo:
                     facilityTab = "";
                     if (fo.Kind == FacilityKind.Center) { sound.PlaySe("item"); yield return Banner("みんな 元気に なった！", new Color(0.6f, 1f, 0.7f), 1); continue; } // 回復の演出（相談34）
@@ -574,6 +582,7 @@ public partial class GameRunner : MonoBehaviour
             if (text != null && !inEvent) yield return ReadMessage(logWriter);
             if (HintFor(e) is string hint) yield return ShowHint(hint);
         }
+        yield return ShowResult();
         playing = false;
         if (S.Battle == null) readers.Battle = null; // バトルの後の文（経験値・進化）までは 両者が読む
         AfterEventQueue(); // 選択肢を待っていなければ イベント画面を閉じる
@@ -1257,12 +1266,14 @@ public partial class GameRunner : MonoBehaviour
         Ui.Clear(buttons);
         bool frame = FrameOpen; // まん中の枠に出す（施設・ポケモン・どうぐ）。そのあいだ E メニューは隠す
         frameRoot.gameObject.SetActive(frame);
+        ballPickOpen = !frame && BallPick; // ボール選びは バトル画面の中に（相談33）
+        ballBox.gameObject.SetActive(ballPickOpen);
         // 項目が多いときは2列に
         var grid = buttons.GetComponent<GridLayoutGroup>();
         grid.constraintCount = menu.Count > 7 ? 2 : 1;
         grid.cellSize = new Vector2(menu.Count > 7 ? 276 : 560, menu.Count > 14 ? 40 : 50);
-        var made = frame ? DrawFrame(title) : new List<Button>();
-        for (int i = 0; i < menu.Count && !frame; i++)
+        var made = frame ? DrawFrame(title) : ballPickOpen ? DrawBalls(title) : new List<Button>();
+        for (int i = 0; i < menu.Count && !frame && !ballPickOpen; i++)
         {
             var (label, action, _, enabled) = menu[i];
             var b = Ui.Button(buttons, i < 9 ? $"{i + 1}. {label}" : label, action);
@@ -1281,6 +1292,7 @@ public partial class GameRunner : MonoBehaviour
         }
         PadHighlight(title, made); // コントローラーのカーソル
         if (frame) ShowDetail(menuCursor);
+        if (ballPickOpen && menuCursor < made.Count) made[menuCursor].GetComponentInChildren<Text>().color = Color.black; // 黄色の上は 黒い字
         // カードは 色を変えると字が読めないので、金色のふちで 選んでいることを見せる
         if (frame && menuCursor < made.Count && menuCards.TryGetValue(menuCursor, out var picked))
         {
@@ -1289,7 +1301,7 @@ public partial class GameRunner : MonoBehaviour
             edge.effectColor = new Color(1f, 0.85f, 0.4f); edge.effectDistance = new Vector2(5, 5);
         }
         // バトル中、コマンドとカードは バトル画面で選ぶので E メニューは隠す（選ぶものがないときも）
-        if (menuPanel != null) menuPanel.gameObject.SetActive(!frame && !EventOpen && !ConfirmOpen && !(battlePanel.gameObject.activeSelf && (menu.Count == 0 || SceneInput)));
+        if (menuPanel != null) menuPanel.gameObject.SetActive(!frame && !ballPickOpen && !EventOpen && !ConfirmOpen && !(battlePanel.gameObject.activeSelf && (menu.Count == 0 || SceneInput)));
         if (EventOpen && ConfirmOpen) { Ui.Clear(eventChoices); eventPrompt.text = ""; } // 確認は まん中の枠で（後ろの選択肢は出さない）
         else if (EventOpen) DrawEventChoices(title); // イベント画面では 選択肢をセリフ欄の右に
         DrawConfirm();
