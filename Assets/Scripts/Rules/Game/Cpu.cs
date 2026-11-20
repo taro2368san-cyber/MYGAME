@@ -109,6 +109,10 @@ namespace Sugoroku.Rules
         {
             var gyms = board.Squares.Values.Where(s => s.Type == "ジム" && Movement.CanEnter(board, s.Id, p.Badges, g.TopBadges, p.Surf) && GymOpenFor(g, p, s))
                 .SelectMany(s => GymTrainersLeft(g, board, s, p) is var left && left.Count > 0 ? left : new List<int> { s.Id }).Distinct().ToList();
+            // なみのりを まだ覚えていなければ、もらえるイベントマス（サファリゾーンの ひみつのいえ）も目標にする。覚えないと グレンジムへ行けない（4.1.2）
+            if (!p.Surf)
+                foreach (var e in d.EventSquares.Where(x => x.Effect.Kind == EffectKind.Item && x.Effect.Value == GameProcessor.SurfItem))
+                    if (board.Squares.Values.FirstOrDefault(s => s.Name == e.Square) is BoardSquare surf && Movement.CanEnter(board, surf.Id, p.Badges, g.TopBadges, p.Surf) && !gyms.Contains(surf.Id)) gyms.Add(surf.Id);
             if (gyms.Count == 0) return null;
             var dist = gyms.ToDictionary(x => x, x => 0);
             var queue = new Queue<int>(gyms);
