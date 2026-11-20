@@ -21684,7 +21684,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6864173176619567108, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: grassKind
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6864173176619567108, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: gateBadges
@@ -21692,11 +21692,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7513321974274100930, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: m_Text
-      value: "\u6D77\u4E0A"
+      value: "\u8349\u3080\u3089"
       objectReference: {fileID: 0}
     - target: {fileID: 7513321974274100930, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: m_CharacterSize
-      value: 0.06
+      value: 0.057291668
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -174046,7 +174046,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6864173176619567108, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: grassKind
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6864173176619567108, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: gateBadges
@@ -174054,11 +174054,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7513321974274100930, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: m_Text
-      value: "\u6D77\u4E0A"
+      value: "\u8349\u3080\u3089"
       objectReference: {fileID: 0}
     - target: {fileID: 7513321974274100930, guid: a8b60ccd307297749806c89bde3b2bf6, type: 3}
       propertyPath: m_CharacterSize
-      value: 0.06
+      value: 0.057291668
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -226427,7 +226427,6 @@ MonoBehaviour:
   - {r: 0.95, g: 0.8, b: 0.2, a: 1}
   pokemonSpriteFolder: Pokemon
   stepSeconds: 0.2
-  messageSeconds: 0.5
   cameraOffset: {x: 0, y: 12, z: -9}
   seed: 0
   gameTitle: "\u30DD\u30B1\u30E2\u30F3\u3059\u3054\u308D\u304F"
