@@ -28,7 +28,8 @@ namespace Sugoroku.Rules
         // 回復に寄るべきか：手持ちの半分以上が弱っている（1体弱っただけで センターへ戻ると、ジムから離れてしまう）
         static bool NeedsCenter(GameData d, PlayerState p) => p.Party.Count(m => Hurt(d, m)) * 2 >= p.Party.Count;
         const string ShoeSuffix = "のくつ"; // 「3のくつ」＝必ず3マス進む
-        const int ShoesToKeep = 3;          // ショップで くつを買いそろえる数
+        const int ShoesToKeep = 2;          // ショップで くつを買いそろえる数（トレーナーの道具の枠は4つ。自転車と ほかの道具の分を残す）
+        static readonly string[] Bikes = { "ロトム自転車", "マッハ自転車", "自転車" }; // 良い順
 
         static IEnumerable<Command> Prepare(GameData d, PlayerState p)
         {
@@ -69,7 +70,7 @@ namespace Sugoroku.Rules
             if (!NeedsCenter(d, p) && DistanceToNextGym(g, d, board, p) is Dictionary<int, int> toGym && toGym.TryGetValue(p.Square, out int steps) && steps >= 1 && Has(steps + ShoeSuffix))
                 yield return Use(steps + ShoeSuffix);
             // 自転車：サイコロを増やす（なくならない）
-            foreach (var bike in new[] { "ロトム自転車", "マッハ自転車", "自転車" }) if (Has(bike)) yield return Use(bike);
+            foreach (var bike in Bikes) if (Has(bike)) yield return Use(bike);
         }
 
         static IEnumerable<Command> Move(GameProcessor g, GameData d, BoardData board, PlayerState p, Random r)
@@ -172,6 +173,10 @@ namespace Sugoroku.Rules
             switch (f.Kind)
             {
                 case FacilityKind.Shop:
+                    // 自転車：持っているものより良いのが売っていれば買う（サイコロが増える。なくならない）
+                    int have = Array.FindIndex(Bikes, b => p.TrainerBag.Contains(b) || p.PokemonBag.Contains(b));
+                    for (int i = 0; i < Bikes.Length && (have < 0 || i < have); i++)
+                        if (f.Goods.Contains(Bikes[i])) yield return new Buy { Player = p.Id, Item = Bikes[i] };
                     if (p.BallCount < 3) yield return new Buy { Player = p.Id, Item = "モンスターボール" };
                     if (!p.PokemonBag.Any(x => ItemEffects.Of(x).use == ItemUse.Heal) && p.Money >= 800) yield return new Buy { Player = p.Id, Item = "キズくすり" };
                     // くつ：持っていない数のものを、小さい数から ShoesToKeep 個まで（ジムの手前で ぴったり止まるため）。1,000円は残す
