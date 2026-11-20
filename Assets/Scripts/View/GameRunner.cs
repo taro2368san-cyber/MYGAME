@@ -398,6 +398,7 @@ public partial class GameRunner : MonoBehaviour
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount; grid.constraintCount = 1;
 
         BuildEventScreen(); // イベント画面（GameRunner.Event.cs）。セリフ欄・メニューの上、大きな知らせの下
+        BuildFrame();       // 施設メニューの枠・ポケモン一覧（GameRunner.Frame.cs）
         BuildConfirm();     // 確認ダイアログ（GameRunner.Confirm.cs）。イベント画面の上
         var bannerPanel = Ui.Panel(canvas.transform, "Banner", new Vector2(0.1f, 0.42f), new Vector2(0.9f, 0.62f), new Color(0, 0, 0, 0.85f));
         banner = Ui.Label(bannerPanel.transform, "", 46, TextAnchor.MiddleCenter);
@@ -444,6 +445,26 @@ public partial class GameRunner : MonoBehaviour
         Play(events);
     }
 
+    // 同じ命令を n 回つづけて出す（ショップで 個数を選んで買う・売る、相談31）。できなくなったら そこで止める。文は1つにまとめる
+    readonly HashSet<GameEvent> silent = new HashSet<GameEvent>();
+    void SendMany(Func<Command> make, int n, Func<int, string> summary)
+    {
+        subMenu = null;
+        if (!playing && S.TurnOrder.Count > 0) readers.Turn = S.CurrentPlayer.Id;
+        var all = new List<GameEvent>();
+        int done = 0;
+        for (; done < n; done++)
+        {
+            var c = make();
+            if (game.Validate(c) != null) break;
+            var events = game.Apply(c, out string error);
+            if (error != null) break;
+            all.AddRange(events);
+        }
+        if (done > 1) { foreach (var e in all) silent.Add(e); AddLog(summary(done)); }
+        Play(all);
+    }
+
     void Play(List<GameEvent> events)
     {
         foreach (var e in events) queue.Enqueue(e);
@@ -461,6 +482,7 @@ public partial class GameRunner : MonoBehaviour
             // セリフは 話す人ごとの行で受けとる。ライバル・拠点の人・ランダムイベントの人なら イベント画面で見せる（UI仕様書 5）
             var lines = e is Dialog dg ? narrator.DialogLines(dg) : null;
             string text = lines != null ? Narrator.Join(lines) : narrator.Describe(e);
+            if (silent.Remove(e)) text = null; // まとめ買いの1個ずつの文は出さない（SendMany がまとめた文を出す）
             string person = e is Dialog dp ? EventPersonOf(dp, lines) : null;
             if (person != null) yield return OpenEvent(person, ((Dialog)e).Player);
             if (e is BattleStarted) CloseEvent(); // バトルになるなら バトル画面へ（ジムリーダー・職業トレーナーは BattleStarted で見せる）
@@ -484,6 +506,10 @@ public partial class GameRunner : MonoBehaviour
                     yield return xc.ExpTo(xg.Total - xg.Exp, xg.Total, (int)data.Required("level_max")); // 経験値バーが ゆっくり伸びる
                     break;
                 case WeekEventHappened we: yield return Banner(text, new Color(0.7f, 0.9f, 1f), 2); continue;            // 週イベントの告知（17.6）
+                case FacilityOpened fo:
+                    facilityTab = "";
+                    if (fo.Kind == FacilityKind.Center) { sound.PlaySe("item"); yield return Banner("みんな 元気に なった！", new Color(0.6f, 1f, 0.7f), 1); continue; } // 回復の演出（相談34）
+                    break;
                 case DiceRolled dr: yield return DiceAnim(dr); continue;          // 17.6
                 case BallTierUsed bu when bu.Prize: yield return PrizeAnim(text, bu.Player); continue; // 鍵付きボールの当たり（8.8.3）
                 case CardsDealt cd: yield return DealCards(cd); continue;           // 先攻・後攻のカード（UI仕様書 7.3 ②）
@@ -765,6 +791,7 @@ public partial class GameRunner : MonoBehaviour
         var p = S.CurrentPlayer;
         int me = p.Id;
         string title = "";
+        if (S.Phase != Phase.Facility) facilityTab = "";
         if (subMenu != null) { subMenu(); return; }
         if (!HumanWaiting()) { DrawMenu($"{string.Join("・", game.WaitingFor().Select(id => S.Players[id].Name))}（CPU）が 考え中…"); return; }
         switch (S.Phase)
@@ -806,22 +833,33 @@ public partial class GameRunner : MonoBehaviour
     void PokemonMenu(int me)
     {
         var p = S.Players[me];
+        OpenFrame("ポケモン", p.Name);
         for (int i = 0; i < p.Party.Count; i++)
         {
             int k = i;
-            var m = p.Party[k];
-            AddMon(m.Species, $"{(k == 0 ? "先頭 " : "")}{m.Species} Lv{m.Level}　HP {m.Hp}/{Pokemons.MaxHp(data, m)}" + (m.Fainted ? "（たおれている）" : ""), () => { subMenu = () => PokemonActions(me, k); RefreshAll(); });
+            AddCard(p.Party[k], k == 0 ? "先頭" : "", () => { subMenu = () => PokemonActions(me, k); RefreshAll(); });
         }
+        foreach (var m in p.Box) { var mon = m; AddCard(mon, "", () => { subMenu = () => BoxInfo(me, mon); RefreshAll(); }, KeyCode.None, true, true); } // 控えは 見るだけ
         Add("もどる", () => { subMenu = null; RefreshAll(); }, KeyCode.Escape);
-        DrawMenu("ポケモン：どの子？");
+        DrawMenu(p.Box.Count > 0 ? "どの子？（下は 控え）" : "どの子？");
+    }
+
+    // 控えの子の説明（見るだけ）
+    void BoxInfo(int me, PokemonState m)
+    {
+        OpenFrame("ポケモン（控え）", S.Players[me].Name);
+        Add("もどる", () => { subMenu = () => PokemonMenu(me); RefreshAll(); }, KeyCode.Escape); Detail(MonDetail(m));
+        DrawMenu("控えの子は ポケモンセンターで 手持ちに入れられる");
     }
 
     void PokemonActions(int me, int slot)
     {
         var p = S.Players[me];
-        Add("くわしく見る", () => ShowPokemon(p, slot));
-        Add("ならびを入れ替える", () => { subMenu = () => SwapMenu(me, slot); RefreshAll(); }, KeyCode.None, p.Party.Count > 1);
-        Add("もどる", () => { CloseOverlay(); subMenu = () => PokemonMenu(me); RefreshAll(); }, KeyCode.Escape);
+        OpenFrame("ポケモン", p.Name);
+        string detail = MonDetail(p.Party[slot]);
+        Add("くわしく見る", () => ShowPokemon(p, slot)); Detail(detail);
+        Add("ならびを入れ替える", () => { subMenu = () => SwapMenu(me, slot); RefreshAll(); }, KeyCode.None, p.Party.Count > 1); Detail(detail);
+        Add("もどる", () => { CloseOverlay(); subMenu = () => PokemonMenu(me); RefreshAll(); }, KeyCode.Escape); Detail(detail);
         DrawMenu($"{p.Party[slot].Species}を どうする？");
     }
 
@@ -829,12 +867,13 @@ public partial class GameRunner : MonoBehaviour
     void SwapMenu(int me, int first)
     {
         var p = S.Players[me];
+        OpenFrame("ポケモン", p.Name);
         for (int i = 0; i < p.Party.Count; i++)
         {
             int k = i;
-            string label = $"{(k == 0 ? "先頭 " : "")}{p.Party[k].Species} Lv{p.Party[k].Level}";
-            if (first < 0) AddMon(p.Party[k].Species, label, () => { subMenu = () => SwapMenu(me, k); RefreshAll(); });
-            else AddMon(p.Party[k].Species, label, () => Send(new SwapParty { Player = me, A = first, B = k }), KeyCode.None, k != first);
+            string label = k == first ? "この子と" : k == 0 ? "先頭" : "";
+            if (first < 0) AddCard(p.Party[k], label, () => { subMenu = () => SwapMenu(me, k); RefreshAll(); });
+            else AddCard(p.Party[k], label, () => Send(new SwapParty { Player = me, A = first, B = k }), KeyCode.None, k != first);
         }
         Add("もどる", () => { subMenu = first < 0 ? null : (Action)(() => PokemonMenu(me)); RefreshAll(); }, KeyCode.Escape);
         DrawMenu(first < 0 ? "入れ替える1体目を えらぶ" : $"{p.Party[first].Species}と 入れ替える子を えらぶ");
@@ -848,6 +887,8 @@ public partial class GameRunner : MonoBehaviour
     {
         var p = S.Players[me];
         var bag = itemPokemonBag ? p.PokemonBag : p.TrainerBag;
+        string ballLine = p.Balls.Count(b => b.Value > 0) == 0 ? "なし" : string.Join("　", p.Balls.Where(b => b.Value > 0).Select(b => $"{b.Key}×{b.Value}"));
+        OpenFrame("どうぐ", "ボール：" + ballLine);
         foreach (var item in bag.Distinct())
         {
             string name = item;
@@ -856,13 +897,13 @@ public partial class GameRunner : MonoBehaviour
             if (game.TargetOf(name) != TargetKind.None)
                 Add(label, () => { subMenu = () => TargetMenu(me, name); RefreshAll(); }, KeyCode.None, Targets(me, name).Any(t => Ok(new UseItem { Player = me, Item = name, Target = t.target })));
             else Add(label, () => { subMenu = () => ConfirmItem(me, name, -1, ""); RefreshAll(); }, KeyCode.None, Ok(new UseItem { Player = me, Item = name }));
+            Detail(ItemDetail(p, name));
         }
         int trainerMax = (int)data.Required("trainer_bag"), pokemonMax = (int)data.Required("pokemon_bag");
         Add(itemPokemonBag ? $"← トレーナーの道具（{p.TrainerBag.Count}/{trainerMax}）" : $"ポケモンの道具（{p.PokemonBag.Count}/{pokemonMax}） →",
             () => { itemPokemonBag = !itemPokemonBag; RefreshAll(); }, itemPokemonBag ? KeyCode.LeftArrow : KeyCode.RightArrow);
         Add("もどる", () => { subMenu = null; RefreshAll(); }, KeyCode.Escape);
-        string balls = p.Balls.Count(b => b.Value > 0) == 0 ? "なし" : string.Join("　", p.Balls.Where(b => b.Value > 0).Select(b => $"{b.Key}×{b.Value}"));
-        DrawMenu((itemPokemonBag ? $"ポケモンの道具（{p.PokemonBag.Count}/{pokemonMax}）" : $"トレーナーの道具（{p.TrainerBag.Count}/{trainerMax}）") + $"\nボール：{balls}");
+        DrawMenu(itemPokemonBag ? $"ポケモンの道具（{p.PokemonBag.Count}/{pokemonMax}）" : $"トレーナーの道具（{p.TrainerBag.Count}/{trainerMax}）");
     }
 
     // 確認（16.9）：○で使う、×で1つ前（相手を選んだなら相手の画面、ないなら一覧）へ
@@ -891,19 +932,43 @@ public partial class GameRunner : MonoBehaviour
     // 使う相手：処理役が「使える」と返す相手だけ並べる（妨害は 同じエリアの人だけ、8.3）
     void TargetMenu(int me, string item)
     {
+        OpenFrame("どうぐ", item);
         foreach (var (target, label) in Targets(me, item))
         {
             var c = new UseItem { Player = me, Item = item, Target = target };
             if (!Ok(c)) continue;
             var kind = game.TargetOf(item);
             string name = kind == TargetKind.Pokemon ? S.Players[me].Party[target].Species : kind == TargetKind.Player ? S.Players[target].Name : label; // 確認の文に入れる名前
-            Add(label, () => { subMenu = () => ConfirmItem(me, item, c.Target, name); RefreshAll(); });
+            Action pick = () => { subMenu = () => ConfirmItem(me, item, c.Target, name); RefreshAll(); };
+            if (kind == TargetKind.Pokemon) AddCard(S.Players[me].Party[target], "", pick); else Add(label, pick);
         }
         Add("もどる", () => { subMenu = () => ItemMenu(me); RefreshAll(); }, KeyCode.Escape);
         DrawMenu(game.TargetOf(item) == TargetKind.Square ? $"{item}：どこに？" : game.TargetOf(item) == TargetKind.Number ? $"{item}：何マス進む？" : $"{item}を だれに使う？");
     }
 
     int exchangePoints = 1; // 換金所で選んでいるポイント
+    string facilityTab = ""; // 施設の中で開いているところ（ショップの buy・sell、センターの swap・held・job・lab）。"" は入口
+
+    // ショップ：個数を選んで 買う・売る（相談31）。買えるのは お金と袋が足りるところまで
+    void QuantityMenu(int me, string item, bool sell, int n)
+    {
+        var p = S.Players[me];
+        int price = sell ? game.SellPrice(item) : game.BuyPrice(item);
+        int have = p.Balls.TryGetValue(item, out int balls) ? balls : p.PokemonBag.Concat(p.TrainerBag).Count(x => x == item);
+        int max = Mathf.Clamp(sell ? have : p.Money / Mathf.Max(1, price), 1, 99);
+        n = Mathf.Clamp(n, 1, max);
+        string verb = sell ? "売る" : "買う";
+        void Set(int v) { subMenu = () => QuantityMenu(me, item, sell, v); RefreshAll(); }
+        OpenFrame(verb, $"所持金 {p.Money:#,0}円");
+        Add("－1", () => Set(n - 1), KeyCode.LeftArrow, n > 1);
+        Add("＋1", () => Set(n + 1), KeyCode.RightArrow, n < max);
+        Add("＋10", () => Set(n + 10), KeyCode.None, n < max);
+        Add($"{n}個 {verb}（{price * n:#,0}円）", () => SendMany(() => sell ? (Command)new Sell { Player = me, Item = item } : new Buy { Player = me, Item = item }, n,
+            done => $"{item}を {done}個 {(sell ? "売った" : "買った")}（{price * done:#,0}円）"), KeyCode.Return);
+        Add("やめる", () => { subMenu = null; RefreshAll(); }, KeyCode.Escape);
+        for (int i = 0; i < menu.Count; i++) menuDetail[i] = ItemDetail(p, item) + $"\n\n1個 {price:#,0}円\n{n}個で {price * n:#,0}円";
+        DrawMenu($"{item}を いくつ {verb}？");
+    }
 
     string FacilityMenu(PlayerState _)
     {
@@ -943,7 +1008,9 @@ public partial class GameRunner : MonoBehaviour
                 var c = new ExchangePoints { Player = me, Points = exchangePoints };
                 Add($"{exchangePoints}ポイントに 換える（{exchangePoints * rate:#,0}円）", () => Send(c), KeyCode.Return, Ok(c));
                 Add("換えない", () => Send(new LeaveFacility { Player = me }), KeyCode.Escape);
-                return $"{f.Prompt}　→ {exchangePoints}ポイント（{exchangePoints * rate:#,0}円）、のこり {p.Money - exchangePoints * rate:#,0}円";
+                OpenFrame("ポイント交換所", $"所持金 {p.Money:#,0}円");
+                for (int i = 0; i < menu.Count; i++) menuDetail[i] = $"{rate:#,0}円で 1ポイント\n\n換える数：{exchangePoints}ポイント\nはらう お金：{exchangePoints * rate:#,0}円\nのこる お金：{p.Money - exchangePoints * rate:#,0}円\n\nいちどに 換えられるのは {max}ポイントまで";
+                return f.Prompt;
             }
             case FacilityKind.Rival:
             {
@@ -961,33 +1028,74 @@ public partial class GameRunner : MonoBehaviour
                     Add($"交換：{species} Lv{level}（コスト{need:0.#}以上の子を 1体わたす）", () => Send(c), KeyCode.None, Ok(c));
                 }
                 Add("立ち去る", () => Send(new LeaveFacility { Player = me }), KeyCode.Escape);
+                OpenFrame("ライバルマス", $"通信ケーブル {cables}個");
                 return owner ? (f.Owner == me ? "自分のライバルマス" : "へんそう中") + "：交換進化が 無料でできる" : $"{S.Players[f.Owner].Name}の ライバルマス：交換進化には 通信ケーブルが要る（{cables}個 持っている）";
             }
             case FacilityKind.Shop:
-                foreach (var item in f.Goods) { var c = new Buy { Player = me, Item = item }; Add($"買う {item} {game.BuyPrice(item)}円", () => Send(c), KeyCode.None, Ok(c)); }
-                foreach (var item in p.PokemonBag.Concat(p.TrainerBag).Concat(p.Balls.Where(x => x.Value > 0).Select(x => x.Key)).Distinct()) { var c = new Sell { Player = me, Item = item }; if (Ok(c)) Add($"売る {item}" + (p.Balls.TryGetValue(item, out int ballCount) ? $"（{ballCount}個）" : "") + $" {game.SellPrice(item)}円", () => Send(c)); } // ボールも（マスターボールは売れないので出ない、8.9）
-                Add("店を出る", () => Send(new LeaveFacility { Player = me }), KeyCode.Escape);
-                return $"{(f.Prompt != "" ? f.Prompt : "ショップ")}（所持金 {p.Money}円）" + (S.WeekEvent == "セール" ? "　セール中！" : "");
-            case FacilityKind.Center:
-                for (int i = 0; i < p.Party.Count; i++) { var c = new CenterSwap { Player = me, PartySlot = i }; AddMon(p.Party[i].Species, $"あずける {p.Party[i].Species}", () => Send(c), KeyCode.None, Ok(c)); }
-                for (int i = 0; i < p.Box.Count; i++) { var c = new CenterSwap { Player = me, BoxIndex = i }; AddMon(p.Box[i].Species, $"手持ちに {p.Box[i].Species} Lv{p.Box[i].Level}", () => Send(c), KeyCode.None, Ok(c)); }
-                foreach (var job in p.UnlockedJobs) { var c = new ChangeJob { Player = me, Job = job }; Add($"職業：{job}に 就く", () => Send(c), KeyCode.None, Ok(c)); }
-                // もちものの着けはずし（8.2）
-                var heldItems = p.PokemonBag.Where(x => data.FindItem(x)?.IsHeldItem == true).Distinct().ToList();
-                for (int i = 0; i < p.Party.Count; i++)
+            {
+                // 買う・売るを最初に選び、品目を選んだあとに 個数を選ぶ（相談31）
+                OpenFrame((f.Prompt != "" ? f.Prompt : "ショップ") + (S.WeekEvent == "セール" ? "　セール中！" : ""), $"所持金 {p.Money:#,0}円");
+                var sellable = p.PokemonBag.Concat(p.TrainerBag).Concat(p.Balls.Where(x => x.Value > 0).Select(x => x.Key)).Distinct().Where(x => Ok(new Sell { Player = me, Item = x })).ToList(); // ボールも（マスターボールは売れないので出ない、8.9）
+                if (facilityTab == "buy" || facilityTab == "sell")
                 {
-                    if (p.Party[i].HeldItem != "") { var c = new HoldItem { Player = me, Slot = i }; Add($"はずす：{p.Party[i].Species}の {p.Party[i].HeldItem}", () => Send(c), KeyCode.None, Ok(c)); }
-                    foreach (var item in heldItems) { var c = new HoldItem { Player = me, Slot = i, Item = item }; Add($"もたせる：{item}→{p.Party[i].Species}", () => Send(c), KeyCode.None, Ok(c)); }
+                    bool sell = facilityTab == "sell";
+                    foreach (var item in sell ? sellable : f.Goods)
+                    {
+                        string it = item;
+                        Add($"{it}　{(sell ? game.SellPrice(it) : game.BuyPrice(it)):#,0}円", () => { subMenu = () => QuantityMenu(me, it, sell, 1); RefreshAll(); }, KeyCode.None, sell || Ok(new Buy { Player = me, Item = it }));
+                        Detail(ItemDetail(p, it));
+                    }
+                    Add("もどる", () => { facilityTab = ""; RefreshAll(); }, KeyCode.Escape);
+                    return sell ? "なにを 売る？" : "なにを 買う？（買えないものは うすい字）";
                 }
-                if (f.IsLab)
-                    for (int i = 0; i < p.Party.Count; i++)
-                        foreach (var target in Pokemons.LabTargets(data, p.Party[i]))
+                Add("買う", () => { facilityTab = "buy"; RefreshAll(); });
+                Add("売る", () => { facilityTab = "sell"; RefreshAll(); }, KeyCode.None, sellable.Count > 0);
+                Add("店を出る", () => Send(new LeaveFacility { Player = me }), KeyCode.Escape);
+                return "いらっしゃいませ！";
+            }
+            case FacilityKind.Center:
+            {
+                // 最初に「入れ替え／もちもの／職業（／進化サービス）／出る」を選び、それぞれを開く（相談34）
+                OpenFrame(f.IsLab ? "オーキド博士の研究室" : "ポケモンセンター", (p.Job != "" ? $"職業：{p.Job}　" : "") + $"所持金 {p.Money:#,0}円");
+                void Tab(string tab) { facilityTab = tab; RefreshAll(); }
+                var heldItems = p.PokemonBag.Where(x => data.FindItem(x)?.IsHeldItem == true).Distinct().ToList();
+                switch (facilityTab)
+                {
+                    case "swap": // 上の大きいカードは手持ち（押すと あずける）、下の小さいカードは控え（押すと 手持ちに）
+                        for (int i = 0; i < p.Party.Count; i++) { var c = new CenterSwap { Player = me, PartySlot = i }; AddCard(p.Party[i], "あずける", () => Send(c), KeyCode.None, Ok(c)); }
+                        for (int i = 0; i < p.Box.Count; i++) { var c = new CenterSwap { Player = me, BoxIndex = i }; AddCard(p.Box[i], "", () => Send(c), KeyCode.None, Ok(c), true); }
+                        Add("もどる", () => Tab(""), KeyCode.Escape);
+                        string why = p.Party.Count > 0 ? game.Validate(new CenterSwap { Player = me, PartySlot = 0 }) : null; // あずけられない理由（控えがいっぱい など）
+                        return "手持ち（上）を押すと あずける。控え（下）を押すと 手持ちに入れる" + (why != null ? $"　※{why}" : "");
+                    case "held": // もちものの着けはずし（8.2）
+                        for (int i = 0; i < p.Party.Count; i++)
                         {
-                            var c = new LabEvolve { Player = me, Slot = i, Target = target };
-                            Add($"進化サービス：{p.Party[i].Species}→{target}（{game.LabPrice(p):#,0}円）", () => Send(c), KeyCode.None, Ok(c));
+                            if (p.Party[i].HeldItem != "") { var c = new HoldItem { Player = me, Slot = i }; Add($"はずす：{p.Party[i].Species}の {p.Party[i].HeldItem}", () => Send(c), KeyCode.None, Ok(c)); Detail(ItemDetail(p, p.Party[i].HeldItem)); }
+                            foreach (var item in heldItems) { var c = new HoldItem { Player = me, Slot = i, Item = item }; Add($"もたせる：{item} → {p.Party[i].Species}", () => Send(c), KeyCode.None, Ok(c)); Detail(ItemDetail(p, item)); }
                         }
+                        Add("もどる", () => Tab(""), KeyCode.Escape);
+                        return "もちものを もたせる・はずす";
+                    case "job":
+                        foreach (var job in p.UnlockedJobs) { var c = new ChangeJob { Player = me, Job = job }; Add(job + (job == p.Job ? "（今の職業）" : ""), () => Send(c), KeyCode.None, Ok(c)); Detail($"{job}\n\n{data.Jobs.FirstOrDefault(j => j.Name == job)?.Effect}"); }
+                        Add("もどる", () => Tab(""), KeyCode.Escape);
+                        return "どの職業に つく？";
+                    case "lab":
+                        for (int i = 0; i < p.Party.Count; i++)
+                            foreach (var target in Pokemons.LabTargets(data, p.Party[i]))
+                            {
+                                var c = new LabEvolve { Player = me, Slot = i, Target = target };
+                                Add($"{p.Party[i].Species} → {target}", () => Send(c), KeyCode.None, Ok(c)); Detail($"進化サービス\n\n{p.Party[i].Species}を {target}に 進化させる\n\nねだん：{game.LabPrice(p):#,0}円");
+                            }
+                        Add("もどる", () => Tab(""), KeyCode.Escape);
+                        return $"進化サービス（1回 {game.LabPrice(p):#,0}円）";
+                }
+                Add("入れ替え（手持ちと 控え）", () => Tab("swap"), KeyCode.None, p.Party.Count > 1 || p.Box.Count > 0); Detail($"手持ち {p.Party.Count}体\n控え {p.Box.Count}体");
+                Add("もちもの", () => Tab("held"), KeyCode.None, heldItems.Count > 0 || p.Party.Any(m => m.HeldItem != "")); Detail("ポケモンに 道具を もたせる・はずす");
+                Add("職業", () => Tab("job"), KeyCode.None, p.UnlockedJobs.Count > 0); Detail(p.Job != "" ? $"今の職業：{p.Job}" : "まだ 職業に ついていない");
+                if (f.IsLab) { Add("進化サービス", () => Tab("lab"), KeyCode.None, p.Party.Any(m => Pokemons.LabTargets(data, m).Any())); Detail($"お金を はらって ポケモンを 進化させる\n1回 {game.LabPrice(p):#,0}円"); }
                 Add(f.IsLab ? "研究室を出る" : "センターを出る", () => Send(new LeaveFacility { Player = me }), KeyCode.Escape);
-                return (f.IsLab ? "オーキド博士の研究室" : "ポケモンセンター") + $"：みんな元気になった。手持ちと控えを入れかえられる" + (p.Job != "" ? $"（今の職業：{p.Job}）" : "");
+                return "みんな 元気に なった！　なにを する？";
+            }
             default: // 他人のファンマスの有料回復（16.4 #26）。いいえは 立ち去る
                 bool canPay = Ok(new AcceptHeal { Player = me });
                 Confirm($"{S.Players[f.Owner].Name}の ファンの家\n{f.Price}円 はらって かいふくしますか？" + (canPay ? "" : "（お金が たりない）"),
@@ -1066,7 +1174,8 @@ public partial class GameRunner : MonoBehaviour
             {
                 var winner = S.Players[b.Sides[b.Winner].Player];
                 var loser = S.Players[b.Sides[1 - b.Winner].Player];
-                foreach (var item in loser.PokemonBag.Concat(loser.TrainerBag).Distinct()) { string it = item; Add($"うばう：{it}", () => Send(new ChooseReward { Player = winner.Id, Reward = Reward.Item, Item = it })); }
+                OpenFrame("ほうび", $"{winner.Name}の 勝ち！");
+                foreach (var item in loser.PokemonBag.Concat(loser.TrainerBag).Distinct()) { string it = item; Add($"うばう：{it}", () => Send(new ChooseReward { Player = winner.Id, Reward = Reward.Item, Item = it })); Detail(ItemDetail(loser, it)); }
                 Add("ファンを1人うばう", () => Send(new ChooseReward { Player = winner.Id, Reward = Reward.Fan }), KeyCode.None, Ok(new ChooseReward { Player = winner.Id, Reward = Reward.Fan }));
                 Add("ポケモンを交換", () => { subMenu = () => TradeMenu(winner, loser, -1); RefreshAll(); }, KeyCode.None, !b.Surrendered && loser.Party.Count > 1); // 相手が1体だけなら奪えない
                 Add("許す", () => Send(new ChooseReward { Player = winner.Id, Reward = Reward.Forgive }), KeyCode.Escape);
@@ -1117,7 +1226,8 @@ public partial class GameRunner : MonoBehaviour
     {
         if (take < 0)
         {
-            for (int i = 0; i < loser.Party.Count; i++) { int k = i; var m = loser.Party[i]; AddMon(m.Species, $"{m.Species} Lv{m.Level}（コスト{Pokemons.Cost10(data, m) / 10.0:0.0}）", () => { subMenu = () => TradeMenu(winner, loser, k); RefreshAll(); }); }
+            OpenFrame("ポケモン交換", $"{loser.Name}の 手持ち");
+            for (int i = 0; i < loser.Party.Count; i++) { int k = i; var m = loser.Party[i]; AddCard(m, $"コスト{Pokemons.Cost10(data, m) / 10.0:0.0}", () => { subMenu = () => TradeMenu(winner, loser, k); RefreshAll(); }); }
             Add("もどる", () => { subMenu = null; RefreshAll(); }, KeyCode.Escape);
             DrawMenu($"{winner.Name}さん：{loser.Name}さんの どの子が ほしい？");
             return;
@@ -1125,8 +1235,9 @@ public partial class GameRunner : MonoBehaviour
         void Offer(PokemonState m, int index, bool box)
         {
             var c = new ChooseReward { Player = winner.Id, Reward = Reward.Trade, Take = take, Give = index, GiveFromBox = box };
-            AddMon(m.Species, $"{(box ? "控え " : "")}{m.Species} Lv{m.Level}（コスト{Pokemons.Cost10(data, m) / 10.0:0.0}）", () => Send(c), KeyCode.None, Ok(c));
+            AddCard(m, $"コスト{Pokemons.Cost10(data, m) / 10.0:0.0}", () => Send(c), KeyCode.None, Ok(c), box);
         }
+        OpenFrame("ポケモン交換", $"{winner.Name}の 手持ちと 控え");
         for (int i = 0; i < winner.Party.Count; i++) Offer(winner.Party[i], i, false);
         for (int i = 0; i < winner.Box.Count; i++) Offer(winner.Box[i], i, true);
         Add("もどる", () => { subMenu = () => TradeMenu(winner, loser, -1); RefreshAll(); }, KeyCode.Escape);
@@ -1144,12 +1255,14 @@ public partial class GameRunner : MonoBehaviour
     {
         prompt.text = title;
         Ui.Clear(buttons);
+        bool frame = FrameOpen; // まん中の枠に出す（施設・ポケモン・どうぐ）。そのあいだ E メニューは隠す
+        frameRoot.gameObject.SetActive(frame);
         // 項目が多いときは2列に
         var grid = buttons.GetComponent<GridLayoutGroup>();
         grid.constraintCount = menu.Count > 7 ? 2 : 1;
         grid.cellSize = new Vector2(menu.Count > 7 ? 276 : 560, menu.Count > 14 ? 40 : 50);
-        var made = new List<Button>();
-        for (int i = 0; i < menu.Count; i++)
+        var made = frame ? DrawFrame(title) : new List<Button>();
+        for (int i = 0; i < menu.Count && !frame; i++)
         {
             var (label, action, _, enabled) = menu[i];
             var b = Ui.Button(buttons, i < 9 ? $"{i + 1}. {label}" : label, action);
@@ -1167,8 +1280,16 @@ public partial class GameRunner : MonoBehaviour
             made.Add(b);
         }
         PadHighlight(title, made); // コントローラーのカーソル
+        if (frame) ShowDetail(menuCursor);
+        // カードは 色を変えると字が読めないので、金色のふちで 選んでいることを見せる
+        if (frame && menuCursor < made.Count && menuCards.TryGetValue(menuCursor, out var picked))
+        {
+            made[menuCursor].image.color = picked.mon.Fainted ? FaintedColor : CardColor;
+            var edge = made[menuCursor].gameObject.AddComponent<Outline>();
+            edge.effectColor = new Color(1f, 0.85f, 0.4f); edge.effectDistance = new Vector2(5, 5);
+        }
         // バトル中、コマンドとカードは バトル画面で選ぶので E メニューは隠す（選ぶものがないときも）
-        if (menuPanel != null) menuPanel.gameObject.SetActive(!EventOpen && !ConfirmOpen && !(battlePanel.gameObject.activeSelf && (menu.Count == 0 || SceneInput)));
+        if (menuPanel != null) menuPanel.gameObject.SetActive(!frame && !EventOpen && !ConfirmOpen && !(battlePanel.gameObject.activeSelf && (menu.Count == 0 || SceneInput)));
         if (EventOpen && ConfirmOpen) { Ui.Clear(eventChoices); eventPrompt.text = ""; } // 確認は まん中の枠で（後ろの選択肢は出さない）
         else if (EventOpen) DrawEventChoices(title); // イベント画面では 選択肢をセリフ欄の右に
         DrawConfirm();

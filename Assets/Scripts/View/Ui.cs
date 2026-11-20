@@ -7,7 +7,8 @@ using UnityEngine.UI;
 public static class Ui
 {
     static Font font;
-    public static Font Font => font != null ? font : font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+    // 字は DotGothic16（相談36。出どころは 素材の出典.md）。なければ Unity に入っている字
+    public static Font Font => font != null ? font : font = Resources.Load<Font>("Fonts/DotGothic16/DotGothic16-Regular") ?? Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
     // 丸い絵（ポケモンの仮の見た目に使う）
     static Sprite circle;

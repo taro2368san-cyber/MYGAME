@@ -57,7 +57,8 @@ public partial class GameRunner
     // メニューを空にする（確認も閉じる）
     void ClearMenu()
     {
-        menu.Clear(); menuArt.Clear();
+        menu.Clear(); menuArt.Clear(); menuDetail.Clear(); menuCards.Clear();
+        frameTitle = null;
         confirmQuestion = null;
     }
 }
